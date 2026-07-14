@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>LandmassGenerator</RootNamespace>
+    <AssemblyName>LandmassGenerator</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="VintagestoryAPI">
+      <HintPath>$(APPDATA)\Vintagestory\VintagestoryAPI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VintagestoryLib">
+      <HintPath>$(APPDATA)\Vintagestory\VintagestoryLib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VSSurvivalMod">
+      <HintPath>$(APPDATA)\Vintagestory\Mods\VSSurvivalMod.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="Package" AfterTargets="PostBuildEvent">
+    <!-- Extract the mod version from modinfo.json so the output zip has it baked in -->
+    <PropertyGroup>
+      <ModInfoContent>$([System.IO.File]::ReadAllText('$(ProjectDir)modinfo.json'))</ModInfoContent>
+      <ModVersion>$([System.Text.RegularExpressions.Regex]::Match($(ModInfoContent), '"version"\s*:\s*"([^"]+)"').Groups[1].Value)</ModVersion>
+      <ZipName>LandmassGenerator_$(ModVersion).zip</ZipName>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageFiles Include="$(TargetPath)" />
+      <PackageFiles Include="modinfo.json" />
+      <OldZipsBin Include="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\LandmassGenerator*.zip" />
+      <OldZipsDeploy Include="$(APPDATA)\VintagestoryData\Mods\LandmassGenerator*.zip" />
+      <StaleUnpackCache
+        Include="$([System.IO.Directory]::GetDirectories('$(APPDATA)\VintagestoryData\Cache\unpack', 'LandmassGenerator*'))"
+        Condition="Exists('$(APPDATA)\VintagestoryData\Cache\unpack')" />
+    </ItemGroup>
+
+    <!-- 1. Clean old bin zips and build the new zip -->
+    <Delete Files="@(OldZipsBin)" />
+    <Copy SourceFiles="@(PackageFiles)" DestinationFolder="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\mod\" />
+    <ZipDirectory SourceDirectory="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\mod\" DestinationFile="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\$(ZipName)" Overwrite="true" />
+
+    <!-- 2. Best-effort cleanup of deployed/cached artifacts (may be locked while the game runs) -->
+    <Delete Files="@(OldZipsDeploy)" ContinueOnError="true" />
+    <RemoveDir Directories="@(StaleUnpackCache)" ContinueOnError="true" />
+
+    <!-- 3. Deploy the freshly built zip last -->
+    <Copy SourceFiles="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\$(ZipName)" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" />
+    <Message Importance="high" Text="Deployed $(ZipName) to $(APPDATA)\VintagestoryData\Mods\" />
+  </Target>
+
+</Project>
