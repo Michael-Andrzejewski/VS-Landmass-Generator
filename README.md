@@ -4,9 +4,9 @@ A Vintage Story code mod that generates whole procedural landmasses from a singl
 
 ## `/genisland [key=value ...]`
 
-Generates a procedural ocean island centred on where you stand. Because a landmass is far more blocks than a normal fill may touch at once, it does not run in one burst. It force-loads the island's chunks and then builds column by column across game ticks, committing one batch per tick, so even a 500-block island never freezes the server. An oak is grown at the summit once the ground is down.
+Generates a procedural ocean island centred on where you stand. Because a landmass is far more blocks than a normal fill may touch at once, it does not run in one burst. It force-loads the island's chunks and then builds column by column across game ticks, committing one batch per tick, so even a 500-block island never freezes the server.
 
-The shape is a radial dome with a simplex-noise coastline. The height falloff is biased by compass direction, so one side eases down into a sandy beach while the opposite side drops as a stone cliff, and the seafloor deepens outside the coast.
+The shape is a radial dome with a simplex-noise coastline. The height falloff is biased by compass direction, so one side eases down into a sandy beach while the opposite side drops as a stone cliff. The island is rooted on the **real sea floor** (probed per column), its flank slopes down to meet it, and it blends back into the natural seabed at the work boundary, so nothing floats and there is no visible rim.
 
 Requires the `controlserver` privilege (you have it in single player). Only one island generates at a time.
 
@@ -17,27 +17,54 @@ Options are `key=value` tokens in any order. A lone leading number is read as `d
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `diameter` | 120 | Island width in blocks. |
-| `height` | 40 | Peak height above sea level at the centre. |
-| `water` | 30 | How far the surrounding seafloor drops below sea level. |
-| `basedepth` | 20 | Solid rock depth below sea level under the island. |
+| `height` | 40 | Peak height above the water line at the centre. |
+| `water` | 30 | How far the sea floor is carved down just outside the coast. |
+| `sealevel` | world's | The water line. Water fills up to one block below it, matching the surrounding ocean. |
+| `maxdepth` | 80 | Safety cap on how far below the water line a column will fill. |
 | `beachdir` | `s` | Compass side (`n e s w`) that eases into a sand beach. |
 | `cliffdir` | `n` | Compass side that drops as a stone cliff. |
 | `seed` | random | Fixes the shape so a run is repeatable. |
-| `stone` | `rock-granite` | Core block. |
+| `ores` | none | Ore veins to seed. See below. |
+| `forest` | 0 | Chance per land column of a tree, e.g. `0.02`. 0 means bare. |
+| `trees` | `oak` | Comma-separated tree types for the forest. |
+| `stone` | `rock-granite` | Core block. Ore must occur in this rock. |
 | `soil` | `soil-medium-none` | Sub-surface dirt. |
 | `grass` | `soil-medium-normal` | Grass-topped surface. |
 | `sand` | `sand-granite` | Beach block. |
 
-Example: `/genisland diameter=200 height=45 beachdir=s cliffdir=n seed=1234`.
+### Ore
+
+Vintage Story's ore pass only runs during natural worldgen, so blocks this mod places contain **no ore at all** unless you ask for it. That means the island's geology is entirely yours to choose.
+
+    ores=copper:rich,iron:medium,tin:sparse
+
+Each ore gets its own 3D noise field: above a threshold is a vein, and the deeper into the vein a block sits, the richer the grade (poor to bountiful). Richness may be `sparse`, `medium`, `rich`, `abundant`, or a `0..1` number.
+
+Friendly names (`copper`, `iron`, `tin`, `zinc`, `lead`, `nickel`, `chromium`, `titanium`, `tungsten`, `bismuth`, `manganese`) map to the underlying minerals, or you can name a mineral directly: `nativecopper`, `limonite`, `galena`, `cassiterite`, `chromite`, `ilmenite`, `sphalerite`, `bismuthinite`, `magnetite`, `hematite`, `malachite`, `pentlandite`, `uranium`, `wolframite`, `rhodochrosite`.
+
+Ore blocks are rock-specific, so an ore that does not occur in your `stone` rock is reported and skipped rather than silently dropped.
+
+### Forest
+
+    forest=0.02 trees=oak,pine,birch
+
+After the terrain lands, a second pass walks the grass and rolls `forest` per column, growing a random tree from your list using the game's own tree generators (so they look native). Trees are only placed on grass, never on the beach or the cliff faces. A single tall oak is always planted at the summit as a landmark.
+
+### Examples
+
+    /genisland diameter=120
+    /genisland diameter=200 height=45 beachdir=s cliffdir=n seed=1234
+    /genisland diameter=300 height=60 ores=copper:rich,iron:medium forest=0.02 trees=oak,pine
 
 Run it from open ocean for the cleanest result. On existing land it clears the terrain above the new island.
 
 ## Notes and current limits
 
-This is an early, standalone build kept separate from Building Commands until it proves stable.
+Early standalone build, kept separate from Building Commands until it proves stable.
 
 - Chunks are loaded with `KeepLoaded=false`, so for very large islands stay near the centre while it generates.
 - No undo yet. Generate on a test world or somewhere you do not mind reshaping.
+- The shape is still a radial dome. Generating from a hand-drawn island outline is the next planned feature.
 
 ## Building
 

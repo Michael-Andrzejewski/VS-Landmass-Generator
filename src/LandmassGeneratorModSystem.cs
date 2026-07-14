@@ -11,19 +11,19 @@ namespace LandmassGenerator;
 /// <summary>
 /// Adds /genisland, a procedural landmass generator for Vintage Story.
 ///
-///   /genisland [diameter=..] [height=..] [water=..] [basedepth=..]
-///              [beachdir=n|e|s|w] [cliffdir=n|e|s|w] [seed=..]
-///              [stone=..] [soil=..] [grass=..] [sand=..]
+/// A whole island is far more blocks than a normal fill can touch in one go, so
+/// this never runs as a single burst. It force-loads the island's chunks, then
+/// places terrain column by column across many game ticks, committing one bulk
+/// batch per tick, so even a 500-block island does not stall the server thread.
 ///
-/// A whole island is far more blocks than a normal fill can touch in one go,
-/// so this never runs as a single burst. It force-loads the island's chunks,
-/// then places the terrain column by column across many game ticks, committing
-/// one bulk batch per tick, so even a 500-block island does not stall the
-/// server thread. The shape is analytic: a radial dome whose coastline is
-/// perturbed by simplex noise, with the height falloff biased by compass
-/// direction so one side eases into a sandy beach while the opposite side drops
-/// as a stone cliff, and the seafloor deepening outside the coast. A native oak
-/// is grown at the summit once the ground has landed.
+/// The shape is analytic: a radial dome whose coastline is perturbed by simplex
+/// noise, with the height falloff biased by compass direction so one side eases
+/// into a sandy beach while the opposite side drops as a stone cliff. The island
+/// is rooted on the REAL sea floor (probed per column) and its flank slopes down
+/// to meet it, then blends back into the natural seabed at the work boundary, so
+/// nothing floats. Ore is seeded with 3D noise veins (worldgen's ore pass never
+/// runs on blocks we place, so every ore here is deliberate), and a forest pass
+/// scatters trees over the grass afterwards.
 /// </summary>
 public class LandmassGeneratorModSystem : ModSystem
 {
@@ -35,16 +35,31 @@ public class LandmassGeneratorModSystem : ModSystem
     private long _islandListenerId;
     private bool _islandBusy;
 
+    // Graded ore types the game ships (worldproperties/block/ore-graded).
+    private static readonly string[] OreTypes =
+    {
+        "nativecopper", "limonite", "galena", "cassiterite", "chromite", "ilmenite",
+        "sphalerite", "bismuthinite", "magnetite", "hematite", "malachite",
+        "pentlandite", "uranium", "wolframite", "rhodochrosite"
+    };
+
+    // Friendly names so you can write copper/iron/tin instead of the mineral.
+    private static readonly Dictionary<string, string> OreAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "copper", "nativecopper" }, { "iron", "limonite" }, { "tin", "cassiterite" },
+        { "zinc", "sphalerite" }, { "lead", "galena" }, { "nickel", "pentlandite" },
+        { "chromium", "chromite" }, { "chrome", "chromite" }, { "titanium", "ilmenite" },
+        { "tungsten", "wolframite" }, { "bismuth", "bismuthinite" }, { "manganese", "rhodochrosite" }
+    };
+
     public override void StartServerSide(ICoreServerAPI api)
     {
         sapi = api;
         var p = api.ChatCommands.Parsers;
 
-        // Register under the bare name, falling back to a cb-prefixed alias if
-        // some other mod already claims it, so a collision cannot abort us.
         RegisterCmd(api, "genisland", name =>
             api.ChatCommands.Create(name)
-                .WithDescription("Generate a procedural ocean island around you, spread across ticks so it does not freeze the server. Options are key=value, e.g. /genisland diameter=200 height=45 beachdir=s cliffdir=n. Keys: diameter, height, water, basedepth, beachdir, cliffdir, seed, stone, soil, grass, sand.")
+                .WithDescription("Generate a procedural ocean island around you, spread across ticks so it does not freeze the server. Options are key=value, e.g. /genisland diameter=200 height=45 beachdir=s cliffdir=n ores=copper:rich,iron:medium forest=0.02 trees=oak,pine. Keys: diameter, height, water, sealevel, maxdepth, beachdir, cliffdir, seed, ores, forest, trees, stone, soil, grass, sand.")
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(p.OptionalAll("options"))
                 .HandleWith(OnGenIsland));
@@ -52,8 +67,6 @@ public class LandmassGeneratorModSystem : ModSystem
         api.Logger.Notification("[landmassgenerator] Ready. Use /genisland to build an island where you stand.");
     }
 
-    // Register a command under its bare name, or under "lg" + name if the bare
-    // name is already taken, so one collision cannot stop the mod loading.
     private void RegisterCmd(ICoreServerAPI api, string name, Action<string> build)
     {
         try
@@ -76,27 +89,60 @@ public class LandmassGeneratorModSystem : ModSystem
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  /genisland
+    //  Job state
     // ─────────────────────────────────────────────────────────────────────
 
-    // Everything one generation job needs, precomputed once so the per-column
-    // math on each tick stays cheap.
+    // One ore the island should contain. Worldgen never seeds our blocks, so
+    // each ore is placed by its own 3D noise field: above the threshold is a
+    // vein, and the deeper into the vein, the richer the grade.
+    private class OreSpec
+    {
+        public string Name;
+        public NormalizedSimplexNoise Noise;
+        public double Threshold;
+        public int PoorId, MediumId, RichId, BountifulId;
+
+        public bool TryPick(int x, int y, int z, out int id)
+        {
+            id = 0;
+            double n = Noise.Noise(x, y, z);
+            if (n < Threshold) return false;
+
+            double into = n - Threshold;
+            if (into > 0.12 && BountifulId != 0) id = BountifulId;
+            else if (into > 0.08 && RichId != 0) id = RichId;
+            else if (into > 0.04 && MediumId != 0) id = MediumId;
+            else id = PoorId != 0 ? PoorId : MediumId != 0 ? MediumId : RichId;
+            return id != 0;
+        }
+    }
+
     private class IslandJob
     {
-        public int Cx, Cz, Dim, BaseY;         // centre column and sea level
+        public int Cx, Cz, Dim, SeaLevel;      // centre column and the water line
         public double R, Rmax, OceanRing;      // island radius, work radius, offshore falloff
-        public int DomeHeight, Water, BaseDepth;
+        public int DomeHeight, Water, MaxDepth;
         public double Bvx, Bvz, Cvx, Cvz;       // beach and cliff unit direction vectors
-        public double BumpAmp;                  // surface roughness amplitude
+        public double BumpAmp;
         public NormalizedSimplexNoise CoastNoise, SurfNoise;
         public int StoneId, SoilId, GrassId, SandId, WaterId;
-        public int MinX, MinZ, W, H;            // bounding box of columns to visit
-        public long I, Total, Placed;           // iteration cursor and running count
+        public List<OreSpec> Ores = new();
+        public List<ITreeGenerator> ForestTrees = new();
+        public double ForestDensity;
+        public ITreeGenerator SummitTree;
+        public int MinX, MinZ, W, H;
+        public long I, Total, Placed, Trees;
         public int ColumnsPerTick;
         public long Seed;
-        public IServerPlayer Player;            // who to report back to (may be null)
+        public int Phase;                       // 0 = terrain, 1 = forest
+        public LCGRandom Rand;
+        public IServerPlayer Player;
         public bool HasNext => I < Total;
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Command
+    // ─────────────────────────────────────────────────────────────────────
 
     private TextCommandResult OnGenIsland(TextCommandCallingArgs args)
     {
@@ -118,12 +164,13 @@ public class LandmassGeneratorModSystem : ModSystem
             else if (i == 0 && int.TryParse(tok, out _)) opt["diameter"] = tok;
         }
 
-        GetOrigin(args.Caller, out int ox, out int oy, out int oz, out int dim);
+        GetOrigin(args.Caller, out int ox, out int _, out int oz, out int dim);
 
         int diameter = OptInt(opt, "diameter", 120, 8, 1024);
         int height = OptInt(opt, "height", 40, 3, 220);
         int water = OptInt(opt, "water", 30, 0, 200);
-        int basedepth = OptInt(opt, "basedepth", 20, 1, 200);
+        int maxdepth = OptInt(opt, "maxdepth", 80, 8, 250);
+        int seaLevel = OptInt(opt, "sealevel", sapi.World.SeaLevel, 2, sapi.WorldManager.MapSizeY - 2);
         string beachDir = OptDir(opt, "beachdir", "s");
         string cliffDir = OptDir(opt, "cliffdir", "n");
 
@@ -131,8 +178,9 @@ public class LandmassGeneratorModSystem : ModSystem
         if (!opt.TryGetValue("seed", out string seedStr) || !long.TryParse(seedStr, out seed))
             seed = sapi.World.Rand.Next(1, int.MaxValue);
 
-        // Resolve the block palette, letting the caller override any of it.
-        Block stone = ResolveBlock(OptStr(opt, "stone", "rock-granite"), out string se);
+        // Block palette, all overridable.
+        string stoneCode = OptStr(opt, "stone", "rock-granite");
+        Block stone = ResolveBlock(stoneCode, out string se);
         Block soil = ResolveBlock(OptStr(opt, "soil", "soil-medium-none"), out string oe);
         Block grass = ResolveBlock(OptStr(opt, "grass", "soil-medium-normal"), out string ge);
         Block sand = ResolveBlock(OptStr(opt, "sand", "sand-granite"), out string ae);
@@ -143,7 +191,40 @@ public class LandmassGeneratorModSystem : ModSystem
         if (sand == null) return TextCommandResult.Error("sand: " + ae);
         if (waterBlock == null) return TextCommandResult.Error("water: " + we);
 
-        int baseY = sapi.World.SeaLevel;
+        // Ore must match the host rock, e.g. ore-medium-nativecopper-granite.
+        string rockType = stoneCode.StartsWith("rock-", StringComparison.OrdinalIgnoreCase)
+            ? stoneCode.Substring(5) : null;
+
+        var ores = new List<OreSpec>();
+        var oreProblems = new List<string>();
+        if (opt.TryGetValue("ores", out string oreStr) && !string.IsNullOrWhiteSpace(oreStr))
+        {
+            if (rockType == null)
+                oreProblems.Add("ores need a rock-* stone block to sit in");
+            else
+                ParseOres(oreStr, rockType, seed, ores, oreProblems);
+        }
+
+        // Forest.
+        double forest = OptDouble(opt, "forest", 0.0, 0.0, 0.35);
+        var forestTrees = new List<ITreeGenerator>();
+        var treeProblems = new List<string>();
+        if (forest > 0)
+        {
+            string treeStr = OptStr(opt, "trees", "oak");
+            foreach (string want in treeStr.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                ITreeGenerator g = FindTreeGenerator(want.Trim());
+                if (g != null) forestTrees.Add(g);
+                else treeProblems.Add(want.Trim());
+            }
+            if (forestTrees.Count == 0)
+            {
+                forest = 0;
+                treeProblems.Add("no usable tree generators, forest skipped");
+            }
+        }
+
         double R = diameter / 2.0;
         double oceanRing = Math.Max(24.0, R * 0.6);
         double rmax = R * 1.12 + oceanRing;
@@ -152,21 +233,29 @@ public class LandmassGeneratorModSystem : ModSystem
         DirVec(beachDir, out double bvx, out double bvz);
         DirVec(cliffDir, out double cvx, out double cvz);
 
+        var rand = new LCGRandom(seed);
+
         var job = new IslandJob
         {
-            Cx = ox, Cz = oz, Dim = dim, BaseY = baseY,
+            Cx = ox, Cz = oz, Dim = dim, SeaLevel = seaLevel,
             R = R, Rmax = rmax, OceanRing = oceanRing,
-            DomeHeight = height, Water = water, BaseDepth = basedepth,
+            DomeHeight = height, Water = water, MaxDepth = maxdepth,
             Bvx = bvx, Bvz = bvz, Cvx = cvx, Cvz = cvz,
             BumpAmp = Math.Min(4.0, height * 0.15),
             CoastNoise = NormalizedSimplexNoise.FromDefaultOctaves(4, 1 / 40.0, 0.5, seed),
             SurfNoise = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 22.0, 0.5, seed + 1),
             StoneId = stone.BlockId, SoilId = soil.BlockId, GrassId = grass.BlockId,
             SandId = sand.BlockId, WaterId = waterBlock.BlockId,
+            Ores = ores,
+            ForestTrees = forestTrees,
+            ForestDensity = forest,
+            SummitTree = FindTreeGenerator("oak"),
             MinX = ox - reach, MinZ = oz - reach,
             W = reach * 2 + 1, H = reach * 2 + 1,
             ColumnsPerTick = 400,
             Seed = seed,
+            Phase = 0,
+            Rand = rand,
             Player = args.Caller?.Player as IServerPlayer
         };
         job.Total = (long)job.W * job.H;
@@ -178,15 +267,71 @@ public class LandmassGeneratorModSystem : ModSystem
         int cz1 = FloorDiv(job.MinZ, cs), cz2 = FloorDiv(job.MinZ + job.H - 1, cs);
 
         _islandBusy = true;
-        var opts = new ChunkLoadOptions
-        {
-            KeepLoaded = false,
-            OnLoaded = () => StartIslandJob(job)
-        };
-        sapi.WorldManager.LoadChunkColumnPriority(cx1, cz1, cx2, cz2, opts);
+        sapi.WorldManager.LoadChunkColumnPriority(cx1, cz1, cx2, cz2,
+            new ChunkLoadOptions { KeepLoaded = false, OnLoaded = () => StartIslandJob(job) });
 
-        return TextCommandResult.Success(
-            $"Loading {(cx2 - cx1 + 1) * (cz2 - cz1 + 1)} chunk column(s), then generating a {diameter}-block island (beach {beachDir}, cliffs {cliffDir}, seed {seed}). It builds over a few seconds without freezing the server.");
+        string msg = $"Generating a {diameter}-block island (beach {beachDir}, cliffs {cliffDir}, sea level {seaLevel}, seed {seed})";
+        if (ores.Count > 0) msg += $", ores: {string.Join(", ", ores.ConvertAll(o => o.Name))}";
+        if (forest > 0) msg += $", forest {forest:0.###}";
+        msg += ". It builds over a few seconds without freezing the server.";
+        if (oreProblems.Count > 0) msg += " Skipped ore: " + string.Join("; ", oreProblems) + ".";
+        if (treeProblems.Count > 0) msg += " Tree issues: " + string.Join("; ", treeProblems) + ".";
+        return TextCommandResult.Success(msg);
+    }
+
+    // ores=copper:rich,iron:medium,tin:sparse  (richness may also be a 0..1 number)
+    private void ParseOres(string spec, string rockType, long seed, List<OreSpec> ores, List<string> problems)
+    {
+        int idx = 0;
+        foreach (string entry in spec.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] parts = entry.Split(':');
+            string name = parts[0].Trim();
+            string rich = parts.Length > 1 ? parts[1].Trim() : "medium";
+
+            if (OreAliases.TryGetValue(name, out string mapped)) name = mapped;
+            if (Array.IndexOf(OreTypes, name.ToLowerInvariant()) < 0)
+            {
+                problems.Add($"unknown ore '{parts[0].Trim()}' (try: copper, iron, tin, zinc, lead, or a mineral name like {string.Join(", ", OreTypes[0], OreTypes[1], OreTypes[3])})");
+                continue;
+            }
+
+            var o = new OreSpec
+            {
+                Name = name,
+                Threshold = RichnessToThreshold(rich),
+                Noise = NormalizedSimplexNoise.FromDefaultOctaves(2, 1 / 11.0, 0.5, seed + 100 + idx),
+                PoorId = OreId("poor", name, rockType),
+                MediumId = OreId("medium", name, rockType),
+                RichId = OreId("rich", name, rockType),
+                BountifulId = OreId("bountiful", name, rockType)
+            };
+            idx++;
+
+            if (o.PoorId == 0 && o.MediumId == 0 && o.RichId == 0 && o.BountifulId == 0)
+                problems.Add($"{name} does not occur in {rockType}");
+            else
+                ores.Add(o);
+        }
+    }
+
+    private int OreId(string grade, string type, string rock)
+    {
+        Block b = sapi.World.GetBlock(new AssetLocation("game", $"ore-{grade}-{type}-{rock}"));
+        return b?.BlockId ?? 0;
+    }
+
+    private static double RichnessToThreshold(string rich)
+    {
+        if (double.TryParse(rich, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+            return Math.Clamp(0.86 - 0.30 * Math.Clamp(v, 0, 1), 0.55, 0.90);
+        switch (rich.ToLowerInvariant())
+        {
+            case "sparse": return 0.82;
+            case "rich": return 0.68;
+            case "abundant": return 0.62;
+            default: return 0.75; // medium
+        }
     }
 
     private void StartIslandJob(IslandJob job)
@@ -195,8 +340,9 @@ public class LandmassGeneratorModSystem : ModSystem
         _islandListenerId = sapi.Event.RegisterGameTickListener(OnIslandTick, 40);
     }
 
-    // One tick's worth of columns: a fresh bulk accessor, up to ColumnsPerTick
-    // columns, then a single Commit that relights and syncs the batch at once.
+    // ─────────────────────────────────────────────────────────────────────
+    //  Tick loop: phase 0 lays terrain, phase 1 scatters the forest
+    // ─────────────────────────────────────────────────────────────────────
     private void OnIslandTick(float dt)
     {
         IslandJob job = _islandJob;
@@ -211,33 +357,60 @@ public class LandmassGeneratorModSystem : ModSystem
             int x = job.MinX + (int)(job.I % job.W);
             int z = job.MinZ + (int)(job.I / job.W);
             job.I++;
-            if (FillColumn(job, ba, pos, x, z)) job.Placed++;
+
+            if (job.Phase == 0)
+            {
+                if (FillColumn(job, ba, pos, x, z)) job.Placed++;
+            }
+            else
+            {
+                if (TryPlantTree(job, ba, pos, x, z)) job.Trees++;
+            }
         }
         ba.Commit();
 
-        if (!job.HasNext)
+        if (job.HasNext) return;
+
+        // Terrain done: run a forest pass if one was asked for.
+        if (job.Phase == 0 && job.ForestDensity > 0 && job.ForestTrees.Count > 0)
         {
-            sapi.Event.UnregisterGameTickListener(_islandListenerId);
-            _islandListenerId = 0;
-            _islandJob = null;
-            string treeMsg = PlaceSummitTree(job);
-            _islandBusy = false;
-            ReportIsland(job, $"Island complete: touched {job.Placed} column(s). {treeMsg}");
+            job.Phase = 1;
+            job.I = 0;
+            return;
         }
+
+        sapi.Event.UnregisterGameTickListener(_islandListenerId);
+        _islandListenerId = 0;
+        _islandJob = null;
+        string treeMsg = PlaceSummitTree(job);
+        _islandBusy = false;
+
+        string done = $"Island complete: {job.Placed} column(s)";
+        if (job.Trees > 0) done += $", {job.Trees} tree(s)";
+        ReportIsland(job, done + ". " + treeMsg);
     }
 
-    // Compute this column's surface, then lay stone, soil, a top block, water up
-    // to sea level, and clear any pre-existing terrain above. Returns false for
-    // columns outside the work radius (nothing placed).
+    // Lay one column: root it on the real sea floor, stack stone (veined with
+    // ore) then soil then a top block, and turn everything above into water up
+    // to the water line or air above it.
     private bool FillColumn(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z)
     {
-        if (!ColumnSurface(job, x, z, out int topY, out bool underwater, out int topMat, out bool nearIsland))
+        // The natural terrain height BEFORE we touch this column. Each column is
+        // visited once, so this is always the original sea floor / ground.
+        pos.Set(x, job.SeaLevel, z);
+        int naturalY = sapi.World.BlockAccessor.GetTerrainMapheightAt(pos);
+
+        if (!ColumnSurface(job, x, z, naturalY, out int topY, out bool underwater, out int topMat, out bool nearIsland))
             return false;
 
-        int floorY = Math.Max(1, job.BaseY - job.BaseDepth - job.Water - 2);
-        const int soilDepth = 3;
+        // Root the column on whichever is lower: the existing sea floor or our
+        // own surface. That fills the gap down to the seabed so nothing floats,
+        // and when we are carving DOWN it collapses to just the surface block.
+        int fillFrom = Math.Min(naturalY, topY);
+        fillFrom = Math.Max(fillFrom, Math.Max(1, job.SeaLevel - job.MaxDepth));
 
-        for (int y = floorY; y <= topY; y++)
+        const int soilDepth = 3;
+        for (int y = fillFrom; y <= topY; y++)
         {
             pos.Set(x, y, z);
             int id;
@@ -246,41 +419,38 @@ public class LandmassGeneratorModSystem : ModSystem
             else if (y > topY - soilDepth)
                 id = topMat == 1 ? job.SandId : topMat == 2 ? job.StoneId : job.SoilId;
             else
-                id = job.StoneId;
+                id = PickStone(job, x, y, z);
             ba.SetBlock(id, pos);
-            // Below sea level our ground replaces open ocean, so clear any water
-            // the fluid layer still holds there (else stone reads as submerged).
-            if (y <= job.BaseY) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+            // Our ground replaces open ocean below the water line, so clear the
+            // fluid layer too, else the stone reads as submerged.
+            if (y < job.SeaLevel) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
         }
 
-        if (underwater)
-            for (int y = topY + 1; y <= job.BaseY; y++)
-            {
-                pos.Set(x, y, z);
-                ba.SetBlock(job.WaterId, pos, BlockLayersAccess.Fluid);
-            }
-
-        // Strip anything that was already standing above our result (so running
-        // this over existing land still yields a clean island, not a buried one).
-        // Only near the island: far offshore columns are already open air/water.
-        if (nearIsland)
+        // Everything above the new surface: water up to the water line (this is
+        // what carves the deepening sea outside the coast), air above it, and
+        // any pre-existing terrain stripped away.
+        int clearTop = Math.Max(naturalY, nearIsland ? job.SeaLevel + job.DomeHeight + 6 : job.SeaLevel);
+        for (int y = topY + 1; y <= clearTop; y++)
         {
-            int clearFrom = (underwater ? job.BaseY : topY) + 1;
-            int clearTo = job.BaseY + job.DomeHeight + 6;
-            for (int y = clearFrom; y <= clearTo; y++)
-            {
-                pos.Set(x, y, z);
-                ba.SetBlock(0, pos);
-                ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
-            }
+            pos.Set(x, y, z);
+            ba.SetBlock(0, pos);
+            ba.SetBlock(y < job.SeaLevel ? job.WaterId : 0, pos, BlockLayersAccess.Fluid);
         }
         return true;
     }
 
-    // The heart of the shape. Returns the top solid Y for a column plus whether
-    // it sits below sea level and which material caps it (0 grass, 1 sand,
-    // 2 stone). False means the column is beyond the work radius.
-    private bool ColumnSurface(IslandJob job, int x, int z, out int topY, out bool underwater, out int topMat, out bool nearIsland)
+    // Stone, unless an ore vein claims this block.
+    private int PickStone(IslandJob job, int x, int y, int z)
+    {
+        for (int i = 0; i < job.Ores.Count; i++)
+            if (job.Ores[i].TryPick(x, y, z, out int oreId)) return oreId;
+        return job.StoneId;
+    }
+
+    // The heart of the shape. topY is the top solid block for this column.
+    // topMat: 0 grass, 1 sand, 2 stone. False means beyond the work radius.
+    private bool ColumnSurface(IslandJob job, int x, int z, int naturalY,
+        out int topY, out bool underwater, out int topMat, out bool nearIsland)
     {
         topY = 0; underwater = false; topMat = 0; nearIsland = false;
 
@@ -307,48 +477,85 @@ public class LandmassGeneratorModSystem : ModSystem
 
         if (t < 1.0)
         {
+            // Above water: the dome. Purely analytic, so the forest pass can
+            // recompute the same surface later without re-reading the world.
             double rise = job.DomeHeight * (1.0 - Math.Pow(t, p));
             if (rise < 0) rise = 0;
             double bump = (job.SurfNoise.Noise(x, z) - 0.5) * 2 * job.BumpAmp * (1 - t);
-            topY = (int)Math.Round(job.BaseY + rise + bump);
+            topY = (int)Math.Round(job.SeaLevel + rise + bump);
         }
         else
         {
+            // Offshore: the flank keeps sloping down, then merges back into the
+            // natural sea floor by the time we reach the work boundary, so the
+            // edit has no visible rim.
             double over = dist - edgeR;
-            double depthFrac = Smooth(over / job.OceanRing);
-            topY = (int)Math.Round(job.BaseY - 2 - job.Water * depthFrac);
+            double deep = job.SeaLevel - 2 - job.Water * Smooth(over / job.OceanRing);
+            double toEdge = Smooth((dist - edgeR) / Math.Max(1.0, job.Rmax - edgeR));
+            topY = (int)Math.Round(Lerp(deep, naturalY, toEdge));
         }
 
-        underwater = topY < job.BaseY;
+        underwater = topY < job.SeaLevel;
         if (!underwater)
         {
-            bool beachTop = beachAlign > 0.3 && (topY - job.BaseY) <= 3;
+            bool beachTop = beachAlign > 0.3 && (topY - job.SeaLevel) <= 3;
             bool cliffTop = cliffAlign > 0.3 && t > 0.72;
             topMat = cliffTop ? 2 : beachTop ? 1 : 0;
         }
         else
         {
-            topMat = topY >= job.BaseY - 4 ? 1 : 2; // sand near the shoreline, stone in the deep
+            topMat = topY >= job.SeaLevel - 4 ? 1 : 2; // sand near the shore, stone in the deep
         }
         return true;
     }
 
-    // Grow a native oak at the summit once the ground exists. Returns a short
-    // status suffix for the completion message.
+    // ─────────────────────────────────────────────────────────────────────
+    //  Forest
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Phase 1: for each grassy land column, roll the forest density and grow a
+    // tree. The land surface is analytic, so no world read is needed.
+    private bool TryPlantTree(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z)
+    {
+        if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _))
+            return false;
+        if (underwater || topMat != 0) return false; // grass only: no beach, no cliff face
+
+        job.Rand.InitPositionSeed(x, z);
+        if (job.Rand.NextDouble() >= job.ForestDensity) return false;
+
+        // Keep the summit clear so the landmark oak has room.
+        double dx = x - job.Cx, dz = z - job.Cz;
+        if (dx * dx + dz * dz < 36) return false;
+
+        ITreeGenerator gen = job.ForestTrees[job.Rand.NextInt(job.ForestTrees.Count)];
+        var tp = new TreeGenParams
+        {
+            skipForestFloor = false,
+            size = (float)(0.8 + job.Rand.NextDouble() * 0.5),
+            vinesGrowthChance = 0,
+            mossGrowthChance = 0,
+            otherBlockChance = 0,
+            hemisphere = EnumHemisphere.North,
+            treesInChunkGenerated = 0
+        };
+        pos.Set(x, topY + 1, z);
+        gen.GrowTree(ba, pos, tp, job.Rand);
+        return true;
+    }
+
+    // A single large oak at the summit as a landmark.
     private string PlaceSummitTree(IslandJob job)
     {
-        if (!ColumnSurface(job, job.Cx, job.Cz, out int topY, out bool underwater, out _, out _) || underwater)
+        if (job.SummitTree == null) return "No oak generator found for the summit.";
+        if (!ColumnSurface(job, job.Cx, job.Cz, job.SeaLevel, out int topY, out bool underwater, out _, out _) || underwater)
             return "No dry summit for a tree.";
 
-        ITreeGenerator oak = FindOakGenerator();
-        if (oak == null) return "No oak tree generator found.";
-
         var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
-        var pos = new BlockPos(job.Cx, topY + 1, job.Cz, job.Dim);
         var tp = new TreeGenParams
         {
             skipForestFloor = true,
-            size = 1f,
+            size = 1.6f,
             vinesGrowthChance = 0,
             mossGrowthChance = 0,
             otherBlockChance = 0,
@@ -357,20 +564,32 @@ public class LandmassGeneratorModSystem : ModSystem
         };
         var rnd = new LCGRandom(job.Seed);
         rnd.InitPositionSeed(job.Cx, job.Cz);
-        oak.GrowTree(ba, pos, tp, rnd);
+        job.SummitTree.GrowTree(ba, new BlockPos(job.Cx, topY + 1, job.Cz, job.Dim), tp, rnd);
         ba.Commit();
-        return "Planted an oak at the summit.";
+        return "Planted a tall oak at the summit.";
     }
 
-    // Prefer the English oak; fall back to any generator whose code mentions oak.
-    private ITreeGenerator FindOakGenerator()
+    // Match a friendly name (oak, pine, birch) against the loaded tree
+    // generators, preferring an exact-ish hit.
+    private ITreeGenerator FindTreeGenerator(string want)
     {
+        want = want.ToLowerInvariant();
+        string preferred = want switch
+        {
+            "oak" => "englishoak",
+            "pine" => "scotspine",
+            "birch" => "silverbirch",
+            "maple" => "sugarmaple",
+            "redwood" => "redwoodpine",
+            _ => want
+        };
+
         ITreeGenerator fallback = null;
         foreach (var kv in sapi.World.TreeGenerators)
         {
             string path = kv.Key.Path.ToLowerInvariant();
-            if (path.Contains("englishoak")) return kv.Value;
-            if (fallback == null && path.Contains("oak")) fallback = kv.Value;
+            if (path.Contains(preferred)) return kv.Value;
+            if (fallback == null && path.Contains(want)) fallback = kv.Value;
         }
         return fallback;
     }
@@ -385,9 +604,6 @@ public class LandmassGeneratorModSystem : ModSystem
     // ─────────────────────────────────────────────────────────────────────
     //  Helpers
     // ─────────────────────────────────────────────────────────────────────
-
-    // Caller's block position, used as the island centre and the dimension the
-    // writes go to.
     private static void GetOrigin(Caller caller, out int ox, out int oy, out int oz, out int dim)
     {
         var entity = caller.Entity;
@@ -397,7 +613,6 @@ public class LandmassGeneratorModSystem : ModSystem
         dim = entity.Pos.Dimension;
     }
 
-    // Resolve a block code (game: domain by default; "air" clears).
     private Block ResolveBlock(string code, out string err)
     {
         err = null;
@@ -417,6 +632,13 @@ public class LandmassGeneratorModSystem : ModSystem
     private static int OptInt(Dictionary<string, string> opt, string key, int def, int lo, int hi)
     {
         if (opt.TryGetValue(key, out string s) && int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v))
+            return Math.Clamp(v, lo, hi);
+        return def;
+    }
+
+    private static double OptDouble(Dictionary<string, string> opt, string key, double def, double lo, double hi)
+    {
+        if (opt.TryGetValue(key, out string s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
             return Math.Clamp(v, lo, hi);
         return def;
     }
