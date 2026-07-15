@@ -173,6 +173,8 @@ public class LandmassGeneratorModSystem : ModSystem
         public char[,] Cells;
         public float[,] DistToOcean;  // land cell -> distance to the nearest water cell
         public float[,] DistToLand;   // water cell -> distance to the nearest land cell
+        public float[,] HeightField;  // per-cell peak fraction, smoothed across region borders
+        public float[,] ShoreField;   // per-cell shore width, smoothed across region borders
         public Dictionary<char, Region> Regions = new();
         public List<TreeMarker> Markers = new();
     }
@@ -466,7 +468,55 @@ public class LandmassGeneratorModSystem : ModSystem
             }
         shape.DistToOcean = DistanceField(isOcean, shape.W, shape.H, true);
         shape.DistToLand = DistanceField(isLand, shape.W, shape.H, false);
+
+        // Per-cell height and shore, then smoothed so inland region borders ramp
+        // into each other instead of forming vertical seams. Materials stay
+        // crisp; only the elevation blends.
+        var rawH = new float[shape.W, shape.H];
+        var rawS = new float[shape.W, shape.H];
+        for (int z = 0; z < shape.H; z++)
+            for (int x = 0; x < shape.W; x++)
+            {
+                char c = shape.Cells[x, z];
+                if (c != '.' && shape.Regions.TryGetValue(c, out Region rg))
+                {
+                    rawH[x, z] = (float)rg.Height;
+                    rawS[x, z] = (float)rg.ShoreWidth;
+                }
+            }
+        shape.HeightField = SmoothField(rawH, isLand, shape.W, shape.H, 3);
+        shape.ShoreField = SmoothField(rawS, isLand, shape.W, shape.H, 3);
         return shape;
+    }
+
+    // Box-blur a per-cell field, but only averaging cells that already hold a
+    // value (land, or an ocean cell filled by a previous pass). Each pass also
+    // bleeds values one cell into the ocean, so land columns sampling across the
+    // coast read a sensible height rather than zero.
+    private static float[,] SmoothField(float[,] src, bool[,] known, int w, int h, int passes)
+    {
+        var cur = (float[,])src.Clone();
+        var have = (bool[,])known.Clone();
+        for (int pass = 0; pass < passes; pass++)
+        {
+            var next = (float[,])cur.Clone();
+            var nextHave = (bool[,])have.Clone();
+            for (int z = 0; z < h; z++)
+                for (int x = 0; x < w; x++)
+                {
+                    double sum = 0; int cnt = 0;
+                    for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int nx = x + dx, nz = z + dz;
+                            if (nx < 0 || nz < 0 || nx >= w || nz >= h || !have[nx, nz]) continue;
+                            sum += cur[nx, nz]; cnt++;
+                        }
+                    if (cnt > 0) { next[x, z] = (float)(sum / cnt); nextHave[x, z] = true; }
+                }
+            cur = next; have = nextHave;
+        }
+        return cur;
     }
 
     private static char NeighbourRegion(ShapeDef shape, int x, int z)
@@ -627,6 +677,7 @@ public class LandmassGeneratorModSystem : ModSystem
             return Math.Clamp(0.86 - 0.30 * Math.Clamp(v, 0, 1), 0.55, 0.90);
         return rich.ToLowerInvariant() switch
         {
+            "rare" => 0.86,
             "sparse" => 0.82,
             "rich" => 0.68,
             "abundant" => 0.62,
@@ -767,9 +818,10 @@ public class LandmassGeneratorModSystem : ModSystem
         ShapeDef s = job.Shape;
 
         // Nudge the sample point with noise so the coast is organic instead of
-        // showing the grid's stair-steps.
-        double jx = (job.JitterX.Noise(x, z) - 0.5) * 2.0 * 1.1;
-        double jz = (job.JitterZ.Noise(x, z) - 0.5) * 2.0 * 1.1;
+        // showing the grid's stair-steps. Kept modest so it wiggles the border
+        // without speckling regions across each other.
+        double jx = (job.JitterX.Noise(x, z) - 0.5) * 2.0 * 0.7;
+        double jz = (job.JitterZ.Noise(x, z) - 0.5) * 2.0 * 0.7;
         double gx = (x - job.Cx) / job.WorldPerCell + s.W / 2.0 + jx;
         double gz = (z - job.Cz) / job.WorldPerCell + s.H / 2.0 + jz;
 
@@ -782,7 +834,12 @@ public class LandmassGeneratorModSystem : ModSystem
             reg = r;
             nearIsland = true;
             double dCoast = Bilinear(s.DistToOcean, s.W, s.H, gx, gz) * job.WorldPerCell;
-            double rise = job.DomeHeight * r.Height * Smooth(dCoast / r.ShoreWidth);
+            // Height and shore come from the SMOOTHED fields so inland region
+            // borders ramp instead of stepping; the region itself still decides
+            // rock, surface and ore.
+            double hFrac = Bilinear(s.HeightField, s.W, s.H, gx, gz);
+            double shore = Math.Max(1.0, Bilinear(s.ShoreField, s.W, s.H, gx, gz));
+            double rise = job.DomeHeight * hFrac * Smooth(dCoast / shore);
             double rough = (job.SurfNoise.Noise(x, z) - 0.5) * 2.0 * r.Rough * 4.0;
             topY = (int)Math.Round(job.SeaLevel + rise + rough * Math.Min(1.0, dCoast / 6.0));
 
@@ -886,12 +943,13 @@ public class LandmassGeneratorModSystem : ModSystem
         job.Rand.InitPositionSeed(x, z);
         if (job.Rand.NextDouble() >= density) return false;
 
-        // Leave room around any landmark tree.
+        // Leave a clearing around any landmark tree so it stands alone.
+        const int clearing = 28;
         foreach (var m in job.Shape?.Markers ?? new List<TreeMarker>())
         {
             MarkerWorld(job, m, out int mx, out int mz);
             double ddx = x - mx, ddz = z - mz;
-            if (ddx * ddx + ddz * ddz < 64) return false;
+            if (ddx * ddx + ddz * ddz < clearing * clearing) return false;
         }
         if (job.Shape == null)
         {

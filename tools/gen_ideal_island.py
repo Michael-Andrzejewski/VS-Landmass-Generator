@@ -93,7 +93,7 @@ def main():
     print("# R southern rocky arm: slate, no grass, outcrops and sheer cliffs")
     print("# O the tall oak")
     print()
-    print("region F rock=granite surface=grass  ores=iron:medium    forest=0.055 trees=oak,pine  height=1.0  shore=9  rough=0.35")
+    print("region F rock=granite surface=grass  ores=iron:rare      forest=0.05  trees=oak,pine  height=1.0  shore=9  rough=0.35")
     print("region P rock=granite surface=grass  ores=copper:rich    forest=0.004 trees=oak       height=0.78 shore=9  rough=0.22")
     print("region B rock=granite surface=sand   ores=               forest=0     height=0.10 shore=34 rough=0.08")
     print("region R rock=slate   surface=rocksand ores=copper:medium forest=0     height=0.66 shore=4  rough=0.7")
