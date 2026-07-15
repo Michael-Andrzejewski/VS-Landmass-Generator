@@ -200,7 +200,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double WorldPerCell;
         public NormalizedSimplexNoise JitterX, JitterZ;
 
-        public NormalizedSimplexNoise CoastNoise, SurfNoise;
+        public NormalizedSimplexNoise CoastNoise, SurfNoise, Dither;
         public int StoneId, SoilId, GrassId, SandId, WaterId;
 
         public int MinX, MinZ, W, H;
@@ -271,6 +271,7 @@ public class LandmassGeneratorModSystem : ModSystem
             Seed = seed,
             CoastNoise = NormalizedSimplexNoise.FromDefaultOctaves(4, 1 / 40.0, 0.5, seed),
             SurfNoise = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 22.0, 0.5, seed + 1),
+            Dither = NormalizedSimplexNoise.FromDefaultOctaves(2, 0.4, 0.5, seed + 21),
             JitterX = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 7),
             JitterZ = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 13),
             StoneId = stone.BlockId, SoilId = soil.BlockId, GrassId = grass.BlockId,
@@ -841,7 +842,10 @@ public class LandmassGeneratorModSystem : ModSystem
             double shore = Math.Max(1.0, Bilinear(s.ShoreField, s.W, s.H, gx, gz));
             double rise = job.DomeHeight * hFrac * Smooth(dCoast / shore);
             double rough = (job.SurfNoise.Noise(x, z) - 0.5) * 2.0 * r.Rough * 4.0;
-            topY = (int)Math.Round(job.SeaLevel + rise + rough * Math.Min(1.0, dCoast / 6.0));
+            // Fine-grained dither on the rounding so a smooth slope breaks into
+            // ragged ground instead of clean contour terraces.
+            double dith = (job.Dither.Noise(x, z) - 0.5) * 1.35;
+            topY = (int)Math.Round(job.SeaLevel + rise + rough * Math.Min(1.0, dCoast / 6.0) + dith);
 
             if (topY < job.SeaLevel) topY = job.SeaLevel; // land never dips under its own shore
             topMat = SurfaceMat(job, r, x, z);
@@ -850,7 +854,7 @@ public class LandmassGeneratorModSystem : ModSystem
 
         // Ocean: deepen sharply just off the coast, then blend back into the
         // natural sea floor so the edit leaves no rim.
-        double dLand = (inGrid ? Bilinear(s.DistToLand, s.W, s.H, gx, gz) : NearestOutside(s, gx, gz)) * job.WorldPerCell;
+        double dLand = DistToLandContinuous(s, gx, gz) * job.WorldPerCell;
         if (dLand > job.OceanRing) return false; // leave the open ocean alone
 
         nearIsland = dLand < job.WorldPerCell * 2;
@@ -862,12 +866,17 @@ public class LandmassGeneratorModSystem : ModSystem
         return true;
     }
 
-    // Rough distance for a sample that fell outside the grid entirely.
-    private static double NearestOutside(ShapeDef s, double gx, double gz)
+    // Distance (in cells) to the nearest land, continuous across the grid
+    // border: clamp the sample into the grid, read the distance field there, and
+    // add how far outside the sample fell. Without this, out-of-grid columns
+    // measured distance to the grid RECTANGLE, which stamped a square ridge on
+    // the sea floor around the island.
+    private static double DistToLandContinuous(ShapeDef s, double gx, double gz)
     {
-        double dx = gx < 0 ? -gx : gx > s.W - 1 ? gx - (s.W - 1) : 0;
-        double dz = gz < 0 ? -gz : gz > s.H - 1 ? gz - (s.H - 1) : 0;
-        return Math.Sqrt(dx * dx + dz * dz) + 1;
+        double cx = Math.Clamp(gx, 0, s.W - 1);
+        double cz = Math.Clamp(gz, 0, s.H - 1);
+        double over = Math.Sqrt((gx - cx) * (gx - cx) + (gz - cz) * (gz - cz));
+        return Bilinear(s.DistToLand, s.W, s.H, cx, cz) + over;
     }
 
     private int SurfaceMat(IslandJob job, Region r, int x, int z)
