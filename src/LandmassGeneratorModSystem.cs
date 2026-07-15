@@ -153,9 +153,10 @@ public class LandmassGeneratorModSystem : ModSystem
         public double ShoreWidth = 8;     // blocks from the coast to full height: small = cliff
         public double Rough = 0.3;        // surface noise amplitude
         public double Forest;
+        public int Pond;                  // 0 = dry land; else a pond this many blocks deep
         public List<ITreeGenerator> Trees = new();
         public List<OreSpec> Ores = new();
-        public int StoneId, SandId, SoilId, GrassId;
+        public int StoneId, StoneId2, SandId, SoilId, GrassId;
     }
 
     private class TreeMarker
@@ -200,7 +201,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double WorldPerCell;
         public NormalizedSimplexNoise JitterX, JitterZ;
 
-        public NormalizedSimplexNoise CoastNoise, SurfNoise, Dither;
+        public NormalizedSimplexNoise CoastNoise, SurfNoise, Dither, RockBlend;
         public int StoneId, SoilId, GrassId, SandId, WaterId;
 
         public int MinX, MinZ, W, H;
@@ -272,6 +273,7 @@ public class LandmassGeneratorModSystem : ModSystem
             CoastNoise = NormalizedSimplexNoise.FromDefaultOctaves(4, 1 / 40.0, 0.5, seed),
             SurfNoise = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 22.0, 0.5, seed + 1),
             Dither = NormalizedSimplexNoise.FromDefaultOctaves(2, 0.4, 0.5, seed + 21),
+            RockBlend = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 16.0, 0.5, seed + 9),
             JitterX = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 7),
             JitterZ = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 13),
             StoneId = stone.BlockId, SoilId = soil.BlockId, GrassId = grass.BlockId,
@@ -579,8 +581,7 @@ public class LandmassGeneratorModSystem : ModSystem
     private Region ParseRegion(string[] tok, IslandJob job, long seed, ref int oreIdx, List<string> problems)
     {
         var r = new Region { Key = tok[1][0] };
-        string oreStr = null;
-        string treeStr = null;
+        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null;
 
         for (int i = 2; i < tok.Length; i++)
         {
@@ -592,6 +593,9 @@ public class LandmassGeneratorModSystem : ModSystem
             switch (k)
             {
                 case "rock": r.RockType = v; break;
+                case "rock2": rock2 = v; break;         // a second rock, blended underground
+                case "sand": sandCode = v; break;        // explicit beach block (e.g. white sand)
+                case "fertility": fert = v; break;       // verylow..high: sets the soil and grass
                 case "ores": oreStr = v; break;
                 case "trees": treeStr = v; break;
                 case "surface":
@@ -607,16 +611,40 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "shore": r.ShoreWidth = Math.Max(1.0, ParseD(v, 8)); break;
                 case "rough": r.Rough = ParseD(v, 0.3); break;
                 case "forest": r.Forest = Math.Clamp(ParseD(v, 0), 0, 0.35); break;
+                case "pond": r.Pond = (int)Math.Clamp(ParseD(v, 3), 1, 40); break;
             }
         }
 
         Block stone = sapi.World.GetBlock(new AssetLocation("game", "rock-" + r.RockType));
-        Block rsand = sapi.World.GetBlock(new AssetLocation("game", "sand-" + r.RockType));
         r.StoneId = stone?.BlockId ?? job.StoneId;
-        r.SandId = rsand?.BlockId ?? job.SandId;
-        r.SoilId = job.SoilId;
-        r.GrassId = job.GrassId;
         if (stone == null) problems.Add($"region {r.Key}: no rock-{r.RockType}, using the default stone");
+
+        if (rock2 != null)
+        {
+            Block s2 = sapi.World.GetBlock(new AssetLocation("game", "rock-" + rock2));
+            if (s2 != null) r.StoneId2 = s2.BlockId;
+            else problems.Add($"region {r.Key}: no rock-{rock2}, second rock ignored");
+        }
+
+        // Beach block: an explicit code (white sand, gravel...) or this rock's sand.
+        Block rsand = sandCode != null ? ResolveBlock(sandCode, out _)
+                                       : sapi.World.GetBlock(new AssetLocation("game", "sand-" + r.RockType));
+        r.SandId = rsand?.BlockId ?? job.SandId;
+
+        // Soil and grass follow the region's fertility, if given.
+        if (fert != null)
+        {
+            Block soilB = sapi.World.GetBlock(new AssetLocation("game", $"soil-{fert}-none"));
+            Block grassB = sapi.World.GetBlock(new AssetLocation("game", $"soil-{fert}-normal"));
+            r.SoilId = soilB?.BlockId ?? job.SoilId;
+            r.GrassId = grassB?.BlockId ?? job.GrassId;
+            if (soilB == null) problems.Add($"region {r.Key}: no soil fertility '{fert}', using default");
+        }
+        else
+        {
+            r.SoilId = job.SoilId;
+            r.GrassId = job.GrassId;
+        }
 
         if (!string.IsNullOrWhiteSpace(oreStr))
             ParseOres(oreStr, r.RockType, seed + 31 * (oreIdx++ + 1), r.Ores, problems);
@@ -754,10 +782,11 @@ public class LandmassGeneratorModSystem : ModSystem
         pos.Set(x, job.SeaLevel, z);
         int naturalY = sapi.World.BlockAccessor.GetTerrainMapheightAt(pos);
 
-        if (!ColumnSurface(job, x, z, naturalY, out int topY, out bool underwater, out int topMat, out bool nearIsland, out Region reg))
+        if (!ColumnSurface(job, x, z, naturalY, out int topY, out bool underwater, out int topMat, out bool nearIsland, out int waterTopY, out Region reg))
             return false;
 
         int stoneId = reg?.StoneId ?? job.StoneId;
+        int stoneId2 = reg?.StoneId2 ?? 0;
         int sandId = reg?.SandId ?? job.SandId;
         int soilId = reg?.SoilId ?? job.SoilId;
         int grassId = reg?.GrassId ?? job.GrassId;
@@ -779,43 +808,48 @@ public class LandmassGeneratorModSystem : ModSystem
             else if (y > topY - skin)
                 id = topMat == SurfGrass ? soilId : topMat == SurfSand ? sandId : stoneId;
             else
-                id = PickStone(ores, stoneId, x, y, z);
+                id = PickStone(job, ores, stoneId, stoneId2, x, y, z);
             ba.SetBlock(id, pos);
             if (y < job.SeaLevel) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
         }
 
-        int clearTop = Math.Max(naturalY, nearIsland ? job.SeaLevel + job.DomeHeight + 6 : job.SeaLevel);
+        // Water: ocean up to sea level, or a pond up to its own local level.
+        int clearTop = Math.Max(Math.Max(naturalY, waterTopY),
+            nearIsland ? job.SeaLevel + job.DomeHeight + 6 : job.SeaLevel);
         for (int y = topY + 1; y <= clearTop; y++)
         {
             pos.Set(x, y, z);
             ba.SetBlock(0, pos);
-            ba.SetBlock(y < job.SeaLevel ? job.WaterId : 0, pos, BlockLayersAccess.Fluid);
+            ba.SetBlock(y <= waterTopY ? job.WaterId : 0, pos, BlockLayersAccess.Fluid);
         }
         return true;
     }
 
-    private static int PickStone(List<OreSpec> ores, int stoneId, int x, int y, int z)
+    // Stone for a below-surface block: an ore vein if one claims it, else the
+    // region's primary rock, or its second rock where the blend noise favours it.
+    private int PickStone(IslandJob job, List<OreSpec> ores, int stoneId, int stoneId2, int x, int y, int z)
     {
         for (int i = 0; i < ores.Count; i++)
             if (ores[i].TryPick(x, y, z, out int oreId)) return oreId;
+        if (stoneId2 != 0 && job.RockBlend.Noise(x, y, z) > 0.5) return stoneId2;
         return stoneId;
     }
 
     // Where the ground's top block sits, what caps it, and (in shape mode) which
     // region owns it. False means this column is outside the work area.
     private bool ColumnSurface(IslandJob job, int x, int z, int naturalY,
-        out int topY, out bool underwater, out int topMat, out bool nearIsland, out Region reg)
+        out int topY, out bool underwater, out int topMat, out bool nearIsland, out int waterTopY, out Region reg)
     {
         return job.Shape != null
-            ? ShapeSurface(job, x, z, naturalY, out topY, out underwater, out topMat, out nearIsland, out reg)
-            : RadialSurface(job, x, z, naturalY, out topY, out underwater, out topMat, out nearIsland, out reg);
+            ? ShapeSurface(job, x, z, naturalY, out topY, out underwater, out topMat, out nearIsland, out waterTopY, out reg)
+            : RadialSurface(job, x, z, naturalY, out topY, out underwater, out topMat, out nearIsland, out waterTopY, out reg);
     }
 
     // Drawn island: sample the grid, and turn distance-from-the-coast into height.
     private bool ShapeSurface(IslandJob job, int x, int z, int naturalY,
-        out int topY, out bool underwater, out int topMat, out bool nearIsland, out Region reg)
+        out int topY, out bool underwater, out int topMat, out bool nearIsland, out int waterTopY, out Region reg)
     {
-        topY = 0; underwater = false; topMat = SurfGrass; nearIsland = false; reg = null;
+        topY = 0; underwater = false; topMat = SurfGrass; nearIsland = false; waterTopY = -1; reg = null;
         ShapeDef s = job.Shape;
 
         // Nudge the sample point with noise so the coast is organic instead of
@@ -845,10 +879,22 @@ public class LandmassGeneratorModSystem : ModSystem
             // Fine-grained dither on the rounding so a smooth slope breaks into
             // ragged ground instead of clean contour terraces.
             double dith = (job.Dither.Noise(x, z) - 0.5) * 1.35;
-            topY = (int)Math.Round(job.SeaLevel + rise + rough * Math.Min(1.0, dCoast / 6.0) + dith);
+            int landY = (int)Math.Round(job.SeaLevel + rise + rough * Math.Min(1.0, dCoast / 6.0) + dith);
+            if (landY < job.SeaLevel) landY = job.SeaLevel; // land never dips under its own shore
 
-            if (topY < job.SeaLevel) topY = job.SeaLevel; // land never dips under its own shore
-            topMat = SurfaceMat(job, r, x, z);
+            if (r.Pond > 0)
+            {
+                // Carve a shallow bowl and fill it to just below the land rim, so
+                // the pond sits contained in the surrounding ground.
+                topY = Math.Max(job.SeaLevel - 2, landY - r.Pond);
+                waterTopY = landY - 1;
+                topMat = SurfSand; // sandy pond bed
+            }
+            else
+            {
+                topY = landY;
+                topMat = SurfaceMat(job, r, x, z);
+            }
             return true;
         }
 
@@ -862,6 +908,7 @@ public class LandmassGeneratorModSystem : ModSystem
         double back = Smooth((dLand - job.OceanRing * 0.55) / (job.OceanRing * 0.45));
         topY = (int)Math.Round(Lerp(deep, naturalY, back));
         underwater = topY < job.SeaLevel;
+        waterTopY = underwater ? job.SeaLevel - 1 : -1;
         topMat = topY >= job.SeaLevel - 4 ? SurfSand : SurfRock;
         return true;
     }
@@ -888,9 +935,9 @@ public class LandmassGeneratorModSystem : ModSystem
 
     // The original radial dome, kept for quick islands with no shape file.
     private bool RadialSurface(IslandJob job, int x, int z, int naturalY,
-        out int topY, out bool underwater, out int topMat, out bool nearIsland, out Region reg)
+        out int topY, out bool underwater, out int topMat, out bool nearIsland, out int waterTopY, out Region reg)
     {
-        topY = 0; underwater = false; topMat = SurfGrass; nearIsland = false; reg = null;
+        topY = 0; underwater = false; topMat = SurfGrass; nearIsland = false; waterTopY = -1; reg = null;
 
         double dx = x - job.Cx, dz = z - job.Cz;
         double dist = Math.Sqrt(dx * dx + dz * dz);
@@ -926,6 +973,7 @@ public class LandmassGeneratorModSystem : ModSystem
         }
 
         underwater = topY < job.SeaLevel;
+        waterTopY = underwater ? job.SeaLevel - 1 : -1;
         if (!underwater)
         {
             bool beachTop = beachAlign > 0.3 && (topY - job.SeaLevel) <= 3;
@@ -941,7 +989,7 @@ public class LandmassGeneratorModSystem : ModSystem
     // ─────────────────────────────────────────────────────────────────────
     private bool TryPlantTree(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z)
     {
-        if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out Region reg))
+        if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out _, out Region reg))
             return false;
         if (underwater || topMat != SurfGrass) return false; // grass only
 
@@ -998,7 +1046,7 @@ public class LandmassGeneratorModSystem : ModSystem
             foreach (var m in job.Shape.Markers)
             {
                 MarkerWorld(job, m, out int x, out int z);
-                if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out _, out _, out _) || uw) continue;
+                if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out _) || uw) continue;
                 var rnd = new LCGRandom(job.Seed);
                 rnd.InitPositionSeed(x, z);
                 m.Gen.GrowTree(ba, new BlockPos(x, topY + 1, z, job.Dim), LandmarkParams(m.Size), rnd);
@@ -1007,7 +1055,7 @@ public class LandmassGeneratorModSystem : ModSystem
         }
         else if (job.SummitTree != null)
         {
-            if (ColumnSurface(job, job.Cx, job.Cz, job.SeaLevel, out int topY, out bool uw, out _, out _, out _) && !uw)
+            if (ColumnSurface(job, job.Cx, job.Cz, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out _) && !uw)
             {
                 var rnd = new LCGRandom(job.Seed);
                 rnd.InitPositionSeed(job.Cx, job.Cz);
