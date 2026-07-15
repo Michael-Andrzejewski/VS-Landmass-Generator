@@ -202,7 +202,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public NormalizedSimplexNoise JitterX, JitterZ;
 
         public NormalizedSimplexNoise CoastNoise, SurfNoise, Dither, RockBlend;
-        public int StoneId, SoilId, GrassId, SandId, WaterId;
+        public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
 
         public int MinX, MinZ, W, H;
         public long I, Total, Placed, Trees;
@@ -257,11 +257,16 @@ public class LandmassGeneratorModSystem : ModSystem
         Block grass = ResolveBlock(OptStr(opt, "grass", "soil-medium-normal"), out string ge);
         Block sand = ResolveBlock(OptStr(opt, "sand", "sand-granite"), out string ae);
         Block waterBlock = ResolveBlock(OptStr(opt, "water_block", "water-still-7"), out string we);
+        // The open ocean is SALT water; freshwater has a slightly different tint,
+        // so the ring we fill around the island must be salt to match the biome.
+        // Ponds stay freshwater. `oceanwater=water-still-7` forces fresh (lake set).
+        Block oceanBlock = ResolveBlock(OptStr(opt, "oceanwater", "saltwater-still-7"), out string oce);
         if (stone == null) return TextCommandResult.Error("stone: " + se);
         if (soil == null) return TextCommandResult.Error("soil: " + oe);
         if (grass == null) return TextCommandResult.Error("grass: " + ge);
         if (sand == null) return TextCommandResult.Error("sand: " + ae);
         if (waterBlock == null) return TextCommandResult.Error("water: " + we);
+        if (oceanBlock == null) return TextCommandResult.Error("oceanwater: " + oce);
 
         var problems = new List<string>();
 
@@ -277,7 +282,7 @@ public class LandmassGeneratorModSystem : ModSystem
             JitterX = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 7),
             JitterZ = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 13),
             StoneId = stone.BlockId, SoilId = soil.BlockId, GrassId = grass.BlockId,
-            SandId = sand.BlockId, WaterId = waterBlock.BlockId,
+            SandId = sand.BlockId, WaterId = waterBlock.BlockId, SaltWaterId = oceanBlock.BlockId,
             ColumnsPerTick = 400,
             Phase = 0,
             Rand = new LCGRandom(seed),
@@ -814,13 +819,16 @@ public class LandmassGeneratorModSystem : ModSystem
         }
 
         // Water: ocean up to sea level, or a pond up to its own local level.
+        // Ocean fill uses SALT water to match the surrounding biome's tint; an
+        // inland pond is freshwater.
+        int waterId = (reg != null && reg.Pond > 0) ? job.WaterId : job.SaltWaterId;
         int clearTop = Math.Max(Math.Max(naturalY, waterTopY),
             nearIsland ? job.SeaLevel + job.DomeHeight + 6 : job.SeaLevel);
         for (int y = topY + 1; y <= clearTop; y++)
         {
             pos.Set(x, y, z);
             ba.SetBlock(0, pos);
-            ba.SetBlock(y <= waterTopY ? job.WaterId : 0, pos, BlockLayersAccess.Fluid);
+            ba.SetBlock(y <= waterTopY ? waterId : 0, pos, BlockLayersAccess.Fluid);
         }
         return true;
     }

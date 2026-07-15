@@ -20,6 +20,7 @@ Options are `key=value` tokens in any order. A lone leading number is read as `d
 | `height` | 40 | Peak height above the water line at the centre. |
 | `water` | 30 | How far the sea floor is carved down just outside the coast. |
 | `sealevel` | world's | The water line. Water fills up to one block below it, matching the surrounding ocean. |
+| `oceanwater` | `saltwater-still-7` | The block the ocean ring is filled with. Salt water matches the sea's tint; set to `water-still-7` if you are placing the island in a freshwater lake. |
 | `maxdepth` | 80 | Safety cap on how far below the water line a column will fill. |
 | `beachdir` | `s` | Compass side (`n e s w`) that eases into a sand beach. |
 | `cliffdir` | `n` | Compass side that drops as a stone cliff. |
