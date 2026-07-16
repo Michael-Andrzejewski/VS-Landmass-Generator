@@ -1,87 +1,113 @@
 """
-Starter island for players: a mostly-grassy round island ~150 blocks across,
-white-sand beach on the west, a small central pond, slate + peridotite below,
-and a giant oak landmark.
+Starter island for players, redesigned from Michael's reference drawing:
+a smooth, idyllic, mostly-grassy round island ~150 blocks across.
+
+  - Large white-sand beach filling the whole west lobe.
+  - Sparse small oak forest across the north.
+  - One slate edge on the north-east: a slate-sand apron at the water with a
+    small ~5 block slate cliff, then higher bare slate behind it. This is
+    where the devastated mine will go, so its copper is rich.
+  - Low-fertility slate ground along the south rim (kept smooth).
+  - Rich-soil meadow south-west of centre, giant oak at the centre,
+    little pond just south-east of it.
+
+The outline is a radial harmonic curve rather than a polygon, so the coast
+has no corners. All the non-slate regions use low rough values and wide
+shores so the terrain rolls instead of juddering.
 
     python tools/gen_starter_island.py > shapes/starter_island.txt
 """
 import math
 
 W, H = 96, 90
-C = (48, 44)                      # island centre in cells
-
-# Blobby round outline, clockwise, in grid-cell coordinates. The little jut on
-# the west (around row 44) is the beach spit.
-OUTLINE = [
-    (48, 4), (60, 6), (70, 11), (79, 18), (85, 27), (88, 37),
-    (88, 47), (85, 57), (79, 67), (71, 75), (60, 81), (49, 84),
-    (39, 83), (29, 79), (21, 72), (16, 64), (13, 55),
-    (12, 49), (6, 45), (12, 41), (14, 33),
-    (19, 25), (27, 17), (36, 10), (43, 6),
-]
-
-POND_C, POND_R = (55, 58), 3.6    # ~7 cells -> ~12 blocks across
-RICH_C, RICH_R = (30, 62), 9.0    # rich-soil patch, south-west
-OAK = (46, 43)                    # the giant oak
+CX, CY = 48.0, 45.0
 
 
-def inside(px, py, poly):
-    hit = False
-    n = len(poly)
-    for i in range(n):
-        x1, y1 = poly[i]
-        x2, y2 = poly[(i + 1) % n]
-        if (y1 > py) != (y2 > py):
-            xint = x1 + (py - y1) * (x2 - x1) / (y2 - y1)
-            if px < xint:
-                hit = not hit
-    return hit
+def adist(a, b):
+    """Angular distance in degrees, wrap-safe."""
+    d = (a - b) % 360.0
+    return d if d <= 180.0 else 360.0 - d
 
 
-def dist(a, b):
-    return math.hypot(a[0] - b[0], a[1] - b[1])
+def coast_r(ang):
+    """Coast radius (cells) at angle `ang` (deg; 0=east, 90=south)."""
+    t = math.radians(ang)
+    r = 39.0 * (1.0
+                + 0.050 * math.sin(2 * t + 0.9)
+                + 0.040 * math.sin(3 * t + 2.1)
+                + 0.022 * math.sin(5 * t + 4.2))
+    # Gentle west bulge: the beach lobe.
+    a = adist(ang, 168.0)
+    r *= 1.0 + 0.06 * math.exp(-(a / 34.0) ** 2)
+    return r
 
 
 def region(c, r):
-    # Interior features first.
-    if dist((c, r), POND_C) <= POND_R:
-        return 'w'                      # pond
-    if r < 20:
-        return 'F'                      # sparse oak forest, north
-    if r > 73:
-        return 'L'                      # low-fertility slate, south edge
-    if c < 16 and 34 < r < 56:
-        return 'B'                      # white-sand beach, west spit
-    if dist((c, r), RICH_C) <= RICH_R:
-        return 'H'                      # rich soil, south-west
-    return 'P'                          # grassy plains
+    dx, dz = c + 0.5 - CX, r + 0.5 - CY
+    rho = math.hypot(dx, dz)
+    ang = math.degrees(math.atan2(dz, dx))
+    rc = coast_r(ang)
+    if rho > rc:
+        return '.'
+    t = rho / rc                       # 0 at centre, 1 at the coast
+
+    # Little pond, south-east of the giant oak.
+    if ((dx - 7.0) / 5.2) ** 2 + ((dz - 14.0) / 3.6) ** 2 <= 1.0:
+        return 'w'
+
+    # North-east slate edge: waterline apron first, high slate behind it.
+    if adist(ang, -15.0) < 50.0 and t > 0.86:
+        return 'C'
+    if adist(ang, -15.0) < 42.0 and t > 0.66:
+        return 'R'
+
+    # West beach lobe: deepest mid-lobe, tapering to nothing at its ends.
+    a = adist(ang, 168.0)
+    if a < 42.0 and t > 0.55 + 0.38 * (a / 42.0) ** 2:
+        return 'B'
+
+    # Low-fertility slate ground along the south rim.
+    if adist(ang, 95.0) < 40.0 and t > 0.72:
+        return 'L'
+
+    # Sparse small oak forest across the north.
+    if adist(ang, -95.0) < 50.0 and t > 0.40:
+        return 'F'
+
+    # Rich-soil meadow, south-west of centre.
+    if ((dx + 13.0) / 9.5) ** 2 + ((dz - 11.0) / 8.0) ** 2 <= 1.0:
+        return 'H'
+
+    return 'P'
 
 
 def main():
-    grid = []
-    for r in range(H):
-        row = []
-        for c in range(W):
-            row.append(region(c, r) if inside(c + 0.5, r + 0.5, OUTLINE) else '.')
-        grid.append(row)
+    grid = [[region(c, r) for c in range(W)] for r in range(H)]
 
-    if grid[OAK[1]][OAK[0]] != '.':
-        grid[OAK[1]][OAK[0]] = 'O'
+    # Giant oak at the centre.
+    oak = (47, 45)
+    if grid[oak[1]][oak[0]] != '.':
+        grid[oak[1]][oak[0]] = 'O'
 
     print("# starter_island - player starting island, ~150 blocks across.")
     print("# Regenerate: python tools/gen_starter_island.py > shapes/starter_island.txt")
     print("# Suggested: /genisland shape=starter_island diameter=150 height=22")
     print("#")
-    print("# Grassy, slate+peridotite below, white-sand west beach, central pond, giant oak.")
-    print("# Deferred (add later): cattails/wild flax flora, surface copper, ruined chest,")
-    print("# teleporter, devastated mine, shoreline boulders.")
+    print("# Smooth and idyllic: big white-sand west beach, sparse oak forest north,")
+    print("# rich meadow south-west, pond by the giant oak, low-fertility south rim.")
+    print("# The one rough edge is the north-east slate headland (C apron + R high")
+    print("# slate) where the devastated mine will go.")
+    print("# Deferred (add later): cattails/wild flax flora, surface copper, ruined")
+    print("# chest, teleporter, devastated mine structure, shoreline boulders.")
     print()
-    print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium height=0.8 shore=11 rough=0.16")
-    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.03 trees=oak height=0.85 shore=11 rough=0.2")
-    print("region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium height=0.8 shore=11 rough=0.15")
-    print("region L rock=slate                  fertility=low    surface=grass ores=copper:medium height=0.62 shore=6 rough=0.42")
-    print("region B rock=slate sand=sand-chalk  surface=sand     height=0.12 shore=30 rough=0.06")
-    print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.8 shore=11 pond=4")
+    print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium height=0.78 shore=16 rough=0.09")
+    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.03 trees=oak height=0.84 shore=16 rough=0.10")
+    print("region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium height=0.78 shore=16 rough=0.08")
+    print("region L rock=slate                  fertility=low    surface=grass ores=copper:medium height=0.60 shore=14 rough=0.14")
+    print("region B rock=slate sand=sand-chalk  surface=sand     height=0.08 shore=36 rough=0.03")
+    print("region C rock=slate sand=sand-slate  surface=rocksand height=0.26 shore=3  rough=0.30")
+    print("region R rock=slate rock2=peridotite surface=rock     ores=copper:rich height=1.0 shore=16 rough=0.40")
+    print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.78 shore=16 pond=4")
     print("tree O oak 2.4")
     print()
     print("map")
