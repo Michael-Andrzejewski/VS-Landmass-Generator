@@ -58,6 +58,15 @@ in [tips.md](tips.md).
 - The shape grid is sampled with +-0.7 cell jitter, so "adjacent to region X"
   checks must scan all 8 neighboring cells, and thin one-cell features can be
   skipped over entirely: make map features at least 2 cells wide.
+- **The plant pass originally skipped rock-topped columns entirely**, so
+  nothing declared for a rock-surface region (boulders on the slate headland,
+  copper bits over the mine) ever spawned, silently. When a whole feature is
+  absent, check the pass's surface gate before tuning densities.
+- **Surface hints must anchor to the real thing.** Loose copper scattered by
+  raw chance reads as decoration; sampling the actual ore-vein noise under
+  each column ("bit only where digging finds copper") makes it a honest
+  prospecting signal. Same principle for loose stones: pick slate vs
+  peridotite by the SAME blend noise the subsurface used, not a fixed rock.
 - **Leaf litter belongs under canopies, not scattered uniformly.** Vanilla's
   ForestFloorSystem grades `forestfloor-0..7` outward from trunks, and a
   uniform region-wide sprinkle reads wrong immediately. Runtime GrowTree does

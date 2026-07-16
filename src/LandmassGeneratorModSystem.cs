@@ -176,7 +176,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public int[] GrassIds = Array.Empty<int>();
         public int[] LitterIds = Array.Empty<int>();
         public int[] ShellIds = Array.Empty<int>();
-        public int LooseStoneId, LooseStickId, LilyId, BoulderId, ClayId;
+        public int LooseStoneId, LooseStoneId2, LooseStickId, LilyId, BoulderId, ClayId, ClaySparseId;
     }
 
     // One bush kind a region scatters: a fruiting-bush block, or (for "birch")
@@ -769,8 +769,12 @@ public class LandmassGeneratorModSystem : ModSystem
             if (b != null) grassIds.Add(b.BlockId);
         }
         r.GrassIds = grassIds.ToArray();
-        r.LooseStoneId = sapi.World.GetBlock(new AssetLocation("game", "loosestones-granite-free"))?.BlockId
-            ?? sapi.World.GetBlock(new AssetLocation("game", $"loosestones-{r.RockType}-free"))?.BlockId ?? 0;
+        // Loose stones match the region's own geology: primary rock, and the
+        // second rock where the underground blend favours it.
+        r.LooseStoneId = sapi.World.GetBlock(new AssetLocation("game", $"loosestones-{r.RockType}-free"))?.BlockId
+            ?? sapi.World.GetBlock(new AssetLocation("game", "loosestones-peridotite-free"))?.BlockId ?? 0;
+        if (rock2 != null)
+            r.LooseStoneId2 = sapi.World.GetBlock(new AssetLocation("game", $"loosestones-{rock2}-free"))?.BlockId ?? 0;
         r.LooseStickId = sapi.World.GetBlock(new AssetLocation("game", "loosestick-free"))?.BlockId ?? 0;
 
         if (r.Litter > 0)
@@ -852,13 +856,14 @@ public class LandmassGeneratorModSystem : ModSystem
         if (r.Boulders > 0)
         {
             r.BoulderId = sapi.World.GetBlock(new AssetLocation("game", $"looseboulders-{r.RockType}-free"))?.BlockId
-                ?? sapi.World.GetBlock(new AssetLocation("game", "looseboulders-granite-free"))?.BlockId ?? 0;
+                ?? sapi.World.GetBlock(new AssetLocation("game", "looseboulders-peridotite-free"))?.BlockId ?? 0;
             if (r.BoulderId == 0) { r.Boulders = 0; problems.Add($"region {r.Key}: no boulder block, boulders off"); }
         }
 
         if (r.Clay > 0)
         {
             r.ClayId = sapi.World.GetBlock(new AssetLocation("game", "rawclay-blue-none"))?.BlockId ?? 0;
+            r.ClaySparseId = sapi.World.GetBlock(new AssetLocation("game", "rawclay-blue-verysparse"))?.BlockId ?? 0;
             if (r.ClayId == 0) { r.Clay = 0; problems.Add($"region {r.Key}: no rawclay block, clay off"); }
         }
         return r;
@@ -1310,7 +1315,7 @@ public class LandmassGeneratorModSystem : ModSystem
             return;
         }
 
-        if (underwater || (topMat != SurfGrass && topMat != SurfSand)) return;
+        if (underwater || (topMat != SurfGrass && topMat != SurfSand && topMat != SurfRock)) return;
 
         job.Rand.InitPositionSeed(x, z);
         if (topMat == SurfGrass && TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
@@ -1356,6 +1361,31 @@ public class LandmassGeneratorModSystem : ModSystem
         return true;
     }
 
+    // A clay column: sparse-grass clay on top so it hides in the meadow, pure
+    // clay down through the soil until it touches the rock beneath.
+    private static void PlaceClayColumn(IBulkBlockAccessor ba, BlockPos pos, Region clayReg, int x, int z, int topY)
+    {
+        pos.Set(x, topY, z);
+        ba.SetBlock(clayReg.ClaySparseId != 0 ? clayReg.ClaySparseId : clayReg.ClayId, pos);
+        for (int i = 1; i <= 3; i++)
+        {
+            pos.Set(x, topY - i, z);
+            ba.SetBlock(clayReg.ClayId, pos);
+        }
+    }
+
+    // Does this column actually hold ore in its upper stone? Samples the same
+    // vein noise the terrain used, so a surface hint never lies.
+    private static bool HasOreBelow(IslandJob job, Region reg, int x, int topY, int z)
+    {
+        List<OreSpec> ores = reg?.Ores ?? job.Ores;
+        if (ores.Count == 0) return false;
+        for (int y = topY - 3; y > topY - 24 && y > 1; y--)
+            for (int i = 0; i < ores.Count; i++)
+                if (ores[i].TryPick(x, y, z, out _)) return true;
+        return false;
+    }
+
     // Vanilla concentrates forest floor under tree canopies, so litter stamps
     // a leafy disc around each planted tree: bare leaves at the trunk, grading
     // back to grass at the canopy's edge (the forestfloor 0..7 gradient).
@@ -1389,18 +1419,24 @@ public class LandmassGeneratorModSystem : ModSystem
         if (job.Shape == null || reg == null) return false;
         if (!GridPos(job, x, z, out double gx, out double gz, out int cx, out int cz)) return false;
 
+        bool grass = topMat == SurfGrass, sand = topMat == SurfSand, rock = topMat == SurfRock;
+
+        // Clay ground: on a clay= region the whole soil column becomes a clay
+        // deposit, hidden under a sparse-grass clay surface block.
+        if (reg.Pond == 0 && reg.Clay > 0 && reg.ClayId != 0 && grass && job.Rand.NextDouble() < reg.Clay)
+        {
+            PlaceClayColumn(ba, pos, reg, x, z, topY);
+            return true;
+        }
+
         Region pondN = NeighbourPond(job.Shape, cx, cz);
 
         // Clay deposits on a pond's rim, like the game puts near water. Clay
         // changes the ground, so reeds may still grow on top of it.
         bool placed = false;
-        if (pondN != null && pondN.Clay > 0 && pondN.ClayId != 0 && job.Rand.NextDouble() < pondN.Clay)
+        if (pondN != null && pondN.Clay > 0 && pondN.ClayId != 0 && grass && job.Rand.NextDouble() < pondN.Clay)
         {
-            for (int i = 0; i < 3; i++)
-            {
-                pos.Set(x, topY - i, z);
-                ba.SetBlock(pondN.ClayId, pos);
-            }
+            PlaceClayColumn(ba, pos, pondN, x, z, topY);
             placed = true;
         }
 
@@ -1422,7 +1458,19 @@ public class LandmassGeneratorModSystem : ModSystem
             }
         }
 
+        // Loose copper sits DIRECTLY above a real buried deposit, like the
+        // game's own prospecting hints: cheap roll first, then scan the column
+        // for ore so digging under a bit actually finds copper.
+        if ((grass || rock) && reg.CopperBits > 0 && reg.CopperBitIds.Length > 0
+            && job.Rand.NextDouble() < reg.CopperBits && HasOreBelow(job, reg, x, topY, z))
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.CopperBitIds[job.Rand.NextInt(reg.CopperBitIds.Length)], pos);
+            return true;
+        }
+
         // Bushes grow on grass or beach sand.
+        if (grass || sand)
         foreach (BushSpec bush in reg.Bushes)
         {
             if (job.Rand.NextDouble() >= bush.Chance) continue;
@@ -1449,41 +1497,39 @@ public class LandmassGeneratorModSystem : ModSystem
             return true;
         }
 
-        if (reg.Boulders > 0 && reg.BoulderId != 0 && job.Rand.NextDouble() < reg.Boulders)
+        // Boulders belong on bare rock, not on lawns.
+        if (rock && reg.Boulders > 0 && reg.BoulderId != 0 && job.Rand.NextDouble() < reg.Boulders)
         {
             pos.Set(x, topY + 1, z);
             ba.SetBlock(reg.BoulderId, pos);
             return true;
         }
 
-        if (topMat == SurfSand && reg.Shells > 0 && reg.ShellIds.Length > 0 && job.Rand.NextDouble() < reg.Shells)
+        if (sand && reg.Shells > 0 && reg.ShellIds.Length > 0 && job.Rand.NextDouble() < reg.Shells)
         {
             pos.Set(x, topY + 1, z);
             ba.SetBlock(reg.ShellIds[job.Rand.NextInt(reg.ShellIds.Length)], pos);
             return true;
         }
 
+        // Loose stones match the rock actually under this column: the same
+        // blend noise the subsurface uses picks between the region's two rocks.
         double stones = reg.Stones >= 0 ? reg.Stones : 0.012;
         if (stones > 0 && reg.LooseStoneId != 0 && job.Rand.NextDouble() < stones)
         {
+            int stoneId = reg.LooseStoneId2 != 0 && job.RockBlend.Noise(x, topY - 4, z) > 0.5
+                ? reg.LooseStoneId2 : reg.LooseStoneId;
             pos.Set(x, topY + 1, z);
-            ba.SetBlock(reg.LooseStoneId, pos);
+            ba.SetBlock(stoneId, pos);
             return true;
         }
 
-        if (topMat != SurfGrass) return placed; // the rest wants grass
+        if (!grass) return placed; // the rest wants grass
 
         if (reg.Flax > 0 && reg.FlaxIds.Length > 0 && job.Rand.NextDouble() < reg.Flax)
         {
             pos.Set(x, topY + 1, z);
             ba.SetBlock(reg.FlaxIds[job.Rand.NextInt(reg.FlaxIds.Length)], pos);
-            return true;
-        }
-
-        if (reg.CopperBits > 0 && reg.CopperBitIds.Length > 0 && job.Rand.NextDouble() < reg.CopperBits)
-        {
-            pos.Set(x, topY + 1, z);
-            ba.SetBlock(reg.CopperBitIds[job.Rand.NextInt(reg.CopperBitIds.Length)], pos);
             return true;
         }
 

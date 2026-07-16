@@ -42,6 +42,13 @@ def coast_r(ang):
     return r
 
 
+def seg_dist(px, pz, ax, az, bx, bz):
+    """Distance from point P to segment AB, in cells."""
+    vx, vz = bx - ax, bz - az
+    t = max(0.0, min(1.0, ((px - ax) * vx + (pz - az) * vz) / (vx * vx + vz * vz)))
+    return math.hypot(px - (ax + t * vx), pz - (az + t * vz))
+
+
 def region(c, r):
     dx, dz = c + 0.5 - CX, r + 0.5 - CY
     rho = math.hypot(dx, dz)
@@ -54,6 +61,15 @@ def region(c, r):
     # Little pond, south-east of the giant oak.
     if ((dx - 7.0) / 5.2) ** 2 + ((dz - 14.0) / 3.6) ** 2 <= 1.0:
         return 'w'
+
+    # Big clay vein: from the pond's east edge running toward the ocean on
+    # the south-east, hidden under sparse-grass clay (region V).
+    if seg_dist(dx, dz, 12.0, 14.0, 28.0, 27.0) < 2.6:
+        return 'V'
+
+    # Small hidden clay patch in the forest (region c).
+    if ((dx + 8.0) / 3.5) ** 2 + ((dz + 27.0) / 2.5) ** 2 <= 1.0:
+        return 'c'
 
     # North-east slate edge: waterline apron first, high slate behind it.
     if adist(ang, -15.0) < 50.0 and t > 0.86:
@@ -96,7 +112,7 @@ def main():
 
     print("# starter_island - player starting island, ~150 blocks across.")
     print("# Regenerate: python tools/gen_starter_island.py > shapes/starter_island.txt")
-    print("# Suggested: /genisland shape=starter_island diameter=150 height=8")
+    print("# Suggested: /genisland shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite")
     print("#")
     print("# Smooth and idyllic: big white-sand west beach, sparse oak forest north,")
     print("# rich meadow around the cattail pond, wild flax meadow east, low-fertility")
@@ -106,14 +122,16 @@ def main():
     print("# structure, shoreline boulders.")
     print()
     print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium bushes=raspberry:0.002,blueberry:0.002 scatter=cornflower:0.010,forgetmenot:0.010,cowparsley:0.005 height=0.70 shore=16 rough=0.08")
-    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak copperbits=0.01 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.75 shore=16 rough=0.08")
+    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak copperbits=0.15 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.75 shore=16 rough=0.08")
     print("region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium bushes=cranberry:0.01 scatter=cornflower:0.015,forgetmenot:0.015,horsetail:0.010 height=0.70 shore=16 rough=0.06")
     print("region X rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium flax=0.05 bushes=blackcurrant:0.005,redcurrant:0.005 scatter=catmint:0.008,cowparsley:0.006 height=0.70 shore=16 rough=0.08")
-    print("region L rock=slate                  fertility=low    surface=grass ores=copper:medium bushes=cranberry:0.008 scatter=cowparsley:0.004 boulders=0.004 height=0.55 shore=14 rough=0.12")
+    print("region L rock=slate                  fertility=low    surface=grass ores=copper:medium bushes=cranberry:0.008 scatter=cowparsley:0.004 height=0.55 shore=14 rough=0.12")
     print("region B rock=slate sand=sand-chalk  surface=sand     bushes=birch:0.006,strawberry:0.003 shells=0.02 height=0.16 shore=36 rough=0.03")
     print("region T rock=slate sand=sand-chalk  surface=sand     bushes=birch:0.006,strawberry:0.003 shells=0.02 height=0.16 shore=36 rough=0.03 cattails=1.0")
     print("region C rock=slate sand=sand-slate  surface=rocksand boulders=0.015 height=0.60 shore=3  rough=0.10")
-    print("region R rock=slate rock2=peridotite surface=rock     ores=copper:rich boulders=0.010 height=1.0 shore=16 rough=0.12")
+    print("region R rock=slate rock2=peridotite surface=rock     ores=copper:rich copperbits=0.08 boulders=0.010 height=1.0 shore=16 rough=0.12")
+    print("region V rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:medium height=0.70 shore=16 rough=0.06")
+    print("region c rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:sparse height=0.75 shore=16 rough=0.08")
     print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45 lilies=0.10 clay=0.5")
     print("tree O oak 2.4")
     print()
