@@ -62,9 +62,10 @@ def region(c, r):
         return 'R'
 
     # West beach lobe: deepest mid-lobe, tapering to nothing at its ends.
+    # The north tip, where the beach meets the forest, is reedy (cattails).
     a = adist(ang, 168.0)
     if a < 42.0 and t > 0.55 + 0.38 * (a / 42.0) ** 2:
-        return 'B'
+        return 'T' if adist(ang, -153.0) < 13.0 else 'B'
 
     # Low-fertility slate ground along the south rim.
     if adist(ang, 95.0) < 40.0 and t > 0.72:
@@ -101,15 +102,16 @@ def main():
     print("# rich meadow around the cattail pond, wild flax meadow east, low-fertility")
     print("# south rim. The one rough edge is the north-east slate headland (C apron +")
     print("# R high slate) where the devastated mine will go.")
-    print("# Deferred (add later): surface copper, ruined chest, teleporter,")
-    print("# devastated mine structure, shoreline boulders.")
+    print("# Deferred (add later): ruined chest, teleporter, devastated mine")
+    print("# structure, shoreline boulders.")
     print()
     print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium height=0.70 shore=16 rough=0.08")
-    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak height=0.75 shore=16 rough=0.08")
+    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak copperbits=0.01 height=0.75 shore=16 rough=0.08")
     print("region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium height=0.70 shore=16 rough=0.06")
     print("region X rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium flax=0.05 height=0.70 shore=16 rough=0.08")
     print("region L rock=slate                  fertility=low    surface=grass ores=copper:medium height=0.55 shore=14 rough=0.12")
-    print("region B rock=slate sand=sand-chalk  surface=sand     height=0.10 shore=36 rough=0.03")
+    print("region B rock=slate sand=sand-chalk  surface=sand     height=0.16 shore=36 rough=0.03")
+    print("region T rock=slate sand=sand-chalk  surface=sand     height=0.16 shore=36 rough=0.03 cattails=0.30")
     print("region C rock=slate sand=sand-slate  surface=rocksand height=0.60 shore=3  rough=0.30")
     print("region R rock=slate rock2=peridotite surface=rock     ores=copper:rich height=1.0 shore=16 rough=0.40")
     print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45")

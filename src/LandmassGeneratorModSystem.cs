@@ -154,13 +154,15 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Rough = 0.3;        // surface noise amplitude
         public double Forest;
         public int Pond;                  // 0 = dry land; else a pond this many blocks deep
-        public double Cattails;           // on a pond region: chance of a cattail per rim column
+        public double Cattails;           // pond region: chance per rim column; land region: chance per waterline column
         public double Flax;               // chance of a wild flax plant per grass column
+        public double CopperBits;         // chance of a loose surface copper stone per grass column
         public List<ITreeGenerator> Trees = new();
         public List<OreSpec> Ores = new();
         public int StoneId, StoneId2, SandId, SoilId, GrassId;
         public int CattailId;
         public int[] FlaxIds = Array.Empty<int>();
+        public int[] CopperBitIds = Array.Empty<int>();
     }
 
     private class TreeMarker
@@ -496,8 +498,8 @@ public class LandmassGeneratorModSystem : ModSystem
                     rawS[x, z] = (float)rg.ShoreWidth;
                 }
             }
-        shape.HeightField = SmoothField(rawH, isLand, shape.W, shape.H, 4);
-        shape.ShoreField = SmoothField(rawS, isLand, shape.W, shape.H, 4);
+        shape.HeightField = SmoothField(rawH, isLand, shape.W, shape.H, 5);
+        shape.ShoreField = SmoothField(rawS, isLand, shape.W, shape.H, 5);
         return shape;
     }
 
@@ -623,6 +625,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "pond": r.Pond = (int)Math.Clamp(ParseD(v, 3), 1, 40); break;
                 case "cattails": r.Cattails = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "flax": r.Flax = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "copperbits": r.CopperBits = Math.Clamp(ParseD(v, 0), 0, 1); break;
             }
         }
 
@@ -696,6 +699,26 @@ public class LandmassGeneratorModSystem : ModSystem
             }
             r.FlaxIds = flaxIds.ToArray();
             if (flaxIds.Count == 0) { r.Flax = 0; problems.Add($"region {r.Key}: no crop-flax blocks, flax off"); }
+        }
+
+        if (r.CopperBits > 0)
+        {
+            // Loose copper stones on the ground, the classic "ore below" signal.
+            // Prefer the region's own rocks so the bits match the geology.
+            var bitIds = new List<int>();
+            foreach (string rock in new[] { r.RockType, rock2, "peridotite", "shale" })
+            {
+                if (string.IsNullOrEmpty(rock)) continue;
+                foreach (string grade in new[] { "poor", "medium" })
+                    foreach (string mineral in new[] { "nativecopper", "malachite" })
+                    {
+                        Block b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-{grade}-{mineral}-{rock}-free"));
+                        if (b != null) bitIds.Add(b.BlockId);
+                    }
+                if (bitIds.Count > 0) break; // one rock's bits, so the ground reads consistent
+            }
+            r.CopperBitIds = bitIds.ToArray();
+            if (bitIds.Count == 0) { r.CopperBits = 0; problems.Add($"region {r.Key}: no loose copper blocks, copperbits off"); }
         }
         return r;
     }
@@ -815,7 +838,7 @@ public class LandmassGeneratorModSystem : ModSystem
     {
         if (job.Shape == null) return false;
         foreach (var r in job.Shape.Regions.Values)
-            if (r.Cattails > 0 || r.Flax > 0) return true;
+            if (r.Cattails > 0 || r.Flax > 0 || r.CopperBits > 0) return true;
         return false;
     }
 
@@ -903,16 +926,9 @@ public class LandmassGeneratorModSystem : ModSystem
         topY = 0; underwater = false; topMat = SurfGrass; nearIsland = false; waterTopY = -1; reg = null;
         ShapeDef s = job.Shape;
 
-        // Nudge the sample point with noise so the coast is organic instead of
-        // showing the grid's stair-steps. Kept modest so it wiggles the border
-        // without speckling regions across each other.
-        double jx = (job.JitterX.Noise(x, z) - 0.5) * 2.0 * 0.7;
-        double jz = (job.JitterZ.Noise(x, z) - 0.5) * 2.0 * 0.7;
-        double gx = (x - job.Cx) / job.WorldPerCell + s.W / 2.0 + jx;
-        double gz = (z - job.Cz) / job.WorldPerCell + s.H / 2.0 + jz;
-
-        int cx = (int)Math.Floor(gx), cz = (int)Math.Floor(gz);
-        bool inGrid = cx >= 0 && cz >= 0 && cx < s.W && cz < s.H;
+        // The sample point is nudged with noise (inside GridPos) so the coast is
+        // organic instead of showing the grid's stair-steps.
+        bool inGrid = GridPos(job, x, z, out double gx, out double gz, out int cx, out int cz);
         char cell = inGrid ? s.Cells[cx, cz] : '.';
 
         if (cell != '.' && s.Regions.TryGetValue(cell, out Region r))
@@ -927,17 +943,22 @@ public class LandmassGeneratorModSystem : ModSystem
             double shore = Math.Max(1.0, Bilinear(s.ShoreField, s.W, s.H, gx, gz));
             double rise = job.DomeHeight * hFrac * Smooth(dCoast / shore);
             double rough = (job.SurfNoise.Noise(x, z) - 0.5) * 2.0 * r.Rough * 4.0;
-            // Dither breaks contour terraces into ragged ground, so it scales
-            // with the region's rough: a smooth meadow gets none of it, a rocky
-            // headland gets the full amount.
             double dith = (job.Dither.Noise(x, z) - 0.5) * Math.Min(1.35, r.Rough * 4.0);
-            int landY = (int)Math.Round(job.SeaLevel + rise + rough * Math.Min(1.0, dCoast / 6.0) + dith);
-            if (landY < job.SeaLevel) landY = job.SeaLevel; // land never dips under its own shore
+            // The smooth terrain and the noise round SEPARATELY: noise only
+            // makes a step when it is worth a whole block by itself. A meadow's
+            // small noise then never speckles the ground, while a rocky region's
+            // large noise still breaks it up. The whole island also sits one
+            // block lower than the naive rounding, so the shore ends flush with
+            // the water surface and a swimmer can climb out anywhere.
+            double bumps = rough * Math.Min(1.0, dCoast / 6.0) + dith;
+            int landY = (int)Math.Round(job.SeaLevel - 1 + rise) + (int)Math.Round(bumps);
+            if (landY < job.SeaLevel - 1) landY = job.SeaLevel - 1;
 
             if (r.Pond > 0)
             {
                 // A pond needs ONE flat water level; per-column noise would tear
-                // the surface. The rim comes from the region's raw height alone.
+                // the surface. The water sits one block below the meadow, flush
+                // with its collar, so a swimmer can climb straight out.
                 int rimY = PondRim(job, r);
                 topY = Math.Max(job.SeaLevel - 2, rimY - r.Pond);
                 waterTopY = rimY - 1;
@@ -945,10 +966,10 @@ public class LandmassGeneratorModSystem : ModSystem
             }
             else
             {
-                // Land beside a pond flattens to the pond's rim so the water is
-                // properly contained: no noisy gaps, no leaks.
+                // Land beside a pond flattens to a level collar one block below
+                // the meadow, exactly at the water surface: contained, no lip.
                 Region pondN = NeighbourPond(s, cx, cz);
-                topY = pondN != null ? PondRim(job, pondN) : landY;
+                topY = pondN != null ? PondRim(job, pondN) - 1 : landY;
                 topMat = SurfaceMat(job, r, x, z);
             }
             return true;
@@ -969,11 +990,11 @@ public class LandmassGeneratorModSystem : ModSystem
         return true;
     }
 
-    // The flat rim height a pond's water sits one block below. Raw region
-    // height, no noise, so every pond column agrees on it. Ponds belong in the
-    // island interior where the rise has already saturated to full height.
+    // The meadow level around a pond: raw region height, no noise, so every
+    // pond column agrees on it. Water surface and collar sit one below it.
+    // Ponds belong in the island interior where the rise has saturated.
     private static int PondRim(IslandJob job, Region pond)
-        => job.SeaLevel + (int)Math.Round(job.DomeHeight * pond.Height);
+        => job.SeaLevel - 1 + (int)Math.Round(job.DomeHeight * pond.Height);
 
     // The pond region in any of the 8 cells around this one, or null.
     private static Region NeighbourPond(ShapeDef s, int cx, int cz)
@@ -990,15 +1011,17 @@ public class LandmassGeneratorModSystem : ModSystem
         return null;
     }
 
-    // The grid cell this world column samples, jitter included. Must mirror the
-    // mapping in ShapeSurface so the flora pass agrees with the terrain pass.
-    private static bool GridCell(IslandJob job, int x, int z, out int cx, out int cz)
+    // The grid position this world column samples, jitter included. Terrain and
+    // flora passes share this mapping so they always agree on the cell.
+    private static bool GridPos(IslandJob job, int x, int z, out double gx, out double gz, out int cx, out int cz)
     {
         ShapeDef s = job.Shape;
         double jx = (job.JitterX.Noise(x, z) - 0.5) * 2.0 * 0.7;
         double jz = (job.JitterZ.Noise(x, z) - 0.5) * 2.0 * 0.7;
-        cx = (int)Math.Floor((x - job.Cx) / job.WorldPerCell + s.W / 2.0 + jx);
-        cz = (int)Math.Floor((z - job.Cz) / job.WorldPerCell + s.H / 2.0 + jz);
+        gx = (x - job.Cx) / job.WorldPerCell + s.W / 2.0 + jx;
+        gz = (z - job.Cz) / job.WorldPerCell + s.H / 2.0 + jz;
+        cx = (int)Math.Floor(gx);
+        cz = (int)Math.Floor(gz);
         return cx >= 0 && cz >= 0 && cx < s.W && cz < s.H;
     }
 
@@ -1080,11 +1103,11 @@ public class LandmassGeneratorModSystem : ModSystem
     {
         if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out _, out Region reg))
             return;
-        if (underwater || topMat != SurfGrass) return; // grass only
+        if (underwater || (topMat != SurfGrass && topMat != SurfSand)) return;
 
         job.Rand.InitPositionSeed(x, z);
-        if (TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
-        else if (TryPlantFlora(job, ba, pos, x, z, topY, reg)) job.Plants++;
+        if (topMat == SurfGrass && TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
+        else if (TryPlantFlora(job, ba, pos, x, z, topY, topMat, reg)) job.Plants++;
     }
 
     private bool TryPlantTree(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z, int topY, Region reg)
@@ -1125,12 +1148,13 @@ public class LandmassGeneratorModSystem : ModSystem
         return true;
     }
 
-    // Cattails ring a pond's rim; wild flax dots the grass of regions that ask
-    // for it. Both sit in the block above the ground.
-    private bool TryPlantFlora(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z, int topY, Region reg)
+    // Cattails ring a pond's rim (or the sea's waterline, on a shore region
+    // that asks for them); wild flax and loose surface copper dot the grass.
+    // Everything sits in the block above the ground.
+    private bool TryPlantFlora(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z, int topY, int topMat, Region reg)
     {
         if (job.Shape == null || reg == null) return false;
-        if (!GridCell(job, x, z, out int cx, out int cz)) return false;
+        if (!GridPos(job, x, z, out double gx, out double gz, out int cx, out int cz)) return false;
 
         Region pondN = NeighbourPond(job.Shape, cx, cz);
         if (pondN != null && pondN.CattailId != 0 && job.Rand.NextDouble() < pondN.Cattails)
@@ -1140,10 +1164,30 @@ public class LandmassGeneratorModSystem : ModSystem
             return true;
         }
 
+        if (reg.Pond == 0 && reg.Cattails > 0 && reg.CattailId != 0)
+        {
+            double dCoast = Bilinear(job.Shape.DistToOcean, job.Shape.W, job.Shape.H, gx, gz) * job.WorldPerCell;
+            if (dCoast <= 3.0 && job.Rand.NextDouble() < reg.Cattails)
+            {
+                pos.Set(x, topY + 1, z);
+                ba.SetBlock(reg.CattailId, pos);
+                return true;
+            }
+        }
+
+        if (topMat != SurfGrass) return false; // flax and copper want grass
+
         if (reg.Flax > 0 && reg.FlaxIds.Length > 0 && job.Rand.NextDouble() < reg.Flax)
         {
             pos.Set(x, topY + 1, z);
             ba.SetBlock(reg.FlaxIds[job.Rand.NextInt(reg.FlaxIds.Length)], pos);
+            return true;
+        }
+
+        if (reg.CopperBits > 0 && reg.CopperBitIds.Length > 0 && job.Rand.NextDouble() < reg.CopperBits)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.CopperBitIds[job.Rand.NextInt(reg.CopperBitIds.Length)], pos);
             return true;
         }
         return false;

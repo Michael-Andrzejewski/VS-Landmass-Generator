@@ -92,8 +92,9 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `shore` | Blocks from the coast to full height. Small is a sheer cliff, large is a gentle beach. |
 | `rough` | Surface roughness, for outcrops and broken ground. |
 | `pond` | Makes the region a pond this many blocks deep: a level water bowl contained by a flat grass rim. |
-| `cattails` | On a pond region: chance per rim column of a cattail, so reeds ring the water. |
+| `cattails` | On a pond region: chance per rim column of a cattail, so reeds ring the water. On a shore region: chance per column within 3 blocks of the sea. |
 | `flax` | Chance per grass column of a wild flax plant (mixed maturity). |
+| `copperbits` | Chance per grass column of a loose surface copper stone, the classic sign of ore below. |
 | `ores`, `forest`, `trees` | As above, but per region. |
 | `tree <char> <type> <size>` | A landmark tree at that spot on the map. |
 
