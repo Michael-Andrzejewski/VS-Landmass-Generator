@@ -140,8 +140,8 @@ public class LandmassGeneratorModSystem : ModSystem
         }
     }
 
-    // Surface treatments a region can have.
-    private const int SurfGrass = 0, SurfSand = 1, SurfRock = 2, SurfRockSand = 3;
+    // Surface treatments a region can have. SurfSoil is bare dirt (pond beds).
+    private const int SurfGrass = 0, SurfSand = 1, SurfRock = 2, SurfRockSand = 3, SurfSoil = 4;
 
     // One labelled area of a drawn island (forest, plains, beach, rocky arm...).
     private class Region
@@ -154,9 +154,13 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Rough = 0.3;        // surface noise amplitude
         public double Forest;
         public int Pond;                  // 0 = dry land; else a pond this many blocks deep
+        public double Cattails;           // on a pond region: chance of a cattail per rim column
+        public double Flax;               // chance of a wild flax plant per grass column
         public List<ITreeGenerator> Trees = new();
         public List<OreSpec> Ores = new();
         public int StoneId, StoneId2, SandId, SoilId, GrassId;
+        public int CattailId;
+        public int[] FlaxIds = Array.Empty<int>();
     }
 
     private class TreeMarker
@@ -205,7 +209,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
 
         public int MinX, MinZ, W, H;
-        public long I, Total, Placed, Trees;
+        public long I, Total, Placed, Trees, Plants;
         public int ColumnsPerTick;
         public int Phase;                 // 0 terrain, 1 forest
         public LCGRandom Rand;
@@ -492,8 +496,8 @@ public class LandmassGeneratorModSystem : ModSystem
                     rawS[x, z] = (float)rg.ShoreWidth;
                 }
             }
-        shape.HeightField = SmoothField(rawH, isLand, shape.W, shape.H, 3);
-        shape.ShoreField = SmoothField(rawS, isLand, shape.W, shape.H, 3);
+        shape.HeightField = SmoothField(rawH, isLand, shape.W, shape.H, 4);
+        shape.ShoreField = SmoothField(rawS, isLand, shape.W, shape.H, 4);
         return shape;
     }
 
@@ -617,6 +621,8 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "rough": r.Rough = ParseD(v, 0.3); break;
                 case "forest": r.Forest = Math.Clamp(ParseD(v, 0), 0, 0.35); break;
                 case "pond": r.Pond = (int)Math.Clamp(ParseD(v, 3), 1, 40); break;
+                case "cattails": r.Cattails = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "flax": r.Flax = Math.Clamp(ParseD(v, 0), 0, 1); break;
             }
         }
 
@@ -636,9 +642,18 @@ public class LandmassGeneratorModSystem : ModSystem
                                        : sapi.World.GetBlock(new AssetLocation("game", "sand-" + r.RockType));
         r.SandId = rsand?.BlockId ?? job.SandId;
 
-        // Soil and grass follow the region's fertility, if given.
+        // Soil and grass follow the region's fertility, if given. The game's
+        // block codes do not match their names: code "compost" displays as
+        // "High fertility soil" and code "high" displays as "Terra preta", so
+        // translate the friendly words people would actually write.
         if (fert != null)
         {
+            fert = fert.ToLowerInvariant() switch
+            {
+                "high" => "compost",
+                "terrapreta" => "high",
+                _ => fert.ToLowerInvariant()
+            };
             Block soilB = sapi.World.GetBlock(new AssetLocation("game", $"soil-{fert}-none"));
             Block grassB = sapi.World.GetBlock(new AssetLocation("game", $"soil-{fert}-normal"));
             r.SoilId = soilB?.BlockId ?? job.SoilId;
@@ -662,6 +677,25 @@ public class LandmassGeneratorModSystem : ModSystem
                 if (g != null) r.Trees.Add(g);
             }
             if (r.Trees.Count == 0) { r.Forest = 0; problems.Add($"region {r.Key}: no usable trees, forest off"); }
+        }
+
+        if (r.Cattails > 0)
+        {
+            r.CattailId = sapi.World.GetBlock(new AssetLocation("game", "tallplant-coopersreed-land-normal-free"))?.BlockId ?? 0;
+            if (r.CattailId == 0) { r.Cattails = 0; problems.Add($"region {r.Key}: no cattail block, cattails off"); }
+        }
+
+        if (r.Flax > 0)
+        {
+            // Mixed maturity so a wild patch does not look machine-planted.
+            var flaxIds = new List<int>();
+            for (int stage = 6; stage <= 9; stage++)
+            {
+                Block b = sapi.World.GetBlock(new AssetLocation("game", "crop-flax-" + stage));
+                if (b != null) flaxIds.Add(b.BlockId);
+            }
+            r.FlaxIds = flaxIds.ToArray();
+            if (flaxIds.Count == 0) { r.Flax = 0; problems.Add($"region {r.Key}: no crop-flax blocks, flax off"); }
         }
         return r;
     }
@@ -744,13 +778,13 @@ public class LandmassGeneratorModSystem : ModSystem
             job.I++;
 
             if (job.Phase == 0) { if (FillColumn(job, ba, pos, x, z)) job.Placed++; }
-            else { if (TryPlantTree(job, ba, pos, x, z)) job.Trees++; }
+            else PlantColumn(job, ba, pos, x, z);
         }
         ba.Commit();
 
         if (job.HasNext) return;
 
-        if (job.Phase == 0 && HasForest(job))
+        if (job.Phase == 0 && (HasForest(job) || HasFlora(job)))
         {
             job.Phase = 1;
             job.I = 0;
@@ -765,6 +799,7 @@ public class LandmassGeneratorModSystem : ModSystem
 
         string done = $"Island complete: {job.Placed} column(s)";
         if (job.Trees > 0) done += $", {job.Trees} tree(s)";
+        if (job.Plants > 0) done += $", {job.Plants} plant(s)";
         ReportIsland(job, done + ". " + extra);
     }
 
@@ -773,6 +808,14 @@ public class LandmassGeneratorModSystem : ModSystem
         if (job.Shape == null) return job.ForestDensity > 0 && job.ForestTrees.Count > 0;
         foreach (var r in job.Shape.Regions.Values)
             if (r.Forest > 0 && r.Trees.Count > 0) return true;
+        return false;
+    }
+
+    private static bool HasFlora(IslandJob job)
+    {
+        if (job.Shape == null) return false;
+        foreach (var r in job.Shape.Regions.Values)
+            if (r.Cattails > 0 || r.Flax > 0) return true;
         return false;
     }
 
@@ -809,9 +852,9 @@ public class LandmassGeneratorModSystem : ModSystem
             pos.Set(x, y, z);
             int id;
             if (y == topY)
-                id = topMat == SurfGrass ? grassId : topMat == SurfSand ? sandId : stoneId;
+                id = topMat == SurfGrass ? grassId : topMat == SurfSoil ? soilId : topMat == SurfSand ? sandId : stoneId;
             else if (y > topY - skin)
-                id = topMat == SurfGrass ? soilId : topMat == SurfSand ? sandId : stoneId;
+                id = topMat == SurfGrass || topMat == SurfSoil ? soilId : topMat == SurfSand ? sandId : stoneId;
             else
                 id = PickStone(job, ores, stoneId, stoneId2, x, y, z);
             ba.SetBlock(id, pos);
@@ -884,23 +927,28 @@ public class LandmassGeneratorModSystem : ModSystem
             double shore = Math.Max(1.0, Bilinear(s.ShoreField, s.W, s.H, gx, gz));
             double rise = job.DomeHeight * hFrac * Smooth(dCoast / shore);
             double rough = (job.SurfNoise.Noise(x, z) - 0.5) * 2.0 * r.Rough * 4.0;
-            // Fine-grained dither on the rounding so a smooth slope breaks into
-            // ragged ground instead of clean contour terraces.
-            double dith = (job.Dither.Noise(x, z) - 0.5) * 1.35;
+            // Dither breaks contour terraces into ragged ground, so it scales
+            // with the region's rough: a smooth meadow gets none of it, a rocky
+            // headland gets the full amount.
+            double dith = (job.Dither.Noise(x, z) - 0.5) * Math.Min(1.35, r.Rough * 4.0);
             int landY = (int)Math.Round(job.SeaLevel + rise + rough * Math.Min(1.0, dCoast / 6.0) + dith);
             if (landY < job.SeaLevel) landY = job.SeaLevel; // land never dips under its own shore
 
             if (r.Pond > 0)
             {
-                // Carve a shallow bowl and fill it to just below the land rim, so
-                // the pond sits contained in the surrounding ground.
-                topY = Math.Max(job.SeaLevel - 2, landY - r.Pond);
-                waterTopY = landY - 1;
-                topMat = SurfSand; // sandy pond bed
+                // A pond needs ONE flat water level; per-column noise would tear
+                // the surface. The rim comes from the region's raw height alone.
+                int rimY = PondRim(job, r);
+                topY = Math.Max(job.SeaLevel - 2, rimY - r.Pond);
+                waterTopY = rimY - 1;
+                topMat = SurfSoil; // muddy pond bed
             }
             else
             {
-                topY = landY;
+                // Land beside a pond flattens to the pond's rim so the water is
+                // properly contained: no noisy gaps, no leaks.
+                Region pondN = NeighbourPond(s, cx, cz);
+                topY = pondN != null ? PondRim(job, pondN) : landY;
                 topMat = SurfaceMat(job, r, x, z);
             }
             return true;
@@ -919,6 +967,39 @@ public class LandmassGeneratorModSystem : ModSystem
         waterTopY = underwater ? job.SeaLevel - 1 : -1;
         topMat = topY >= job.SeaLevel - 4 ? SurfSand : SurfRock;
         return true;
+    }
+
+    // The flat rim height a pond's water sits one block below. Raw region
+    // height, no noise, so every pond column agrees on it. Ponds belong in the
+    // island interior where the rise has already saturated to full height.
+    private static int PondRim(IslandJob job, Region pond)
+        => job.SeaLevel + (int)Math.Round(job.DomeHeight * pond.Height);
+
+    // The pond region in any of the 8 cells around this one, or null.
+    private static Region NeighbourPond(ShapeDef s, int cx, int cz)
+    {
+        for (int dz = -1; dz <= 1; dz++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dz == 0) continue;
+                int nx = cx + dx, nz = cz + dz;
+                if (nx < 0 || nz < 0 || nx >= s.W || nz >= s.H) continue;
+                char c = s.Cells[nx, nz];
+                if (c != '.' && s.Regions.TryGetValue(c, out Region nr) && nr.Pond > 0) return nr;
+            }
+        return null;
+    }
+
+    // The grid cell this world column samples, jitter included. Must mirror the
+    // mapping in ShapeSurface so the flora pass agrees with the terrain pass.
+    private static bool GridCell(IslandJob job, int x, int z, out int cx, out int cz)
+    {
+        ShapeDef s = job.Shape;
+        double jx = (job.JitterX.Noise(x, z) - 0.5) * 2.0 * 0.7;
+        double jz = (job.JitterZ.Noise(x, z) - 0.5) * 2.0 * 0.7;
+        cx = (int)Math.Floor((x - job.Cx) / job.WorldPerCell + s.W / 2.0 + jx);
+        cz = (int)Math.Floor((z - job.Cz) / job.WorldPerCell + s.H / 2.0 + jz);
+        return cx >= 0 && cz >= 0 && cx < s.W && cz < s.H;
     }
 
     // Distance (in cells) to the nearest land, continuous across the grid
@@ -993,19 +1074,25 @@ public class LandmassGeneratorModSystem : ModSystem
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  Forest
+    //  Forest and flora
     // ─────────────────────────────────────────────────────────────────────
-    private bool TryPlantTree(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z)
+    private void PlantColumn(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z)
     {
         if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out _, out Region reg))
-            return false;
-        if (underwater || topMat != SurfGrass) return false; // grass only
+            return;
+        if (underwater || topMat != SurfGrass) return; // grass only
 
+        job.Rand.InitPositionSeed(x, z);
+        if (TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
+        else if (TryPlantFlora(job, ba, pos, x, z, topY, reg)) job.Plants++;
+    }
+
+    private bool TryPlantTree(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z, int topY, Region reg)
+    {
         double density = reg?.Forest ?? job.ForestDensity;
         List<ITreeGenerator> pool = reg?.Trees ?? job.ForestTrees;
         if (density <= 0 || pool.Count == 0) return false;
 
-        job.Rand.InitPositionSeed(x, z);
         if (job.Rand.NextDouble() >= density) return false;
 
         // Leave a clearing around any landmark tree so it stands alone.
@@ -1032,9 +1119,34 @@ public class LandmassGeneratorModSystem : ModSystem
             hemisphere = EnumHemisphere.North,
             treesInChunkGenerated = 0
         };
-        pos.Set(x, topY + 1, z);
+        // GrowTree expects the GROUND block; it grows the trunk above it itself.
+        pos.Set(x, topY, z);
         pool[job.Rand.NextInt(pool.Count)].GrowTree(ba, pos, tp, job.Rand);
         return true;
+    }
+
+    // Cattails ring a pond's rim; wild flax dots the grass of regions that ask
+    // for it. Both sit in the block above the ground.
+    private bool TryPlantFlora(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z, int topY, Region reg)
+    {
+        if (job.Shape == null || reg == null) return false;
+        if (!GridCell(job, x, z, out int cx, out int cz)) return false;
+
+        Region pondN = NeighbourPond(job.Shape, cx, cz);
+        if (pondN != null && pondN.CattailId != 0 && job.Rand.NextDouble() < pondN.Cattails)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(pondN.CattailId, pos);
+            return true;
+        }
+
+        if (reg.Flax > 0 && reg.FlaxIds.Length > 0 && job.Rand.NextDouble() < reg.Flax)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.FlaxIds[job.Rand.NextInt(reg.FlaxIds.Length)], pos);
+            return true;
+        }
+        return false;
     }
 
     private static void MarkerWorld(IslandJob job, TreeMarker m, out int x, out int z)
@@ -1057,7 +1169,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out _) || uw) continue;
                 var rnd = new LCGRandom(job.Seed);
                 rnd.InitPositionSeed(x, z);
-                m.Gen.GrowTree(ba, new BlockPos(x, topY + 1, z, job.Dim), LandmarkParams(m.Size), rnd);
+                m.Gen.GrowTree(ba, new BlockPos(x, topY, z, job.Dim), LandmarkParams(m.Size), rnd);
                 planted++;
             }
         }
@@ -1067,7 +1179,7 @@ public class LandmassGeneratorModSystem : ModSystem
             {
                 var rnd = new LCGRandom(job.Seed);
                 rnd.InitPositionSeed(job.Cx, job.Cz);
-                job.SummitTree.GrowTree(ba, new BlockPos(job.Cx, topY + 1, job.Cz, job.Dim), LandmarkParams(1.6f), rnd);
+                job.SummitTree.GrowTree(ba, new BlockPos(job.Cx, topY, job.Cz, job.Dim), LandmarkParams(1.6f), rnd);
                 planted++;
             }
         }

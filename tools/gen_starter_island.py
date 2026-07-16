@@ -8,8 +8,8 @@ a smooth, idyllic, mostly-grassy round island ~150 blocks across.
     small ~5 block slate cliff, then higher bare slate behind it. This is
     where the devastated mine will go, so its copper is rich.
   - Low-fertility slate ground along the south rim (kept smooth).
-  - Rich-soil meadow south-west of centre, giant oak at the centre,
-    little pond just south-east of it.
+  - Giant oak at the centre; cattail pond just south-east of it, wrapped
+    in a rich-soil meadow; wild flax meadow east of centre.
 
 The outline is a radial harmonic curve rather than a polygon, so the coast
 has no corners. All the non-slate regions use low rough values and wide
@@ -74,9 +74,13 @@ def region(c, r):
     if adist(ang, -95.0) < 50.0 and t > 0.40:
         return 'F'
 
-    # Rich-soil meadow, south-west of centre.
-    if ((dx + 13.0) / 9.5) ** 2 + ((dz - 11.0) / 8.0) ** 2 <= 1.0:
+    # Rich-soil meadow wrapping the pond.
+    if ((dx - 7.0) / 11.5) ** 2 + ((dz - 14.0) / 9.5) ** 2 <= 1.0:
         return 'H'
+
+    # Wild flax meadow, east of centre.
+    if ((dx - 20.0) / 8.5) ** 2 + ((dz + 2.0) / 7.0) ** 2 <= 1.0:
+        return 'X'
 
     return 'P'
 
@@ -91,23 +95,24 @@ def main():
 
     print("# starter_island - player starting island, ~150 blocks across.")
     print("# Regenerate: python tools/gen_starter_island.py > shapes/starter_island.txt")
-    print("# Suggested: /genisland shape=starter_island diameter=150 height=22")
+    print("# Suggested: /genisland shape=starter_island diameter=150 height=8")
     print("#")
     print("# Smooth and idyllic: big white-sand west beach, sparse oak forest north,")
-    print("# rich meadow south-west, pond by the giant oak, low-fertility south rim.")
-    print("# The one rough edge is the north-east slate headland (C apron + R high")
-    print("# slate) where the devastated mine will go.")
-    print("# Deferred (add later): cattails/wild flax flora, surface copper, ruined")
-    print("# chest, teleporter, devastated mine structure, shoreline boulders.")
+    print("# rich meadow around the cattail pond, wild flax meadow east, low-fertility")
+    print("# south rim. The one rough edge is the north-east slate headland (C apron +")
+    print("# R high slate) where the devastated mine will go.")
+    print("# Deferred (add later): surface copper, ruined chest, teleporter,")
+    print("# devastated mine structure, shoreline boulders.")
     print()
-    print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium height=0.78 shore=16 rough=0.09")
-    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.03 trees=oak height=0.84 shore=16 rough=0.10")
-    print("region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium height=0.78 shore=16 rough=0.08")
-    print("region L rock=slate                  fertility=low    surface=grass ores=copper:medium height=0.60 shore=14 rough=0.14")
-    print("region B rock=slate sand=sand-chalk  surface=sand     height=0.08 shore=36 rough=0.03")
-    print("region C rock=slate sand=sand-slate  surface=rocksand height=0.26 shore=3  rough=0.30")
+    print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium height=0.70 shore=16 rough=0.08")
+    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak height=0.75 shore=16 rough=0.08")
+    print("region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium height=0.70 shore=16 rough=0.06")
+    print("region X rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium flax=0.05 height=0.70 shore=16 rough=0.08")
+    print("region L rock=slate                  fertility=low    surface=grass ores=copper:medium height=0.55 shore=14 rough=0.12")
+    print("region B rock=slate sand=sand-chalk  surface=sand     height=0.10 shore=36 rough=0.03")
+    print("region C rock=slate sand=sand-slate  surface=rocksand height=0.60 shore=3  rough=0.30")
     print("region R rock=slate rock2=peridotite surface=rock     ores=copper:rich height=1.0 shore=16 rough=0.40")
-    print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.78 shore=16 pond=4")
+    print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45")
     print("tree O oak 2.4")
     print()
     print("map")
