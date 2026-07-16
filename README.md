@@ -39,7 +39,9 @@ Vintage Story's ore pass only runs during natural worldgen, so blocks this mod p
 
     ores=copper:rich,iron:medium,tin:sparse
 
-Each ore gets its own 3D noise field: above a threshold is a vein, and the deeper into the vein a block sits, the richer the grade (poor to bountiful). Richness may be `sparse`, `medium`, `rich`, `abundant`, or a `0..1` number.
+Each ore gets its own 3D noise field: above a threshold is a vein, and the deeper into the vein a block sits, the richer the grade (poor to bountiful). Veins run through the whole core, from just under the soil down to the seabed.
+
+Richness is a target DENSITY, the fraction of the island's stone that is ore, and the threshold is calibrated against the noise so the fraction is real: `rare` 0.2%, `sparse` 0.5%, `medium` 1%, `rich` 2%, `abundant` 3.5%. A number gives the fraction directly: `copper:0.02` means 2 ore blocks per 100 stone, about the ceiling a prospecting pick reads in rich natural terrain.
 
 Friendly names (`copper`, `iron`, `tin`, `zinc`, `lead`, `nickel`, `chromium`, `titanium`, `tungsten`, `bismuth`, `manganese`) map to the underlying minerals, or you can name a mineral directly: `nativecopper`, `limonite`, `galena`, `cassiterite`, `chromite`, `ilmenite`, `sphalerite`, `bismuthinite`, `magnetite`, `hematite`, `malachite`, `pentlandite`, `uranium`, `wolframite`, `rhodochrosite`.
 

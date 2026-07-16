@@ -916,13 +916,13 @@ public class LandmassGeneratorModSystem : ModSystem
                 var o = new OreSpec
                 {
                     Name = mineral,
-                    Threshold = RichnessToThreshold(rich),
                     Noise = NormalizedSimplexNoise.FromDefaultOctaves(2, 1 / 11.0, 0.5, seed + 100 + idx),
                     PoorId = OreId("poor", mineral, rockType),
                     MediumId = OreId("medium", mineral, rockType),
                     RichId = OreId("rich", mineral, rockType),
                     BountifulId = OreId("bountiful", mineral, rockType)
                 };
+                o.Threshold = CalibrateThreshold(o.Noise, RichnessToDensity(rich), seed + idx);
                 if (o.PoorId != 0 || o.MediumId != 0 || o.RichId != 0 || o.BountifulId != 0) { found = o; break; }
             }
             idx++;
@@ -935,18 +935,36 @@ public class LandmassGeneratorModSystem : ModSystem
     private int OreId(string grade, string mineral, string rock)
         => sapi.World.GetBlock(new AssetLocation("game", $"ore-{grade}-{mineral}-{rock}"))?.BlockId ?? 0;
 
-    private static double RichnessToThreshold(string rich)
+    // Richness is a target DENSITY: the fraction of the island's stone that is
+    // ore. A number is the fraction directly (0.02 = 2 blocks per 100, about
+    // the ceiling a prospecting pick reads in rich natural terrain).
+    private static double RichnessToDensity(string rich)
     {
         if (double.TryParse(rich, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
-            return Math.Clamp(0.86 - 0.30 * Math.Clamp(v, 0, 1), 0.55, 0.90);
+            return Math.Clamp(v, 0.0005, 0.15);
         return rich.ToLowerInvariant() switch
         {
-            "rare" => 0.86,
-            "sparse" => 0.82,
-            "rich" => 0.68,
-            "abundant" => 0.62,
-            _ => 0.75
+            "rare" => 0.002,
+            "sparse" => 0.005,
+            "rich" => 0.02,
+            "abundant" => 0.035,
+            _ => 0.01 // medium
         };
+    }
+
+    // The noise's value distribution is not analytic, so hitting a REAL target
+    // density needs an empirical quantile: sample the field widely and take
+    // the cutoff that passes exactly the requested fraction of blocks.
+    private static double CalibrateThreshold(NormalizedSimplexNoise noise, double density, long seed)
+    {
+        const int n = 4096;
+        var samples = new double[n];
+        var rnd = new Random((int)(seed & 0x7fffffff));
+        for (int i = 0; i < n; i++)
+            samples[i] = noise.Noise(rnd.NextDouble() * 8192.0, rnd.NextDouble() * 512.0, rnd.NextDouble() * 8192.0);
+        Array.Sort(samples);
+        int idx = Math.Clamp((int)((1.0 - density) * n), 0, n - 1);
+        return samples[idx];
     }
 
     // ─────────────────────────────────────────────────────────────────────

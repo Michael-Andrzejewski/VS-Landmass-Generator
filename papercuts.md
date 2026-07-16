@@ -62,6 +62,11 @@ in [tips.md](tips.md).
   nothing declared for a rock-surface region (boulders on the slate headland,
   copper bits over the mine) ever spawned, silently. When a whole feature is
   absent, check the pass's surface gate before tuning densities.
+- **A noise threshold is not a density.** "noise > 0.82" gives an UNKNOWN ore
+  fraction because the noise's value distribution is not analytic. To hit a
+  real target like "2 ore blocks per 100 stone", calibrate: sample the noise
+  field a few thousand times at parse time, sort, and take the quantile
+  cutoff. Cheap, deterministic per seed, and the density becomes a promise.
 - **Natural features come in CLUSTERS; per-column rolls make lonely singles.**
   Vanilla surface copper is its own deposit config
   (worldgen/deposits/metalore/nativecopper.json, code "surfacecopper"): a
