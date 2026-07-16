@@ -161,7 +161,12 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Stones = -1;        // chance of a loose granite stone per column (-1 = default 0.012)
         public double Sticks;             // chance of a fallen stick per grass column
         public double Litter;             // chance a grass block becomes leaf-littered forest floor
+        public double Lilies;             // pond region: chance of a waterlily per water column
+        public double Shells;             // chance of a seashell per sand column
+        public double Boulders;           // chance of a loose boulder per column
+        public double Clay;               // pond region: chance a rim column becomes a clay deposit
         public List<BushSpec> Bushes = new();
+        public List<BushSpec> Scatter = new();   // generic decor: flowers, mushrooms, ferns...
         public List<ITreeGenerator> Trees = new();
         public List<OreSpec> Ores = new();
         public int StoneId, StoneId2, SandId, SoilId, GrassId;
@@ -170,7 +175,8 @@ public class LandmassGeneratorModSystem : ModSystem
         public int[] CopperBitIds = Array.Empty<int>();
         public int[] GrassIds = Array.Empty<int>();
         public int[] LitterIds = Array.Empty<int>();
-        public int LooseStoneId, LooseStickId;
+        public int[] ShellIds = Array.Empty<int>();
+        public int LooseStoneId, LooseStickId, LilyId, BoulderId, ClayId;
     }
 
     // One bush kind a region scatters: a fruiting-bush block, or (for "birch")
@@ -608,7 +614,7 @@ public class LandmassGeneratorModSystem : ModSystem
     private Region ParseRegion(string[] tok, IslandJob job, long seed, ref int oreIdx, List<string> problems)
     {
         var r = new Region { Key = tok[1][0] };
-        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null;
+        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null;
 
         for (int i = 2; i < tok.Length; i++)
         {
@@ -647,6 +653,11 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "sticks": r.Sticks = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "litter": r.Litter = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "bushes": bushStr = v; break;
+                case "scatter": scatterStr = v; break;
+                case "lilies": r.Lilies = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "shells": r.Shells = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "boulders": r.Boulders = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "clay": r.Clay = Math.Clamp(ParseD(v, 0), 0, 1); break;
             }
         }
 
@@ -791,7 +802,77 @@ public class LandmassGeneratorModSystem : ModSystem
                 else problems.Add($"region {r.Key}: no bush '{kind}', skipped");
             }
         }
+
+        if (!string.IsNullOrWhiteSpace(scatterStr))
+        {
+            // scatter=cornflower:0.01,fieldmushroom:0.006,eaglefern:0.02
+            // Friendly names resolve through the common decor prefixes; a full
+            // block code also works.
+            foreach (string entry in scatterStr.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] parts = entry.Split(':');
+                string name = parts[0].Trim().ToLowerInvariant();
+                double chance = parts.Length > 1 ? Math.Clamp(ParseD(parts[1], 0.01), 0, 1) : 0.01;
+                if (name.Length == 0 || chance <= 0) continue;
+                Block b = ResolveDecor(name);
+                if (b != null) r.Scatter.Add(new BushSpec { BlockId = b.BlockId, Chance = chance });
+                else problems.Add($"region {r.Key}: no decor block '{name}', skipped");
+            }
+        }
+
+        if (r.Lilies > 0)
+        {
+            r.LilyId = sapi.World.GetBlock(new AssetLocation("game", "waterlily"))?.BlockId ?? 0;
+            if (r.LilyId == 0) { r.Lilies = 0; problems.Add($"region {r.Key}: no waterlily block, lilies off"); }
+        }
+
+        if (r.Shells > 0)
+        {
+            var shellIds = new List<int>();
+            foreach (string type in new[] { "scallop", "sundial", "turritella", "clam", "conch", "seastar", "volute" })
+                foreach (string color in new[] { "latte", "plain", "seafoam", "darkpurple", "cinnamon", "turquoise" })
+                {
+                    Block b = sapi.World.GetBlock(new AssetLocation("game", $"seashell-{type}-{color}"));
+                    if (b != null) shellIds.Add(b.BlockId);
+                }
+            r.ShellIds = shellIds.ToArray();
+            if (shellIds.Count == 0) { r.Shells = 0; problems.Add($"region {r.Key}: no seashell blocks, shells off"); }
+        }
+
+        if (r.Boulders > 0)
+        {
+            r.BoulderId = sapi.World.GetBlock(new AssetLocation("game", $"looseboulders-{r.RockType}-free"))?.BlockId
+                ?? sapi.World.GetBlock(new AssetLocation("game", "looseboulders-granite-free"))?.BlockId ?? 0;
+            if (r.BoulderId == 0) { r.Boulders = 0; problems.Add($"region {r.Key}: no boulder block, boulders off"); }
+        }
+
+        if (r.Clay > 0)
+        {
+            r.ClayId = sapi.World.GetBlock(new AssetLocation("game", "rawclay-blue-none"))?.BlockId ?? 0;
+            if (r.ClayId == 0) { r.Clay = 0; problems.Add($"region {r.Key}: no rawclay block, clay off"); }
+        }
         return r;
+    }
+
+    // A decor name for scatter=: a full block code, or a friendly short name
+    // tried against the common decoration block families.
+    private Block ResolveDecor(string name)
+    {
+        foreach (string code in new[]
+        {
+            name,
+            $"flower-{name}-free",
+            $"mushroom-{name}-normal",
+            $"fern-{name}",
+            $"fern-{name}-free",
+            $"herb-{name}-normal",
+            $"tallgrass-{name}-free"
+        })
+        {
+            Block b = sapi.World.GetBlock(new AssetLocation("game", code));
+            if (b != null) return b;
+        }
+        return null;
     }
 
     // ores=copper:rich,iron:medium  (richness: sparse|medium|rich|abundant or 0..1)
@@ -910,7 +991,8 @@ public class LandmassGeneratorModSystem : ModSystem
         if (job.Shape == null) return false;
         foreach (var r in job.Shape.Regions.Values)
             if (r.Cattails > 0 || r.Flax > 0 || r.CopperBits > 0 || r.Sticks > 0 || r.Litter > 0
-                || r.Bushes.Count > 0 || r.WildGrass != 0 || r.Stones != 0) return true;
+                || r.Lilies > 0 || r.Shells > 0 || r.Boulders > 0 || r.Clay > 0
+                || r.Bushes.Count > 0 || r.Scatter.Count > 0 || r.WildGrass != 0 || r.Stones != 0) return true;
         return false;
     }
 
@@ -1198,8 +1280,26 @@ public class LandmassGeneratorModSystem : ModSystem
     // ─────────────────────────────────────────────────────────────────────
     private void PlantColumn(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z)
     {
-        if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out _, out Region reg))
+        if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out int waterTopY, out Region reg))
             return;
+
+        // Waterlilies float on the pond's surface, so they go on the water
+        // columns themselves, before the dry-land gate below.
+        if (reg != null && reg.Pond > 0)
+        {
+            if (reg.Lilies > 0 && reg.LilyId != 0 && waterTopY > topY)
+            {
+                job.Rand.InitPositionSeed(x, z);
+                if (job.Rand.NextDouble() < reg.Lilies)
+                {
+                    pos.Set(x, waterTopY + 1, z);
+                    ba.SetBlock(reg.LilyId, pos);
+                    job.Plants++;
+                }
+            }
+            return;
+        }
+
         if (underwater || (topMat != SurfGrass && topMat != SurfSand)) return;
 
         job.Rand.InitPositionSeed(x, z);
@@ -1254,6 +1354,20 @@ public class LandmassGeneratorModSystem : ModSystem
         if (!GridPos(job, x, z, out double gx, out double gz, out int cx, out int cz)) return false;
 
         Region pondN = NeighbourPond(job.Shape, cx, cz);
+
+        // Clay deposits on a pond's rim, like the game puts near water. Clay
+        // changes the ground, so reeds may still grow on top of it.
+        bool placed = false;
+        if (pondN != null && pondN.Clay > 0 && pondN.ClayId != 0 && job.Rand.NextDouble() < pondN.Clay)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                pos.Set(x, topY - i, z);
+                ba.SetBlock(pondN.ClayId, pos);
+            }
+            placed = true;
+        }
+
         if (pondN != null && pondN.CattailId != 0 && job.Rand.NextDouble() < pondN.Cattails)
         {
             pos.Set(x, topY + 1, z);
@@ -1299,6 +1413,20 @@ public class LandmassGeneratorModSystem : ModSystem
             return true;
         }
 
+        if (reg.Boulders > 0 && reg.BoulderId != 0 && job.Rand.NextDouble() < reg.Boulders)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.BoulderId, pos);
+            return true;
+        }
+
+        if (topMat == SurfSand && reg.Shells > 0 && reg.ShellIds.Length > 0 && job.Rand.NextDouble() < reg.Shells)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.ShellIds[job.Rand.NextInt(reg.ShellIds.Length)], pos);
+            return true;
+        }
+
         double stones = reg.Stones >= 0 ? reg.Stones : 0.012;
         if (stones > 0 && reg.LooseStoneId != 0 && job.Rand.NextDouble() < stones)
         {
@@ -1307,7 +1435,7 @@ public class LandmassGeneratorModSystem : ModSystem
             return true;
         }
 
-        if (topMat != SurfGrass) return false; // the rest wants grass
+        if (topMat != SurfGrass) return placed; // the rest wants grass
 
         if (reg.Flax > 0 && reg.FlaxIds.Length > 0 && job.Rand.NextDouble() < reg.Flax)
         {
@@ -1338,6 +1466,15 @@ public class LandmassGeneratorModSystem : ModSystem
             return true;
         }
 
+        // Generic decor: flowers, mushrooms, ferns, whatever scatter= asked for.
+        foreach (BushSpec decor in reg.Scatter)
+        {
+            if (job.Rand.NextDouble() >= decor.Chance) continue;
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(decor.BlockId, pos);
+            return true;
+        }
+
         double wildGrass = reg.WildGrass >= 0 ? reg.WildGrass : 0.35;
         if (wildGrass > 0 && reg.GrassIds.Length > 0 && job.Rand.NextDouble() < wildGrass)
         {
@@ -1345,7 +1482,7 @@ public class LandmassGeneratorModSystem : ModSystem
             ba.SetBlock(reg.GrassIds[job.Rand.NextInt(reg.GrassIds.Length)], pos);
             return true;
         }
-        return false;
+        return placed;
     }
 
     private static void MarkerWorld(IslandJob job, TreeMarker m, out int x, out int z)

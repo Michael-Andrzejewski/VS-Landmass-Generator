@@ -100,6 +100,11 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `stones` | Chance per column of a loose granite stone. Defaults to 0.012 everywhere; set 0 to turn off. |
 | `sticks` | Chance per grass column of a fallen stick (forest floors). |
 | `litter` | Chance a grass block becomes leaf-littered forest floor. |
+| `scatter` | Generic decor, e.g. `scatter=cornflower:0.01,fieldmushroom:0.006,eaglefern:0.02`. Friendly names resolve through the flower, mushroom, fern and herb block families; full block codes also work. |
+| `lilies` | On a pond region: chance of a waterlily per water column. |
+| `shells` | Chance per sand column of a seashell (random type and color). |
+| `boulders` | Chance per column of a loose boulder in the region's rock. |
+| `clay` | On a pond region: chance a rim column becomes a blue clay deposit, like the game puts near water. |
 | `ores`, `forest`, `trees` | As above, but per region. |
 | `tree <char> <type> <size>` | A landmark tree at that spot on the map. |
 
