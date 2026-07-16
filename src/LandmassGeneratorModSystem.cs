@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -140,7 +141,8 @@ public class LandmassGeneratorModSystem : ModSystem
         }
     }
 
-    // Surface treatments a region can have. SurfSoil is bare dirt (pond beds).
+    // Surface treatments a region can have. SurfSoil is bare dirt (pond beds,
+    // and surface=barren regions: exposed fertility soil with no grass cover).
     private const int SurfGrass = 0, SurfSand = 1, SurfRock = 2, SurfRockSand = 3, SurfSoil = 4;
 
     // One labelled area of a drawn island (forest, plains, beach, rocky arm...).
@@ -241,6 +243,12 @@ public class LandmassGeneratorModSystem : ModSystem
         public ShapeDef Shape;
         public double WorldPerCell;
         public NormalizedSimplexNoise JitterX, JitterZ;
+        public double RotCos = 1.0, RotSin = 0.0;   // rotate=: spins the drawn map
+
+        // climate=: overwrite the worldgen climate over the island (plant tint)
+        public bool HasClimate;
+        public int ClimTempRaw, ClimRainRaw;
+        public double ClimRadius;
 
         public NormalizedSimplexNoise CoastNoise, SurfNoise, RockBlend;
         public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
@@ -330,6 +338,26 @@ public class LandmassGeneratorModSystem : ModSystem
             Rand = new LCGRandom(seed),
             Player = args.Caller?.Player as IServerPlayer
         };
+
+        // rotate=deg spins a drawn island clockwise on the map, so a shape's
+        // harbour (or beach, or cliff) can be aimed at a neighbouring island.
+        // rotate=90 means what pointed north now points east.
+        double rotDeg = OptDouble(opt, "rotate", 0, -36000, 36000) * Math.PI / 180.0;
+        job.RotCos = Math.Cos(rotDeg);
+        job.RotSin = Math.Sin(rotDeg);
+
+        // climate=arid (or dry/temperate/lush/cold, or <tempC>:<rain 0..1>)
+        // rewrites the worldgen climate over the island, which is what tints
+        // grass and leaves: a hot dry climate fades them rusty desert-yellow.
+        if (opt.TryGetValue("climate", out string climStr) && !string.IsNullOrWhiteSpace(climStr))
+        {
+            if (!ParseClimate(climStr, out float climTempC, out float climRain, out string cerr))
+                return TextCommandResult.Error("climate: " + cerr);
+            job.HasClimate = true;
+            job.ClimTempRaw = Math.Clamp(Climate.DescaleTemperature(climTempC), 0, 255);
+            job.ClimRainRaw = (int)Math.Clamp(climRain * 255.0, 0, 255);
+            job.ClimRadius = diameter / 2.0;
+        }
 
         int reach;
         string shapeName = OptStr(opt, "shape", null);
@@ -651,6 +679,7 @@ public class LandmassGeneratorModSystem : ModSystem
                         "sand" => SurfSand,
                         "rock" => SurfRock,
                         "rocksand" => SurfRockSand,
+                        "barren" => SurfSoil,   // bare fertility soil, no grass cover
                         _ => SurfGrass
                     };
                     break;
@@ -1054,6 +1083,7 @@ public class LandmassGeneratorModSystem : ModSystem
         string extra = PlaceLandmarkTrees(job);
         int oreBits = StampOreBitClusters(job);
         int devPatches = StampDevastation(job);
+        int climRegions = StampClimate(job);
         _islandBusy = false;
 
         string done = $"Island complete: {job.Placed} column(s)";
@@ -1061,6 +1091,7 @@ public class LandmassGeneratorModSystem : ModSystem
         if (job.Plants > 0) done += $", {job.Plants} plant(s)";
         if (oreBits > 0) done += $", {oreBits} surface ore bit(s) in {job.OreBitCenters.Count} cluster(s)";
         if (devPatches > 0) done += $", {devPatches} devastated patch(es)";
+        if (climRegions > 0) done += $", climate retinted across {climRegions} map region(s)";
         ReportIsland(job, done + ". " + extra);
     }
 
@@ -1283,8 +1314,13 @@ public class LandmassGeneratorModSystem : ModSystem
         ShapeDef s = job.Shape;
         double jx = (job.JitterX.Noise(x, z) - 0.5) * 2.0 * 0.7;
         double jz = (job.JitterZ.Noise(x, z) - 0.5) * 2.0 * 0.7;
-        gx = (x - job.Cx) / job.WorldPerCell + s.W / 2.0 + jx;
-        gz = (z - job.Cz) / job.WorldPerCell + s.H / 2.0 + jz;
+        // Inverse-rotate the world offset into map space, so the island itself
+        // comes out rotated clockwise by the command's rotate= angle.
+        double ox = x - job.Cx, oz = z - job.Cz;
+        double rx = ox * job.RotCos + oz * job.RotSin;
+        double rz = -ox * job.RotSin + oz * job.RotCos;
+        gx = rx / job.WorldPerCell + s.W / 2.0 + jx;
+        gz = rz / job.WorldPerCell + s.H / 2.0 + jz;
         cx = (int)Math.Floor(gx);
         cz = (int)Math.Floor(gz);
         return cx >= 0 && cz >= 0 && cx < s.W && cz < s.H;
@@ -1386,7 +1422,7 @@ public class LandmassGeneratorModSystem : ModSystem
             return;
         }
 
-        if (underwater || (topMat != SurfGrass && topMat != SurfSand && topMat != SurfRock)) return;
+        if (underwater || (topMat != SurfGrass && topMat != SurfSand && topMat != SurfRock && topMat != SurfSoil)) return;
 
         job.Rand.InitPositionSeed(x, z);
         if (topMat == SurfGrass && TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
@@ -1483,7 +1519,7 @@ public class LandmassGeneratorModSystem : ModSystem
                     }
 
                     int bit = second && spec.Bit2 != 0 ? spec.Bit2 : spec.Bit1;
-                    if (bit != 0 && (tm == SurfGrass || tm == SurfRock) && job.Rand.NextDouble() < 0.33)
+                    if (bit != 0 && (tm == SurfGrass || tm == SurfRock || tm == SurfSoil) && job.Rand.NextDouble() < 0.33)
                     {
                         pos.Set(x, topY + 1, z);
                         Block existing = sapi.World.BlockAccessor.GetBlock(pos);
@@ -1525,7 +1561,7 @@ public class LandmassGeneratorModSystem : ModSystem
                     int x = cxw + dx, z = czw + dz;
                     if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out int tm, out _, out _, out Region r2) || uw) continue;
                     if (r2 == null || r2.Pond > 0) continue;
-                    if (tm != SurfGrass && tm != SurfSand && tm != SurfRock) continue;
+                    if (tm != SurfGrass && tm != SurfSand && tm != SurfRock && tm != SurfSoil) continue;
 
                     double fade = 1.0 - d / radius; // 1 at the centre
                     int idx = Math.Clamp((int)Math.Round(fade * 10.0), 0, reg.DevSoilIds.Length - 1);
@@ -1549,6 +1585,105 @@ public class LandmassGeneratorModSystem : ModSystem
         }
         ba.Commit();
         return patches;
+    }
+
+    // climate= support. Grass and leaf COLOR is not in the block: the client
+    // tints plants from the worldgen climate stored in each map region's
+    // ClimateMap (temperature byte 16-23, rainfall byte 8-15; the low byte is
+    // geologic activity and is left alone). So a rusty desert-faded island
+    // means rewriting those pixels over the island's footprint. The blend
+    // fades back to the natural climate over a band outside the island, every
+    // touched region is marked dirty and broadcast, and the island's chunk
+    // columns are resent so already-built meshes re-tint without a relog.
+    private int StampClimate(IslandJob job)
+    {
+        if (!job.HasClimate) return 0;
+
+        int regionSize = sapi.WorldManager.RegionSize;
+        double fade = Math.Max(48.0, job.ClimRadius * 0.35);
+        double reach = job.ClimRadius + fade;
+
+        int r0x = FloorDiv((int)(job.Cx - reach), regionSize) - 1;
+        int r1x = FloorDiv((int)(job.Cx + reach), regionSize) + 1;
+        int r0z = FloorDiv((int)(job.Cz - reach), regionSize) - 1;
+        int r1z = FloorDiv((int)(job.Cz + reach), regionSize) + 1;
+
+        int regionsTouched = 0;
+        for (int rz = r0z; rz <= r1z; rz++)
+            for (int rx = r0x; rx <= r1x; rx++)
+            {
+                IMapRegion region = sapi.WorldManager.GetMapRegion(rx, rz);
+                IntDataMap2D map = region?.ClimateMap;
+                if (map?.Data == null || map.InnerSize <= 0) continue;
+
+                double span = regionSize / (double)map.InnerSize;
+                int pad = map.TopLeftPadding;
+                bool touched = false;
+
+                // Walk the WHOLE padded grid: padding pixels mirror data owned
+                // by neighbouring regions, and both copies are sampled during
+                // interpolation, so both must be written from the same
+                // world-position math or region borders show a tint seam.
+                for (int pz = 0; pz < map.Size; pz++)
+                    for (int px = 0; px < map.Size; px++)
+                    {
+                        double wx = (rx * map.InnerSize + (px - pad) + 0.5) * span;
+                        double wz = (rz * map.InnerSize + (pz - pad) + 0.5) * span;
+                        double d = Math.Sqrt((wx - job.Cx) * (wx - job.Cx) + (wz - job.Cz) * (wz - job.Cz));
+                        double w = 1.0 - Smooth((d - job.ClimRadius) / fade);
+                        if (w <= 0) continue;
+
+                        int idx = pz * map.Size + px;
+                        int old = map.Data[idx];
+                        int temp = (old >> 16) & 0xff, rain = (old >> 8) & 0xff;
+                        temp = (int)Math.Round(temp + (job.ClimTempRaw - temp) * w);
+                        rain = (int)Math.Round(rain + (job.ClimRainRaw - rain) * w);
+                        map.Data[idx] = (old & ~0xffff00) | (temp << 16) | (rain << 8);
+                        touched = true;
+                    }
+
+                if (!touched) continue;
+                region.DirtyForSaving = true;
+                sapi.WorldManager.BroadcastMapRegion(rx, rz, false);
+                regionsTouched++;
+            }
+
+        if (regionsTouched > 0)
+        {
+            // Chunks already sent to the client were meshed with the OLD tint;
+            // resend the island's columns so they rebuild with the new one.
+            int chunkSize = GlobalConstants.ChunkSize;
+            int c0x = FloorDiv(job.MinX, chunkSize), c1x = FloorDiv(job.MinX + job.W, chunkSize);
+            int c0z = FloorDiv(job.MinZ, chunkSize), c1z = FloorDiv(job.MinZ + job.H, chunkSize);
+            for (int cz = c0z; cz <= c1z; cz++)
+                for (int cx = c0x; cx <= c1x; cx++)
+                    sapi.WorldManager.ResendMapChunk(cx, cz, true);
+        }
+        return regionsTouched;
+    }
+
+    private static bool ParseClimate(string s, out float tempC, out float rain, out string err)
+    {
+        err = null; rain = 0.5f; tempC = 12f;
+        switch (s.Trim().ToLowerInvariant())
+        {
+            case "arid": tempC = 32f; rain = 0.08f; return true;      // rusty desert fade
+            case "dry": tempC = 26f; rain = 0.28f; return true;       // faded savanna
+            case "temperate": tempC = 12f; rain = 0.60f; return true;
+            case "lush": tempC = 24f; rain = 0.90f; return true;      // deep tropical green
+            case "cold": tempC = -2f; rain = 0.55f; return true;
+        }
+        string[] parts = s.Split(':');
+        if (parts.Length == 2
+            && float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out tempC)
+            && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out rain))
+        {
+            tempC = Math.Clamp(tempC, -20f, 40f);
+            rain = Math.Clamp(rain, 0f, 1f);
+            return true;
+        }
+        err = "use arid, dry, temperate, lush, cold, or <tempC>:<rain 0..1> (e.g. climate=32:0.1)";
+        return false;
     }
 
     // Vanilla concentrates forest floor under tree canopies, so litter stamps
@@ -1585,6 +1720,7 @@ public class LandmassGeneratorModSystem : ModSystem
         if (!GridPos(job, x, z, out double gx, out double gz, out int cx, out int cz)) return false;
 
         bool grass = topMat == SurfGrass, sand = topMat == SurfSand, rock = topMat == SurfRock;
+        bool dirt = topMat == SurfSoil; // surface=barren: exposed soil
 
         // Clay ground: on a clay= region the whole soil column becomes a clay
         // deposit, hidden under a sparse-grass clay surface block.
@@ -1628,7 +1764,7 @@ public class LandmassGeneratorModSystem : ModSystem
         // itself (shallow ore disc + bits over a third of it) is stamped after
         // the whole pass, so later columns' grass cannot overwrite the bits.
         // Devastated-ground patches work the same way.
-        if (grass || rock)
+        if (grass || rock || dirt)
         {
             foreach (OreBitSpec ob in reg.OreBits)
                 if (job.Rand.NextDouble() < ob.Chance)
@@ -1698,9 +1834,9 @@ public class LandmassGeneratorModSystem : ModSystem
             return true;
         }
 
-        if (!grass) return placed; // the rest wants grass
+        if (!grass && !dirt) return placed; // the rest wants soil underfoot
 
-        if (reg.Flax > 0 && reg.FlaxIds.Length > 0 && job.Rand.NextDouble() < reg.Flax)
+        if (grass && reg.Flax > 0 && reg.FlaxIds.Length > 0 && job.Rand.NextDouble() < reg.Flax)
         {
             pos.Set(x, topY + 1, z);
             ba.SetBlock(reg.FlaxIds[job.Rand.NextInt(reg.FlaxIds.Length)], pos);
@@ -1727,7 +1863,7 @@ public class LandmassGeneratorModSystem : ModSystem
         }
 
         double wildGrass = reg.WildGrass >= 0 ? reg.WildGrass : 0.35;
-        if (wildGrass > 0 && reg.GrassIds.Length > 0 && job.Rand.NextDouble() < wildGrass)
+        if (grass && wildGrass > 0 && reg.GrassIds.Length > 0 && job.Rand.NextDouble() < wildGrass)
         {
             pos.Set(x, topY + 1, z);
             ba.SetBlock(reg.GrassIds[job.Rand.NextInt(reg.GrassIds.Length)], pos);
@@ -1738,8 +1874,11 @@ public class LandmassGeneratorModSystem : ModSystem
 
     private static void MarkerWorld(IslandJob job, TreeMarker m, out int x, out int z)
     {
-        x = job.Cx + (int)Math.Round((m.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell);
-        z = job.Cz + (int)Math.Round((m.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell);
+        // Forward rotation: map space to world, the inverse of GridPos.
+        double lx = (m.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
+        double lz = (m.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
+        x = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
+        z = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
     }
 
     // The drawn island's marked trees (or, for a radial island, a summit oak).
