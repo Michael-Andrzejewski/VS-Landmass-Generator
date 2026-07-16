@@ -4,6 +4,14 @@ Gotchas that cost real debugging time while building this mod. Read before
 touching the generator; append when you hit a new one. General know-how goes
 in [tips.md](tips.md).
 
+The pattern across almost every entry below: **when a feature silently does
+nothing, it has never once been the density or the tuning.** Five separate
+times the cause was structural: a wrong block code (loose ore), a surface
+gate (rock columns skipped by the plant pass), a pass overwriting its own
+output, a client-side cache (climate tint), a block entity deleting itself
+(pumpkin vines). Check codes, gates, caches, and lifecycles before touching
+numbers.
+
 ## Vintage Story API traps
 
 - **`ITreeGenerator.GrowTree` takes the GROUND block, not the air above it.**
@@ -126,6 +134,17 @@ in [tips.md](tips.md).
 - **Windows PowerShell 5.1 cannot reflect the net10 game DLLs** (member types
   fail to load). Write a tiny C# file and `dotnet run file.cs` instead; that
   is how ClimateMap/BroadcastMapRegion were verified.
+- **Reflection shows what exists; decompiling shows what it DOES.** The
+  climate-cache bug was invisible to reflection (the API surface all looked
+  right). `dotnet tool install -g ilspycmd`, then
+  `ilspycmd -p -o <outdir> "%APPDATA%\Vintagestory\VintagestoryLib.dll"` and
+  grep the output tree. Works on VSSurvivalMod.dll too, which is how
+  BlockEntityPumpkinVine's Die() condition was read. Escalate to this the
+  moment behavior contradicts a verified data flow.
+- **side=Universal does not have to force the mod on players.** Adding a
+  client half normally makes joining clients install the mod; set
+  `"requiredOnClient": false` in modinfo.json and vanilla clients can still
+  join, they just miss the client-side nicety (here: live tint refresh).
 - **Verify block codes against the assets, not memory.** Every "obvious" code
   guessed from memory (raspberry? leaf litter? high fertility soil?) was
   checked in `assets/survival/blocktypes/` first, and several would have been
