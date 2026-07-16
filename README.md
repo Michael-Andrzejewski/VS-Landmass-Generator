@@ -95,6 +95,11 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `cattails` | On a pond region: chance per rim column of a cattail, so reeds ring the water. On a shore region: chance per column within 3 blocks of the sea. |
 | `flax` | Chance per grass column of a wild flax plant (mixed maturity). |
 | `copperbits` | Chance per grass column of a loose surface copper stone, the classic sign of ore below. |
+| `bushes` | Bush kinds and chances, e.g. `bushes=raspberry:0.01,birch:0.006`. Any wild fruiting bush type works (`raspberry`, `cranberry`, `blueberry`, `blackcurrant`, ...); `birch` grows a dwarf birch shrub. |
+| `wildgrass` | Chance per grass column of a tallgrass tuft. Defaults to 0.35 everywhere; set 0 to turn off. |
+| `stones` | Chance per column of a loose granite stone. Defaults to 0.012 everywhere; set 0 to turn off. |
+| `sticks` | Chance per grass column of a fallen stick (forest floors). |
+| `litter` | Chance a grass block becomes leaf-littered forest floor. |
 | `ores`, `forest`, `trees` | As above, but per region. |
 | `tree <char> <type> <size>` | A landmark tree at that spot on the map. |
 

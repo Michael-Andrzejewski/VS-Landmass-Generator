@@ -157,12 +157,29 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Cattails;           // pond region: chance per rim column; land region: chance per waterline column
         public double Flax;               // chance of a wild flax plant per grass column
         public double CopperBits;         // chance of a loose surface copper stone per grass column
+        public double WildGrass = -1;     // chance of a tallgrass tuft per grass column (-1 = default 0.35)
+        public double Stones = -1;        // chance of a loose granite stone per column (-1 = default 0.012)
+        public double Sticks;             // chance of a fallen stick per grass column
+        public double Litter;             // chance a grass block becomes leaf-littered forest floor
+        public List<BushSpec> Bushes = new();
         public List<ITreeGenerator> Trees = new();
         public List<OreSpec> Ores = new();
         public int StoneId, StoneId2, SandId, SoilId, GrassId;
         public int CattailId;
         public int[] FlaxIds = Array.Empty<int>();
         public int[] CopperBitIds = Array.Empty<int>();
+        public int[] GrassIds = Array.Empty<int>();
+        public int[] LitterIds = Array.Empty<int>();
+        public int LooseStoneId, LooseStickId;
+    }
+
+    // One bush kind a region scatters: a fruiting-bush block, or (for "birch")
+    // a shrub grown by the game's dwarf birch tree generator.
+    private class BushSpec
+    {
+        public int BlockId;
+        public ITreeGenerator Shrub;
+        public double Chance;
     }
 
     private class TreeMarker
@@ -207,7 +224,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double WorldPerCell;
         public NormalizedSimplexNoise JitterX, JitterZ;
 
-        public NormalizedSimplexNoise CoastNoise, SurfNoise, Dither, RockBlend;
+        public NormalizedSimplexNoise CoastNoise, SurfNoise, RockBlend;
         public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
 
         public int MinX, MinZ, W, H;
@@ -283,7 +300,6 @@ public class LandmassGeneratorModSystem : ModSystem
             Seed = seed,
             CoastNoise = NormalizedSimplexNoise.FromDefaultOctaves(4, 1 / 40.0, 0.5, seed),
             SurfNoise = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 22.0, 0.5, seed + 1),
-            Dither = NormalizedSimplexNoise.FromDefaultOctaves(2, 0.4, 0.5, seed + 21),
             RockBlend = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 16.0, 0.5, seed + 9),
             JitterX = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 7),
             JitterZ = NormalizedSimplexNoise.FromDefaultOctaves(3, 1 / 26.0, 0.5, seed + 13),
@@ -592,7 +608,7 @@ public class LandmassGeneratorModSystem : ModSystem
     private Region ParseRegion(string[] tok, IslandJob job, long seed, ref int oreIdx, List<string> problems)
     {
         var r = new Region { Key = tok[1][0] };
-        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null;
+        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null;
 
         for (int i = 2; i < tok.Length; i++)
         {
@@ -626,6 +642,11 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "cattails": r.Cattails = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "flax": r.Flax = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "copperbits": r.CopperBits = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "wildgrass": r.WildGrass = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "stones": r.Stones = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "sticks": r.Sticks = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "litter": r.Litter = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "bushes": bushStr = v; break;
             }
         }
 
@@ -719,6 +740,56 @@ public class LandmassGeneratorModSystem : ModSystem
             }
             r.CopperBitIds = bitIds.ToArray();
             if (bitIds.Count == 0) { r.CopperBits = 0; problems.Add($"region {r.Key}: no loose copper blocks, copperbits off"); }
+        }
+
+        // Ground cover blocks. Grass tufts and loose granite stones are on by
+        // default everywhere; sticks and leaf litter only where asked.
+        var grassIds = new List<int>();
+        foreach (string g in new[] { "veryshort", "short", "mediumshort", "medium", "tall" })
+        {
+            Block b = sapi.World.GetBlock(new AssetLocation("game", $"tallgrass-{g}-free"));
+            if (b != null) grassIds.Add(b.BlockId);
+        }
+        r.GrassIds = grassIds.ToArray();
+        r.LooseStoneId = sapi.World.GetBlock(new AssetLocation("game", "loosestones-granite-free"))?.BlockId
+            ?? sapi.World.GetBlock(new AssetLocation("game", $"loosestones-{r.RockType}-free"))?.BlockId ?? 0;
+        r.LooseStickId = sapi.World.GetBlock(new AssetLocation("game", "loosestick-free"))?.BlockId ?? 0;
+
+        if (r.Litter > 0)
+        {
+            var litterIds = new List<int>();
+            foreach (string n in new[] { "0", "1", "2", "3" }) // the leafier end of the forest floor gradient
+            {
+                Block b = sapi.World.GetBlock(new AssetLocation("game", "forestfloor-" + n));
+                if (b != null) litterIds.Add(b.BlockId);
+            }
+            r.LitterIds = litterIds.ToArray();
+            if (litterIds.Count == 0) { r.Litter = 0; problems.Add($"region {r.Key}: no forestfloor blocks, litter off"); }
+        }
+
+        if (!string.IsNullOrWhiteSpace(bushStr))
+        {
+            // bushes=raspberry:0.01,birch:0.008  (fruiting bush types, or
+            // "birch" for a dwarf birch shrub grown by the game's tree gen)
+            foreach (string entry in bushStr.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] parts = entry.Split(':');
+                string kind = parts[0].Trim().ToLowerInvariant();
+                double chance = parts.Length > 1 ? Math.Clamp(ParseD(parts[1], 0.01), 0, 1) : 0.01;
+                if (kind.Length == 0 || chance <= 0) continue;
+
+                if (kind == "birch")
+                {
+                    ITreeGenerator shrub = FindTreeGenerator("dwarfbirch");
+                    if (shrub != null) r.Bushes.Add(new BushSpec { Shrub = shrub, Chance = chance });
+                    else problems.Add($"region {r.Key}: no dwarf birch generator, birch bushes off");
+                    continue;
+                }
+
+                Block bush = sapi.World.GetBlock(new AssetLocation("game", $"fruitingbush-wild-{kind}-free"));
+                if (bush != null) r.Bushes.Add(new BushSpec { BlockId = bush.BlockId, Chance = chance });
+                else problems.Add($"region {r.Key}: no bush '{kind}', skipped");
+            }
         }
         return r;
     }
@@ -838,7 +909,8 @@ public class LandmassGeneratorModSystem : ModSystem
     {
         if (job.Shape == null) return false;
         foreach (var r in job.Shape.Regions.Values)
-            if (r.Cattails > 0 || r.Flax > 0 || r.CopperBits > 0) return true;
+            if (r.Cattails > 0 || r.Flax > 0 || r.CopperBits > 0 || r.Sticks > 0 || r.Litter > 0
+                || r.Bushes.Count > 0 || r.WildGrass != 0 || r.Stones != 0) return true;
         return false;
     }
 
@@ -943,14 +1015,14 @@ public class LandmassGeneratorModSystem : ModSystem
             double shore = Math.Max(1.0, Bilinear(s.ShoreField, s.W, s.H, gx, gz));
             double rise = job.DomeHeight * hFrac * Smooth(dCoast / shore);
             double rough = (job.SurfNoise.Noise(x, z) - 0.5) * 2.0 * r.Rough * 4.0;
-            double dith = (job.Dither.Noise(x, z) - 0.5) * Math.Min(1.35, r.Rough * 4.0);
-            // The smooth terrain and the noise round SEPARATELY: noise only
-            // makes a step when it is worth a whole block by itself. A meadow's
-            // small noise then never speckles the ground, while a rocky region's
-            // large noise still breaks it up. The whole island also sits one
+            // No dither anywhere: erosion smooths real terrain, so only the
+            // region's own low-frequency rough noise shapes the ground. The
+            // smooth terrain and the noise round SEPARATELY: noise only makes a
+            // step when it is worth a whole block by itself, so low-rough
+            // regions come out perfectly clean. The whole island also sits one
             // block lower than the naive rounding, so the shore ends flush with
             // the water surface and a swimmer can climb out anywhere.
-            double bumps = rough * Math.Min(1.0, dCoast / 6.0) + dith;
+            double bumps = rough * Math.Min(1.0, dCoast / 6.0);
             int landY = (int)Math.Round(job.SeaLevel - 1 + rise) + (int)Math.Round(bumps);
             if (landY < job.SeaLevel - 1) landY = job.SeaLevel - 1;
 
@@ -958,9 +1030,13 @@ public class LandmassGeneratorModSystem : ModSystem
             {
                 // A pond needs ONE flat water level; per-column noise would tear
                 // the surface. The water sits one block below the meadow, flush
-                // with its collar, so a swimmer can climb straight out.
+                // with its collar, so a swimmer can climb straight out. The bed
+                // declines from the edges to full depth like a real pond, not a
+                // carved-out box.
                 int rimY = PondRim(job, r);
-                topY = Math.Max(job.SeaLevel - 2, rimY - r.Pond);
+                double dEdge = PondEdgeDist(s, gx, gz) * job.WorldPerCell;
+                int depth = 1 + (int)Math.Round((r.Pond - 1) * Smooth(dEdge / 4.0));
+                topY = Math.Max(job.SeaLevel - 2, rimY - depth);
                 waterTopY = rimY - 1;
                 topMat = SurfSoil; // muddy pond bed
             }
@@ -995,6 +1071,27 @@ public class LandmassGeneratorModSystem : ModSystem
     // Ponds belong in the island interior where the rise has saturated.
     private static int PondRim(IslandJob job, Region pond)
         => job.SeaLevel - 1 + (int)Math.Round(job.DomeHeight * pond.Height);
+
+    // Distance (in cells) from a point inside a pond to the pond's edge, by
+    // scanning outward for the nearest non-pond cell. Ponds are tiny, so the
+    // small window is plenty and cheap.
+    private static double PondEdgeDist(ShapeDef s, double gx, double gz)
+    {
+        int cx = (int)Math.Floor(gx), cz = (int)Math.Floor(gz);
+        double best = 6.0;
+        for (int dz = -6; dz <= 6; dz++)
+            for (int dx = -6; dx <= 6; dx++)
+            {
+                int nx = cx + dx, nz = cz + dz;
+                bool pond = nx >= 0 && nz >= 0 && nx < s.W && nz < s.H
+                    && s.Cells[nx, nz] != '.'
+                    && s.Regions.TryGetValue(s.Cells[nx, nz], out Region nr) && nr.Pond > 0;
+                if (pond) continue;
+                double d = Math.Sqrt((nx + 0.5 - gx) * (nx + 0.5 - gx) + (nz + 0.5 - gz) * (nz + 0.5 - gz));
+                if (d < best) best = d;
+            }
+        return best;
+    }
 
     // The pond region in any of the 8 cells around this one, or null.
     private static Region NeighbourPond(ShapeDef s, int cx, int cz)
@@ -1175,7 +1272,42 @@ public class LandmassGeneratorModSystem : ModSystem
             }
         }
 
-        if (topMat != SurfGrass) return false; // flax and copper want grass
+        // Bushes grow on grass or beach sand.
+        foreach (BushSpec bush in reg.Bushes)
+        {
+            if (job.Rand.NextDouble() >= bush.Chance) continue;
+            if (bush.Shrub != null)
+            {
+                var tp = new TreeGenParams
+                {
+                    skipForestFloor = true,
+                    size = (float)(0.7 + job.Rand.NextDouble() * 0.5),
+                    vinesGrowthChance = 0,
+                    mossGrowthChance = 0,
+                    otherBlockChance = 0,
+                    hemisphere = EnumHemisphere.North,
+                    treesInChunkGenerated = 0
+                };
+                pos.Set(x, topY, z);
+                bush.Shrub.GrowTree(ba, pos, tp, job.Rand);
+            }
+            else
+            {
+                pos.Set(x, topY + 1, z);
+                ba.SetBlock(bush.BlockId, pos);
+            }
+            return true;
+        }
+
+        double stones = reg.Stones >= 0 ? reg.Stones : 0.012;
+        if (stones > 0 && reg.LooseStoneId != 0 && job.Rand.NextDouble() < stones)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.LooseStoneId, pos);
+            return true;
+        }
+
+        if (topMat != SurfGrass) return false; // the rest wants grass
 
         if (reg.Flax > 0 && reg.FlaxIds.Length > 0 && job.Rand.NextDouble() < reg.Flax)
         {
@@ -1188,6 +1320,29 @@ public class LandmassGeneratorModSystem : ModSystem
         {
             pos.Set(x, topY + 1, z);
             ba.SetBlock(reg.CopperBitIds[job.Rand.NextInt(reg.CopperBitIds.Length)], pos);
+            return true;
+        }
+
+        if (reg.Sticks > 0 && reg.LooseStickId != 0 && job.Rand.NextDouble() < reg.Sticks)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.LooseStickId, pos);
+            return true;
+        }
+
+        // Leaf litter swaps the grass block itself for leafy forest floor.
+        if (reg.Litter > 0 && reg.LitterIds.Length > 0 && job.Rand.NextDouble() < reg.Litter)
+        {
+            pos.Set(x, topY, z);
+            ba.SetBlock(reg.LitterIds[job.Rand.NextInt(reg.LitterIds.Length)], pos);
+            return true;
+        }
+
+        double wildGrass = reg.WildGrass >= 0 ? reg.WildGrass : 0.35;
+        if (wildGrass > 0 && reg.GrassIds.Length > 0 && job.Rand.NextDouble() < wildGrass)
+        {
+            pos.Set(x, topY + 1, z);
+            ba.SetBlock(reg.GrassIds[job.Rand.NextInt(reg.GrassIds.Length)], pos);
             return true;
         }
         return false;
