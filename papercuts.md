@@ -33,6 +33,16 @@ in [tips.md](tips.md).
   truth: malachite looseores exist solely in limestone/marble rocks, for
   example. GetBlock returning null is reported in the chat problems note, so
   READ that note after every /genisland run.
+- **Grass color is NOT in the block; it is the climate.** The client tints
+  grass and leaves from the worldgen climate stored in each map region's
+  `ClimateMap` (temp byte 16-23, rain byte 8-15, geologic activity byte 0-7;
+  pixels span ~32 blocks). To fade an island rusty, rewrite those pixels
+  (see StampClimate). Three traps inside: padding cells mirror data owned by
+  NEIGHBOUR regions and are also read during interpolation, so write the whole
+  padded grid from world-position math or borders show tint seams; regions
+  must be marked `DirtyForSaving` and pushed with `BroadcastMapRegion` or the
+  edit is invisible and lost; and chunks already sent were meshed with the old
+  tint, so `ResendMapChunk` the footprint afterwards.
 - **A resolver failing quietly downgrades a feature to "missing".** Every
   optional feature here reports resolution failures via the problems list;
   keep that pattern for anything new, and treat any problem line in chat as a
@@ -96,6 +106,9 @@ in [tips.md](tips.md).
   poorly: of four predicted issues only one materialized, and the two real
   issues (waterline lip, noise source) were unpredicted. Test claims against
   assets/source instead of intuition.
+- **Windows PowerShell 5.1 cannot reflect the net10 game DLLs** (member types
+  fail to load). Write a tiny C# file and `dotnet run file.cs` instead; that
+  is how ClimateMap/BroadcastMapRegion were verified.
 - **Verify block codes against the assets, not memory.** Every "obvious" code
   guessed from memory (raspberry? leaf litter? high fertility soil?) was
   checked in `assets/survival/blocktypes/` first, and several would have been

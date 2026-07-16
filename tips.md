@@ -46,6 +46,21 @@ in [papercuts.md](papercuts.md).
   a visible seam. Bigger differences read as a deliberate slope.
 - Keep neighboring grass regions' `height` equal when you want an invisible
   border (fertility/flora changes only).
+- **Non-blob outlines: build the landmass around a SPINE, not a radius.** A
+  radial `coast_r(ang)` with a bay carved out always reads as a dented blob.
+  For a crescent (tin_island), the land is a band around a circular spine:
+  inside iff `|rho - spineR| < halfThickness(phi)`, thick at the back and
+  tapering toward the horn tips, with an angular gap left for the harbor
+  mouth. The same trick generalizes: an S-curve, an atoll ring, a hook are all
+  "distance to a curve < thickness(param)".
+- **Orientation is a command option, not a shape edit.** `rotate=<deg>` spins
+  any drawn island clockwise; design shapes in their natural pose (tin
+  island's harbor faces west) and aim them at generation time.
+- **Mood comes from climate tint as much as blocks.** `climate=arid` rewrites
+  the worldgen climate map over the island so grass and leaves render rusty
+  desert-yellow; `lush` goes deep green. Pair `climate=arid` with verylow
+  fertility, `surface=barren` bands, sparse `wildgrass`, and extra exposed
+  rock for a properly desolate island.
 
 ## Making it look like the game made it
 
