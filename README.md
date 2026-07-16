@@ -26,7 +26,7 @@ Options are `key=value` tokens in any order. A lone leading number is read as `d
 | `cliffdir` | `n` | Compass side that drops as a stone cliff. |
 | `seed` | random | Fixes the shape so a run is repeatable. |
 | `rotate` | 0 | Degrees to spin a drawn (`shape=`) island clockwise on the map, so its harbour or beach can face a neighbouring island. `rotate=90`: what pointed north now points east. |
-| `climate` | none | Rewrites the worldgen climate over the island, which is what tints grass and leaves: `arid` fades them rusty desert-yellow, `lush` deepens them tropical green. Also `dry`, `temperate`, `cold`, or `<tempC>:<rain 0..1>` (e.g. `climate=32:0.1`). Fades back to the natural climate outside the island, persists with the world, and also affects real temperature there (crops, snow). |
+| `climate` | none | Rewrites the worldgen climate over the island, which is what tints grass and leaves: `arid` fades them rusty desert-yellow, `lush` deepens them tropical green. Also `dry`, `temperate`, `cold`, or `<tempC>:<rain 0..1>` (e.g. `climate=32:0.1`). Fades back to the natural climate outside the island, persists with the world, and also affects real temperature there (crops, snow). The game caches plant tint client-side, so the mod's client half refreshes it live; a client WITHOUT the mod installed sees the new tint after reconnecting. |
 | `ores` | none | Ore veins to seed. See below. |
 | `forest` | 0 | Chance per land column of a tree, e.g. `0.02`. 0 means bare. |
 | `trees` | `oak` | Comma-separated tree types for the forest. |
@@ -91,7 +91,9 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `rock2` | A second rock, noise-blended into the first underground (e.g. `rock=slate rock2=peridotite`). |
 | `sand` | Explicit beach block, so a slate island can still have a white `sand-chalk` beach. |
 | `fertility` | Soil richness for grass areas: `verylow`, `low`, `medium`, `high`, `terrapreta`. |
-| `surface` | `grass`, `sand`, `rock`, `rocksand` (rocky outcrops speckled with sand), or `barren` (exposed fertility soil with no grass cover). |
+| `surface` | `grass`, `sand`, `rock`, `rocksand` (rocky outcrops speckled with sand), or `barren` (worn ground: soil with only patchy sparse grass). |
+| `sandy` | Wind-blown sand drifts: contiguous noise blobs of the region's sand across grass or barren ground, e.g. `sandy=0.15`. |
+| `pumpkins` | Chance per column of a wild pumpkin patch centre: a mother plant surrounded by real pumpkin vines in mixed stages (adopted by the mother so they survive), fruits beside them, rusty debris between them. Typical 0.01-0.03 on a small patch region. |
 | `height` | Fraction of the island's peak `height` this area rises to. |
 | `shore` | Blocks from the coast to full height. Small is a sheer cliff, large is a gentle beach. |
 | `rough` | Surface roughness, for outcrops and broken ground. |
@@ -116,7 +118,7 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 Height comes from a distance-to-coast field, so interiors rise and shores taper naturally, and the coastline is jittered with noise so the grid never shows as stair-steps. The worked examples ship as scripts in `tools/`, each generated from a hand-drawn map: `ideal_island` (a varied island with beach, plains, forest and a rocky slate arm), `starter_island` (a smooth, idyllic player-start island, ~150 across, with a big west beach, sparse oak forest, a meadow pond, and one slate headland), `tin_island` (a tall rocky crescent bent around a sheltered harbor, rusty-arid, heavily devastated, tin through the core), and `forester_island` (a rounded island with a west bay, regions still placeholder):
 
     /genisland shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
-    /genisland shape=tin_island diameter=200 height=14 stone=rock-andesite sand=sand-basalt climate=arid
+    /genisland shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid
 
 ## Notes and current limits
 

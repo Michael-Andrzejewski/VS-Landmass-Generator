@@ -85,6 +85,8 @@ file lists the exact block codes vanilla scatters. Parity checklist for a
 | Clay by water | `clay` | pond rim; players NEED clay early game |
 | Surface ore hints | `copperbits` | loose ore stones, real pickupables |
 | Underground ore | `ores=copper:medium,...` | this mod's terrain has NO ore unless asked |
+| Wild pumpkin patches | `pumpkins` | mother plant + parented living vines + fruits + debris |
+| Sand drifts inland | `sandy` | noise blobs of the region's sand across grass |
 
 Rules of thumb for densities: wildgrass 0.3-0.4, flowers 0.005-0.015 each,
 bushes 0.002-0.012, mushrooms ~0.005, shells ~0.02, boulders under 0.015.

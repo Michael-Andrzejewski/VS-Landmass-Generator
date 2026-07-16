@@ -43,6 +43,23 @@ in [tips.md](tips.md).
   must be marked `DirtyForSaving` and pushed with `BroadcastMapRegion` or the
   edit is invisible and lost; and chunks already sent were meshed with the old
   tint, so `ResendMapChunk` the footprint afterwards.
+- **...and even all of that is not enough: the client caches the tint.**
+  climate=arid looked like a no-op in testing despite correct server data,
+  broadcast, and chunk resends. Decompiling VintagestoryLib showed why:
+  `ClientWorldMap.LerpedClimateMaps` holds a pre-lerped per-region copy used
+  by the chunk tesselator, and NOTHING invalidates it, not even the map
+  region packet handler. The mod's client half (StartClientSide) clears it
+  via reflection whenever a map region arrives; a vanilla client shows the
+  new tint only after a relog. When a change "does nothing" despite verified
+  data flow, hunt for a client-side cache before doubting the data.
+- **pumpkin-vine blocks delete themselves when placed loose.** Their block
+  entity (BlockEntityPumpkinVine) ticks every 2s and calls Die() unless its
+  `parentPlantPos` points at a block whose code starts with `crop-pumpkin`
+  or `pumpkin-vine`; distance is never checked. A `crop-pumpkin-N` mother on
+  plain soil is static forever (only farmland ticks crops), so place one
+  mother per patch and adopt every vine onto it by rewriting the BE's tree
+  attributes (parentPlantPosX/Y/Z). Use the plain block accessor, not a bulk
+  one, so the BE exists immediately after SetBlock.
 - **A resolver failing quietly downgrades a feature to "missing".** Every
   optional feature here reports resolution failures via the problems list;
   keep that pattern for anything new, and treat any problem line in chat as a
