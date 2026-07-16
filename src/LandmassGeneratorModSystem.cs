@@ -156,7 +156,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public int Pond;                  // 0 = dry land; else a pond this many blocks deep
         public double Cattails;           // pond region: chance per rim column; land region: chance per waterline column
         public double Flax;               // chance of a wild flax plant per grass column
-        public double CopperBits;         // chance of a loose surface copper stone per grass column
+        public double Devastation;        // chance per column of a devastated-ground patch centre
         public double WildGrass = -1;     // chance of a tallgrass tuft per grass column (-1 = default 0.35)
         public double Stones = -1;        // chance of a loose granite stone per column (-1 = default 0.012)
         public double Sticks;             // chance of a fallen stick per grass column
@@ -172,8 +172,10 @@ public class LandmassGeneratorModSystem : ModSystem
         public int StoneId, StoneId2, SandId, SoilId, GrassId;
         public int CattailId;
         public int[] FlaxIds = Array.Empty<int>();
-        public int CopperBit1, CopperBit2;                       // loose bit per rock
-        public int CopperOrePoor1, CopperOreMed1, CopperOrePoor2, CopperOreMed2;
+        public List<OreBitSpec> OreBits = new();                 // surface ore clusters (copper, tin...)
+        public int[] DevSoilIds = Array.Empty<int>();
+        public int[] DevGrowthIds = Array.Empty<int>();
+        public int DrockId;
         public int[] GrassIds = Array.Empty<int>();
         public int[] LitterIds = Array.Empty<int>();
         public int[] ShellIds = Array.Empty<int>();
@@ -187,6 +189,15 @@ public class LandmassGeneratorModSystem : ModSystem
         public int BlockId;
         public ITreeGenerator Shrub;
         public double Chance;
+    }
+
+    // One surface-ore cluster kind: the loose-bit and shallow-ore blocks for
+    // each of the region's two rocks, plus the per-column cluster chance.
+    private class OreBitSpec
+    {
+        public double Chance;
+        public int Bit1, Bit2;
+        public int Poor1, Med1, Poor2, Med2;
     }
 
     private class TreeMarker
@@ -236,7 +247,8 @@ public class LandmassGeneratorModSystem : ModSystem
 
         public int MinX, MinZ, W, H;
         public long I, Total, Placed, Trees, Plants;
-        public List<(int X, int Z, Region Reg)> CopperCenters = new();
+        public List<(int X, int Z, OreBitSpec Spec)> OreBitCenters = new();
+        public List<(int X, int Z, Region Reg)> DevastationCenters = new();
         public int ColumnsPerTick;
         public int Phase;                 // 0 terrain, 1 forest
         public LCGRandom Rand;
@@ -616,7 +628,7 @@ public class LandmassGeneratorModSystem : ModSystem
     private Region ParseRegion(string[] tok, IslandJob job, long seed, ref int oreIdx, List<string> problems)
     {
         var r = new Region { Key = tok[1][0] };
-        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null;
+        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null, oreBitsStr = null;
 
         for (int i = 2; i < tok.Length; i++)
         {
@@ -649,7 +661,10 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "pond": r.Pond = (int)Math.Clamp(ParseD(v, 3), 1, 40); break;
                 case "cattails": r.Cattails = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "flax": r.Flax = Math.Clamp(ParseD(v, 0), 0, 1); break;
-                case "copperbits": r.CopperBits = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "orebits": oreBitsStr = oreBitsStr == null ? v : oreBitsStr + "," + v; break;
+                case "copperbits": // legacy spelling of orebits=copper:x
+                    oreBitsStr = (oreBitsStr == null ? "" : oreBitsStr + ",") + "copper:" + v; break;
+                case "devastation": r.Devastation = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "wildgrass": r.WildGrass = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "stones": r.Stones = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "sticks": r.Sticks = Math.Clamp(ParseD(v, 0), 0, 1); break;
@@ -735,19 +750,47 @@ public class LandmassGeneratorModSystem : ModSystem
             if (flaxIds.Count == 0) { r.Flax = 0; problems.Add($"region {r.Key}: no crop-flax blocks, flax off"); }
         }
 
-        if (r.CopperBits > 0)
+        if (!string.IsNullOrWhiteSpace(oreBitsStr))
         {
-            // Surface copper clusters need a matched set per rock: the loose
-            // bit block plus the shallow ore the cluster buries under it.
-            // nativecopper covers most rocks; malachite is the copper of
-            // limestone/marble (allowedVariants gates the combos).
-            ResolveCopper(r.RockType, out r.CopperBit1, out r.CopperOrePoor1, out r.CopperOreMed1);
-            if (rock2 != null) ResolveCopper(rock2, out r.CopperBit2, out r.CopperOrePoor2, out r.CopperOreMed2);
-            if (r.CopperBit1 == 0 && r.CopperBit2 == 0)
+            // orebits=tin:0.002,copper:0.001. Each entry is a surface-cluster
+            // kind: friendly ore names map through the same aliases as ores=,
+            // and each cluster needs the loose bit + shallow ore blocks
+            // matched to the region's rocks (allowedVariants gates combos).
+            foreach (string entry in oreBitsStr.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
-                r.CopperBits = 0;
-                problems.Add($"region {r.Key}: no loose copper blocks for its rocks, copperbits off");
+                string[] parts = entry.Split(':');
+                string want = parts[0].Trim().ToLowerInvariant();
+                double chance = parts.Length > 1 ? Math.Clamp(ParseD(parts[1], 0.001), 0, 1) : 0.001;
+                if (want.Length == 0 || chance <= 0) continue;
+
+                string[] minerals = OreAliases.TryGetValue(want, out string[] al) ? al : new[] { want };
+                var spec = new OreBitSpec { Chance = chance };
+                ResolveOreBits(minerals, r.RockType, out spec.Bit1, out spec.Poor1, out spec.Med1);
+                if (rock2 != null) ResolveOreBits(minerals, rock2, out spec.Bit2, out spec.Poor2, out spec.Med2);
+                if (spec.Bit1 == 0 && spec.Bit2 == 0)
+                    problems.Add($"region {r.Key}: no loose '{want}' blocks for its rocks, skipped");
+                else r.OreBits.Add(spec);
             }
+        }
+
+        if (r.Devastation > 0)
+        {
+            var devSoil = new List<int>();
+            for (int n = 0; n <= 10; n++)
+            {
+                Block b = sapi.World.GetBlock(new AssetLocation("game", "devastatedsoil-" + n));
+                if (b != null) devSoil.Add(b.BlockId);
+            }
+            r.DevSoilIds = devSoil.ToArray();
+            r.DrockId = sapi.World.GetBlock(new AssetLocation("game", "drock"))?.BlockId ?? 0;
+            var growth = new List<int>();
+            foreach (string t in new[] { "thorns", "bush", "shard" })
+            {
+                Block b = sapi.World.GetBlock(new AssetLocation("game", "devgrowth-" + t));
+                if (b != null) growth.Add(b.BlockId);
+            }
+            r.DevGrowthIds = growth.ToArray();
+            if (devSoil.Count == 0) { r.Devastation = 0; problems.Add($"region {r.Key}: no devastatedsoil blocks, devastation off"); }
         }
 
         // Ground cover blocks. Grass tufts and loose granite stones are on by
@@ -859,12 +902,12 @@ public class LandmassGeneratorModSystem : ModSystem
         return r;
     }
 
-    // The copper set for one rock: loose bit + shallow ore blocks. Tries
-    // nativecopper first, then malachite (limestone/marble copper).
-    private void ResolveCopper(string rock, out int bit, out int poor, out int med)
+    // The surface-cluster set for one rock: loose bit + shallow ore blocks,
+    // taking the first candidate mineral that occurs in this rock.
+    private void ResolveOreBits(string[] minerals, string rock, out int bit, out int poor, out int med)
     {
         bit = poor = med = 0;
-        foreach (string mineral in new[] { "nativecopper", "malachite" })
+        foreach (string mineral in minerals)
         {
             int b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-{mineral}-{rock}-free"))?.BlockId ?? 0;
             if (b == 0) continue;
@@ -1009,13 +1052,15 @@ public class LandmassGeneratorModSystem : ModSystem
         _islandListenerId = 0;
         _islandJob = null;
         string extra = PlaceLandmarkTrees(job);
-        int copperBits = StampCopperClusters(job);
+        int oreBits = StampOreBitClusters(job);
+        int devPatches = StampDevastation(job);
         _islandBusy = false;
 
         string done = $"Island complete: {job.Placed} column(s)";
         if (job.Trees > 0) done += $", {job.Trees} tree(s)";
         if (job.Plants > 0) done += $", {job.Plants} plant(s)";
-        if (copperBits > 0) done += $", {copperBits} surface copper bit(s) in {job.CopperCenters.Count} cluster(s)";
+        if (oreBits > 0) done += $", {oreBits} surface ore bit(s) in {job.OreBitCenters.Count} cluster(s)";
+        if (devPatches > 0) done += $", {devPatches} devastated patch(es)";
         ReportIsland(job, done + ". " + extra);
     }
 
@@ -1031,7 +1076,7 @@ public class LandmassGeneratorModSystem : ModSystem
     {
         if (job.Shape == null) return false;
         foreach (var r in job.Shape.Regions.Values)
-            if (r.Cattails > 0 || r.Flax > 0 || r.CopperBits > 0 || r.Sticks > 0 || r.Litter > 0
+            if (r.Cattails > 0 || r.Flax > 0 || r.OreBits.Count > 0 || r.Devastation > 0 || r.Sticks > 0 || r.Litter > 0
                 || r.Lilies > 0 || r.Shells > 0 || r.Boulders > 0 || r.Clay > 0
                 || r.Bushes.Count > 0 || r.Scatter.Count > 0 || r.WildGrass != 0 || r.Stones != 0) return true;
         return false;
@@ -1406,14 +1451,14 @@ public class LandmassGeneratorModSystem : ModSystem
     // (vanilla's surfaceBlockChance is 0.33). Digging under any bit finds the
     // ore. Runs after the plant pass with its own commit; skips columns whose
     // surface is already occupied by something solid like a trunk.
-    private int StampCopperClusters(IslandJob job)
+    private int StampOreBitClusters(IslandJob job)
     {
-        if (job.CopperCenters.Count == 0) return 0;
+        if (job.OreBitCenters.Count == 0) return 0;
         var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
         var pos = new BlockPos(0, 0, 0, job.Dim);
         int bits = 0;
 
-        foreach ((int cxw, int czw, Region reg) in job.CopperCenters)
+        foreach ((int cxw, int czw, OreBitSpec spec) in job.OreBitCenters)
         {
             job.Rand.InitPositionSeed(cxw, czw);
             double radius = 2.5 + job.Rand.NextDouble() * 2.0;
@@ -1427,8 +1472,8 @@ public class LandmassGeneratorModSystem : ModSystem
                     if (r2 == null || r2.Pond > 0) continue;
 
                     bool second = job.RockBlend.Noise(x, topY - 4, z) > 0.5;
-                    int poor = second && reg.CopperOrePoor2 != 0 ? reg.CopperOrePoor2 : reg.CopperOrePoor1;
-                    int med = second && reg.CopperOreMed2 != 0 ? reg.CopperOreMed2 : reg.CopperOreMed1;
+                    int poor = second && spec.Poor2 != 0 ? spec.Poor2 : spec.Poor1;
+                    int med = second && spec.Med2 != 0 ? spec.Med2 : spec.Med1;
                     int oreId = med != 0 && job.Rand.NextDouble() < 0.35 ? med : poor;
                     if (oreId != 0)
                     {
@@ -1437,7 +1482,7 @@ public class LandmassGeneratorModSystem : ModSystem
                         if (job.Rand.NextDouble() < 0.5) { pos.Set(x, topY - 4, z); ba.SetBlock(oreId, pos); }
                     }
 
-                    int bit = second && reg.CopperBit2 != 0 ? reg.CopperBit2 : reg.CopperBit1;
+                    int bit = second && spec.Bit2 != 0 ? spec.Bit2 : spec.Bit1;
                     if (bit != 0 && (tm == SurfGrass || tm == SurfRock) && job.Rand.NextDouble() < 0.33)
                     {
                         pos.Set(x, topY + 1, z);
@@ -1450,6 +1495,60 @@ public class LandmassGeneratorModSystem : ModSystem
         }
         ba.Commit();
         return bits;
+    }
+
+    // A devastated-ground patch: a ragged disc of devastatedsoil, heaviest
+    // crust at the centre fading to light at the edge, drock pushed into the
+    // ground near the middle, devastation growths sprouting from it, and any
+    // grass tufts on it cleared. Stamped after the plant pass like ore
+    // clusters, for the same overwrite reason.
+    private int StampDevastation(IslandJob job)
+    {
+        if (job.DevastationCenters.Count == 0) return 0;
+        var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+        int patches = 0;
+
+        foreach ((int cxw, int czw, Region reg) in job.DevastationCenters)
+        {
+            job.Rand.InitPositionSeed(cxw, czw);
+            double radius = 2.5 + job.Rand.NextDouble() * 3.0;
+            int rr = (int)Math.Ceiling(radius);
+            for (int dz = -rr; dz <= rr; dz++)
+                for (int dx = -rr; dx <= rr; dx++)
+                {
+                    double d = Math.Sqrt(dx * dx + dz * dz);
+                    if (d > radius) continue;
+                    // ragged, organic edge
+                    if (d > radius * 0.6 && job.Rand.NextDouble() < (d / radius - 0.6) * 2.0) continue;
+
+                    int x = cxw + dx, z = czw + dz;
+                    if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out int tm, out _, out _, out Region r2) || uw) continue;
+                    if (r2 == null || r2.Pond > 0) continue;
+                    if (tm != SurfGrass && tm != SurfSand && tm != SurfRock) continue;
+
+                    double fade = 1.0 - d / radius; // 1 at the centre
+                    int idx = Math.Clamp((int)Math.Round(fade * 10.0), 0, reg.DevSoilIds.Length - 1);
+                    pos.Set(x, topY, z);
+                    ba.SetBlock(reg.DevSoilIds[idx], pos);
+                    if (fade > 0.5 && reg.DrockId != 0 && job.Rand.NextDouble() < 0.35)
+                    {
+                        pos.Set(x, topY - 1, z);
+                        ba.SetBlock(reg.DrockId, pos);
+                    }
+
+                    pos.Set(x, topY + 1, z);
+                    Block existing = sapi.World.BlockAccessor.GetBlock(pos);
+                    if (existing.BlockMaterial == EnumBlockMaterial.Wood || existing.BlockMaterial == EnumBlockMaterial.Leaves) continue;
+                    int above = 0; // clears any grass tuft unless a growth takes its place
+                    if (reg.DevGrowthIds.Length > 0 && job.Rand.NextDouble() < 0.08 + 0.14 * fade)
+                        above = reg.DevGrowthIds[job.Rand.NextInt(reg.DevGrowthIds.Length)];
+                    ba.SetBlock(above, pos);
+                }
+            patches++;
+        }
+        ba.Commit();
+        return patches;
     }
 
     // Vanilla concentrates forest floor under tree canopies, so litter stamps
@@ -1524,14 +1623,24 @@ public class LandmassGeneratorModSystem : ModSystem
             }
         }
 
-        // Surface copper spawns in vanilla-style CLUSTERS, not singles: this
+        // Surface ore spawns in vanilla-style CLUSTERS, not singles: this
         // column only wins the right to host a cluster centre. The cluster
         // itself (shallow ore disc + bits over a third of it) is stamped after
         // the whole pass, so later columns' grass cannot overwrite the bits.
-        if ((grass || rock) && reg.CopperBits > 0 && job.Rand.NextDouble() < reg.CopperBits)
+        // Devastated-ground patches work the same way.
+        if (grass || rock)
         {
-            job.CopperCenters.Add((x, z, reg));
-            return true;
+            foreach (OreBitSpec ob in reg.OreBits)
+                if (job.Rand.NextDouble() < ob.Chance)
+                {
+                    job.OreBitCenters.Add((x, z, ob));
+                    return true;
+                }
+            if (reg.Devastation > 0 && job.Rand.NextDouble() < reg.Devastation)
+            {
+                job.DevastationCenters.Add((x, z, reg));
+                return true;
+            }
         }
 
         // Bushes grow on grass or beach sand.
