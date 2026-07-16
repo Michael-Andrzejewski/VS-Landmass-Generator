@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
+using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.Config;
@@ -71,6 +73,59 @@ public class LandmassGeneratorModSystem : ModSystem
         { "bismuth", new[] { "bismuthinite" } },
         { "manganese", new[] { "rhodochrosite" } }
     };
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Client side: live climate-tint refresh
+    //
+    //  Grass and leaf tint comes from the map region's ClimateMap, but the
+    //  engine caches a pre-lerped copy per region for chunk tesselation
+    //  (ClientWorldMap.LerpedClimateMaps) and NEVER invalidates it, so a
+    //  server-side climate= edit only became visible after a relog. Whenever a
+    //  map region (re)arrives from the server, drop that cache; the chunk
+    //  columns the server resends right after are then meshed with the fresh
+    //  climate. Engine internals via reflection: if a game update moves them,
+    //  we silently fall back to relog-to-see-it.
+    // ─────────────────────────────────────────────────────────────────────
+
+    private ICoreClientAPI capi;
+    private object clientWorldMap;
+    private FieldInfo lerpedMapsField, lerpedLockField;
+
+    public override void StartClientSide(ICoreClientAPI api)
+    {
+        capi = api;
+        api.Event.MapRegionLoaded += OnClientMapRegionLoaded;
+    }
+
+    private void OnClientMapRegionLoaded(Vec2i coord, IMapRegion region)
+    {
+        try
+        {
+            if (clientWorldMap == null)
+            {
+                clientWorldMap = capi.World.GetType().GetField("WorldMap")?.GetValue(capi.World);
+                if (clientWorldMap == null) return;
+                lerpedMapsField = clientWorldMap.GetType().GetField("LerpedClimateMaps", BindingFlags.NonPublic | BindingFlags.Instance);
+                lerpedLockField = clientWorldMap.GetType().GetField("LerpedClimateMapsLock", BindingFlags.NonPublic | BindingFlags.Instance);
+            }
+            if (lerpedMapsField == null || lerpedLockField == null) return;
+
+            // Swap in a fresh (empty) cache of the same type. It only ever
+            // holds ~10 small maps, rebuilt lazily off-thread, so clearing on
+            // every region load is cheap.
+            object lockObj = lerpedLockField.GetValue(clientWorldMap);
+            lock (lockObj)
+            {
+                lerpedMapsField.SetValue(clientWorldMap, Activator.CreateInstance(lerpedMapsField.FieldType, 10));
+            }
+        }
+        catch
+        {
+            // Engine internals moved; climate retints then need a relog.
+            lerpedMapsField = null;
+            lerpedLockField = null;
+        }
+    }
 
     public override void StartServerSide(ICoreServerAPI api)
     {
@@ -167,6 +222,8 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Shells;             // chance of a seashell per sand column
         public double Boulders;           // chance of a loose boulder per column
         public double Clay;               // pond region: chance a rim column becomes a clay deposit
+        public double Sandy;              // fraction-ish of grass columns turned to sand, in noise blobs
+        public double Pumpkins;           // chance per column of a wild pumpkin patch centre
         public List<BushSpec> Bushes = new();
         public List<BushSpec> Scatter = new();   // generic decor: flowers, mushrooms, ferns...
         public List<ITreeGenerator> Trees = new();
@@ -182,6 +239,11 @@ public class LandmassGeneratorModSystem : ModSystem
         public int[] LitterIds = Array.Empty<int>();
         public int[] ShellIds = Array.Empty<int>();
         public int LooseStoneId, LooseStoneId2, LooseStickId, LilyId, BoulderId, ClayId, ClaySparseId;
+        public int SparseGrassId, SparseGrassId2;                // surface=barren: verysparse + sparse grass soil
+        public int[] MotherIds = Array.Empty<int>();             // pumpkins=: crop-pumpkin mother plants
+        public int[] VineIds = Array.Empty<int>();
+        public int[] FruitIds = Array.Empty<int>();
+        public int[] DebrisIds = Array.Empty<int>();
     }
 
     // One bush kind a region scatters: a fruiting-bush block, or (for "birch")
@@ -257,6 +319,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public long I, Total, Placed, Trees, Plants;
         public List<(int X, int Z, OreBitSpec Spec)> OreBitCenters = new();
         public List<(int X, int Z, Region Reg)> DevastationCenters = new();
+        public List<(int X, int Z, Region Reg)> PumpkinCenters = new();
         public int ColumnsPerTick;
         public int Phase;                 // 0 terrain, 1 forest
         public LCGRandom Rand;
@@ -704,6 +767,8 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "shells": r.Shells = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "boulders": r.Boulders = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "clay": r.Clay = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "sandy": r.Sandy = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "pumpkins": r.Pumpkins = Math.Clamp(ParseD(v, 0), 0, 1); break;
             }
         }
 
@@ -747,6 +812,12 @@ public class LandmassGeneratorModSystem : ModSystem
             r.GrassId = job.GrassId;
         }
 
+        // surface=barren tops: patchy verysparse/sparse grass cover, so worn
+        // ground still reads alive rather than like a dug pit.
+        string sparseFert = fert ?? "medium";
+        r.SparseGrassId = sapi.World.GetBlock(new AssetLocation("game", $"soil-{sparseFert}-verysparse"))?.BlockId ?? r.SoilId;
+        r.SparseGrassId2 = sapi.World.GetBlock(new AssetLocation("game", $"soil-{sparseFert}-sparse"))?.BlockId ?? r.SparseGrassId;
+
         if (!string.IsNullOrWhiteSpace(oreStr))
             ParseOres(oreStr, r.RockType, seed + 31 * (oreIdx++ + 1), r.Ores, problems);
 
@@ -777,6 +848,22 @@ public class LandmassGeneratorModSystem : ModSystem
             }
             r.FlaxIds = flaxIds.ToArray();
             if (flaxIds.Count == 0) { r.Flax = 0; problems.Add($"region {r.Key}: no crop-flax blocks, flax off"); }
+        }
+
+        if (r.Pumpkins > 0)
+        {
+            // A wild pumpkin patch: mother plants, vines in mixed stages
+            // (weighted toward healthy ones), fruits, and rusty debris.
+            r.MotherIds = ResolveIds("crop-pumpkin-4", "crop-pumpkin-5", "crop-pumpkin-6", "crop-pumpkin-7");
+            r.VineIds = ResolveIds("pumpkin-vine-2-normal", "pumpkin-vine-3-normal", "pumpkin-vine-3-normal",
+                "pumpkin-vine-3-blooming", "pumpkin-vine-4-withered");
+            r.FruitIds = ResolveIds("pumpkin-fruit-1", "pumpkin-fruit-2", "pumpkin-fruit-3", "pumpkin-fruit-4");
+            r.DebrisIds = ResolveIds("loosegears-1", "loosegears-3", "metal-scraps");
+            if (r.MotherIds.Length == 0 || r.VineIds.Length == 0)
+            {
+                r.Pumpkins = 0;
+                problems.Add($"region {r.Key}: pumpkin plant blocks missing, pumpkins off");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(oreBitsStr))
@@ -1083,6 +1170,7 @@ public class LandmassGeneratorModSystem : ModSystem
         string extra = PlaceLandmarkTrees(job);
         int oreBits = StampOreBitClusters(job);
         int devPatches = StampDevastation(job);
+        int pumpkinPatches = StampPumpkinPatches(job);
         int climRegions = StampClimate(job);
         _islandBusy = false;
 
@@ -1091,7 +1179,9 @@ public class LandmassGeneratorModSystem : ModSystem
         if (job.Plants > 0) done += $", {job.Plants} plant(s)";
         if (oreBits > 0) done += $", {oreBits} surface ore bit(s) in {job.OreBitCenters.Count} cluster(s)";
         if (devPatches > 0) done += $", {devPatches} devastated patch(es)";
+        if (pumpkinPatches > 0) done += $", {pumpkinPatches} pumpkin patch(es)";
         if (climRegions > 0) done += $", climate retinted across {climRegions} map region(s)";
+        else if (job.HasClimate) done += ". WARNING: climate= touched no loaded map regions";
         ReportIsland(job, done + ". " + extra);
     }
 
@@ -1108,7 +1198,7 @@ public class LandmassGeneratorModSystem : ModSystem
         if (job.Shape == null) return false;
         foreach (var r in job.Shape.Regions.Values)
             if (r.Cattails > 0 || r.Flax > 0 || r.OreBits.Count > 0 || r.Devastation > 0 || r.Sticks > 0 || r.Litter > 0
-                || r.Lilies > 0 || r.Shells > 0 || r.Boulders > 0 || r.Clay > 0
+                || r.Lilies > 0 || r.Shells > 0 || r.Boulders > 0 || r.Clay > 0 || r.Pumpkins > 0
                 || r.Bushes.Count > 0 || r.Scatter.Count > 0 || r.WildGrass != 0 || r.Stones != 0) return true;
         return false;
     }
@@ -1146,7 +1236,13 @@ public class LandmassGeneratorModSystem : ModSystem
             pos.Set(x, y, z);
             int id;
             if (y == topY)
-                id = topMat == SurfGrass ? grassId : topMat == SurfSoil ? soilId : topMat == SurfSand ? sandId : stoneId;
+                id = topMat == SurfGrass ? grassId
+                    // surface=barren land gets patchy sparse grass; pond beds
+                    // (the other SurfSoil source) stay bare mud.
+                    : topMat == SurfSoil ? (reg != null && reg.Pond == 0 && reg.SparseGrassId != 0
+                        ? (job.SurfNoise.Noise(x * 0.31, z * 0.31) > 0.5 ? reg.SparseGrassId2 : reg.SparseGrassId)
+                        : soilId)
+                    : topMat == SurfSand ? sandId : stoneId;
             else if (y > topY - skin)
                 id = topMat == SurfGrass || topMat == SurfSoil ? soilId : topMat == SurfSand ? sandId : stoneId;
             else
@@ -1341,9 +1437,16 @@ public class LandmassGeneratorModSystem : ModSystem
 
     private int SurfaceMat(IslandJob job, Region r, int x, int z)
     {
-        if (r.Surface != SurfRockSand) return r.Surface;
+        int surf = r.Surface;
         // Rocky outcrops speckled with sand.
-        return job.CoastNoise.Noise(x * 0.9, z * 0.9) > 0.5 ? SurfRock : SurfSand;
+        if (surf == SurfRockSand)
+            surf = job.CoastNoise.Noise(x * 0.9, z * 0.9) > 0.5 ? SurfRock : SurfSand;
+        // sandy=: contiguous noise blobs of the region's sand across grass or
+        // barren ground, for wind-blown drifts inland.
+        if (r.Sandy > 0 && (surf == SurfGrass || surf == SurfSoil)
+            && job.SurfNoise.Noise(x * 0.23, z * 0.23) > 1.0 - r.Sandy * 0.62)
+            surf = SurfSand;
+        return surf;
     }
 
     // The original radial dome, kept for quick islands with no shape file.
@@ -1587,6 +1690,100 @@ public class LandmassGeneratorModSystem : ModSystem
         return patches;
     }
 
+    // pumpkins= support: wild pumpkin patches that look GROWN, not scattered.
+    // The catch is that a pumpkin vine block carries a block entity that kills
+    // itself within seconds unless its parentPlantPos points at a block whose
+    // code starts with crop-pumpkin or pumpkin-vine (distance is never
+    // checked). So each patch places one mother plant (crop-pumpkin stays put
+    // forever on plain soil, since only farmland ticks crops), surrounds it
+    // with vines in mixed stages that are all adopted by the mother, puts
+    // fruits beside the vines, and mixes rusty debris between them. Uses the
+    // plain block accessor, not a bulk one, so the vines' block entities exist
+    // immediately for adoption.
+    private int StampPumpkinPatches(IslandJob job)
+    {
+        if (job.PumpkinCenters.Count == 0) return 0;
+        IBlockAccessor ba = sapi.World.BlockAccessor;
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+        int patches = 0;
+
+        foreach (var (cxw, czw, reg) in job.PumpkinCenters)
+        {
+            if (!PatchGround(job, ba, pos, cxw, czw, out int my)) continue;
+            pos.Set(cxw, my + 1, czw);
+            ba.SetBlock(reg.MotherIds[job.Rand.NextInt(reg.MotherIds.Length)], pos);
+            BlockPos motherPos = pos.Copy();
+
+            int vines = 5 + job.Rand.NextInt(5);
+            for (int i = 0; i < vines; i++)
+            {
+                double ang = job.Rand.NextDouble() * Math.PI * 2.0;
+                double dist = 1.2 + job.Rand.NextDouble() * 3.2;
+                int vx = cxw + (int)Math.Round(Math.Cos(ang) * dist);
+                int vz = czw + (int)Math.Round(Math.Sin(ang) * dist);
+                if ((vx == cxw && vz == czw) || !PatchGround(job, ba, pos, vx, vz, out int vy)) continue;
+
+                pos.Set(vx, vy + 1, vz);
+                ba.SetBlock(reg.VineIds[job.Rand.NextInt(reg.VineIds.Length)], pos);
+                AdoptVine(ba, pos, motherPos);
+
+                // A fruit beside most vines, on its own ground.
+                if (reg.FruitIds.Length > 0 && job.Rand.NextDouble() < 0.65)
+                {
+                    int fx = vx + job.Rand.NextInt(3) - 1, fz = vz + job.Rand.NextInt(3) - 1;
+                    if ((fx != cxw || fz != czw) && PatchGround(job, ba, pos, fx, fz, out int fy))
+                    {
+                        pos.Set(fx, fy + 1, fz);
+                        if (ba.GetBlock(pos).Id == 0 || ba.GetBlock(pos).BlockMaterial == EnumBlockMaterial.Plant)
+                            ba.SetBlock(reg.FruitIds[job.Rand.NextInt(reg.FruitIds.Length)], pos);
+                    }
+                }
+            }
+
+            // Random debris between the plants.
+            int debris = reg.DebrisIds.Length > 0 ? 1 + job.Rand.NextInt(3) : 0;
+            for (int i = 0; i < debris; i++)
+            {
+                int dx = cxw + job.Rand.NextInt(9) - 4, dz = czw + job.Rand.NextInt(9) - 4;
+                if (!PatchGround(job, ba, pos, dx, dz, out int dy)) continue;
+                pos.Set(dx, dy + 1, dz);
+                ba.SetBlock(reg.DebrisIds[job.Rand.NextInt(reg.DebrisIds.Length)], pos);
+            }
+            patches++;
+        }
+        return patches;
+    }
+
+    // Usable ground for a pumpkin patch block: our own terrain, dry, soil or
+    // sand underfoot, and nothing solid (a tree, a boulder) already above.
+    private bool PatchGround(IslandJob job, IBlockAccessor ba, BlockPos pos, int x, int z, out int topY)
+    {
+        topY = 0;
+        if (!ColumnSurface(job, x, z, job.SeaLevel, out topY, out bool uw, out int tm, out _, out _, out Region r2) || uw) return false;
+        if (r2 == null || r2.Pond > 0) return false;
+        if (tm != SurfGrass && tm != SurfSoil && tm != SurfSand) return false;
+        pos.Set(x, topY + 1, z);
+        Block above = ba.GetBlock(pos);
+        return above.Id == 0 || above.BlockMaterial == EnumBlockMaterial.Plant;
+    }
+
+    // Re-parent a just-placed vine's block entity onto the patch's mother
+    // plant, through tree attributes so no survival-mod reference is needed.
+    // Also pushes its next growth stage half a day out.
+    private void AdoptVine(IBlockAccessor ba, BlockPos vinePos, BlockPos motherPos)
+    {
+        BlockEntity be = ba.GetBlockEntity(vinePos);
+        if (be == null) return;
+        var tree = new TreeAttribute();
+        be.ToTreeAttributes(tree);
+        tree.SetInt("parentPlantPosX", motherPos.X);
+        tree.SetInt("parentPlantPosY", motherPos.Y);
+        tree.SetInt("parentPlantPosZ", motherPos.Z);
+        tree.SetDouble("totalHoursForNextStage", sapi.World.Calendar.TotalHours + 12.0);
+        be.FromTreeAttributes(tree, sapi.World);
+        be.MarkDirty(true);
+    }
+
     // climate= support. Grass and leaf COLOR is not in the block: the client
     // tints plants from the worldgen climate stored in each map region's
     // ClimateMap (temperature byte 16-23, rainfall byte 8-15; the low byte is
@@ -1775,6 +1972,12 @@ public class LandmassGeneratorModSystem : ModSystem
             if (reg.Devastation > 0 && job.Rand.NextDouble() < reg.Devastation)
             {
                 job.DevastationCenters.Add((x, z, reg));
+                return true;
+            }
+
+            if (!rock && reg.Pumpkins > 0 && job.Rand.NextDouble() < reg.Pumpkins)
+            {
+                job.PumpkinCenters.Add((x, z, reg));
                 return true;
             }
         }
@@ -1993,6 +2196,18 @@ public class LandmassGeneratorModSystem : ModSystem
 
     private static double ParseD(string s, double def)
         => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : def;
+
+    // Resolve a list of block codes to ids, silently dropping missing ones.
+    private int[] ResolveIds(params string[] codes)
+    {
+        var ids = new List<int>();
+        foreach (string c in codes)
+        {
+            Block b = sapi.World.GetBlock(new AssetLocation("game", c));
+            if (b != null) ids.Add(b.BlockId);
+        }
+        return ids.ToArray();
+    }
 
     private static double Lerp(double a, double b, double t) => a + (b - a) * t;
     private static double Smooth(double t) { t = Math.Clamp(t, 0.0, 1.0); return t * t * (3 - 2 * t); }
