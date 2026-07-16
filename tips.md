@@ -61,7 +61,8 @@ file lists the exact block codes vanilla scatters. Parity checklist for a
 | Flowers | `scatter=cornflower:0.01,...` | friendly names resolve via flower-/mushroom-/fern-/herb- prefixes |
 | Ferns, mushrooms | `scatter=` | mushrooms belong under trees |
 | Berry bushes | `bushes=raspberry:0.01,...` | any `fruitingbush-wild-*` type; `birch` = dwarf birch shrub |
-| Fallen sticks, leaf litter | `sticks`, `litter` | forest regions |
+| Fallen sticks | `sticks` | forest regions |
+| Leaf litter | `litter` | stamps discs under each tree (leafy at trunk, grass at canopy edge), like vanilla; ~0.8 for a real forest floor |
 | Reeds by water | `cattails` | pond rim ring, or sea waterline on shore regions |
 | Waterlilies | `lilies` | pond regions |
 | Seashells | `shells` | sand columns only |
@@ -93,7 +94,9 @@ All verified against 1.22.3 assets. When in doubt, grep
   papyrus).
 - Wild crops: `crop-{type}-{stage}` sit fine on plain soil (flax stages 1-9).
 - Loose things: `loosestones-{rock}-free`, `looseboulders-{rock}-free`,
-  `loosestick-free`, `looseores-{poor|medium}-{mineral}-{rock}-free`.
+  `loosestick-free`, `looseores-{mineral}-{rock}-free` (NO grade segment, and
+  combos are gated by allowedVariants: nativecopper occurs in most rocks
+  including slate/peridotite, malachite only in limestone/marble).
 - Seashells: `seashell-{scallop|sundial|turritella|clam|conch|seastar|volute}-{latte|plain|seafoam|darkpurple|cinnamon|turquoise}`.
 - Clay: `rawclay-{blue|red|fire}-none`.
 - Waterlily: `waterlily`.

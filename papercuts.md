@@ -25,6 +25,18 @@ in [tips.md](tips.md).
 - Blocks placed with SetBlock skip placement validation: crops stand on plain
   soil, reeds on sand. They stay until a neighbor update. Convenient, but do
   not rely on it for blocks with aggressive update checks.
+- **Do not extrapolate a block-code shape from a sibling block.** Ore blocks
+  are `ore-{grade}-{mineral}-{rock}`, so we assumed loose ore was
+  `looseores-{grade}-...`. It is `looseores-{mineral}-{rock}-free`, no grade,
+  and the mod's surface copper silently never spawned (soft-lock risk!). The
+  blocktype's own `variantgroups` AND its `allowedVariants` list are the only
+  truth: malachite looseores exist solely in limestone/marble rocks, for
+  example. GetBlock returning null is reported in the chat problems note, so
+  READ that note after every /genisland run.
+- **A resolver failing quietly downgrades a feature to "missing".** Every
+  optional feature here reports resolution failures via the problems list;
+  keep that pattern for anything new, and treat any problem line in chat as a
+  bug to fix, not a warning to ignore.
 
 ## Terrain-shaping lessons
 
@@ -46,6 +58,11 @@ in [tips.md](tips.md).
 - The shape grid is sampled with +-0.7 cell jitter, so "adjacent to region X"
   checks must scan all 8 neighboring cells, and thin one-cell features can be
   skipped over entirely: make map features at least 2 cells wide.
+- **Leaf litter belongs under canopies, not scattered uniformly.** Vanilla's
+  ForestFloorSystem grades `forestfloor-0..7` outward from trunks, and a
+  uniform region-wide sprinkle reads wrong immediately. Runtime GrowTree does
+  NOT invoke that system for you (skipForestFloor=false is not enough); stamp
+  the disc yourself around each planted tree (see StampLitter).
 
 ## Process lessons
 

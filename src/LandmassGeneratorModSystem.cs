@@ -736,19 +736,26 @@ public class LandmassGeneratorModSystem : ModSystem
         if (r.CopperBits > 0)
         {
             // Loose copper stones on the ground, the classic "ore below" signal.
-            // Prefer the region's own rocks so the bits match the geology.
+            // Code shape is looseores-{mineral}-{rock}-free, NO grade segment,
+            // and allowedVariants restricts the combos (malachite bits only
+            // occur in limestone/marble). Collect from both of the region's
+            // rocks so bits match the visible geology.
             var bitIds = new List<int>();
-            foreach (string rock in new[] { r.RockType, rock2, "peridotite", "shale" })
+            foreach (string rock in new[] { r.RockType, rock2 })
             {
                 if (string.IsNullOrEmpty(rock)) continue;
-                foreach (string grade in new[] { "poor", "medium" })
-                    foreach (string mineral in new[] { "nativecopper", "malachite" })
-                    {
-                        Block b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-{grade}-{mineral}-{rock}-free"));
-                        if (b != null) bitIds.Add(b.BlockId);
-                    }
-                if (bitIds.Count > 0) break; // one rock's bits, so the ground reads consistent
+                foreach (string mineral in new[] { "nativecopper", "malachite" })
+                {
+                    Block b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-{mineral}-{rock}-free"));
+                    if (b != null) bitIds.Add(b.BlockId);
+                }
             }
+            if (bitIds.Count == 0) // last resort: rocks copper definitely occurs in
+                foreach (string rock in new[] { "peridotite", "granite" })
+                {
+                    Block b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-nativecopper-{rock}-free"));
+                    if (b != null) { bitIds.Add(b.BlockId); break; }
+                }
             r.CopperBitIds = bitIds.ToArray();
             if (bitIds.Count == 0) { r.CopperBits = 0; problems.Add($"region {r.Key}: no loose copper blocks, copperbits off"); }
         }
@@ -768,8 +775,11 @@ public class LandmassGeneratorModSystem : ModSystem
 
         if (r.Litter > 0)
         {
+            // The full grass-coverage gradient: index 0 is bare leaf litter,
+            // 7 is nearly grass. Litter stamps a disc under each tree, leafiest
+            // at the trunk, so it needs the whole run.
             var litterIds = new List<int>();
-            foreach (string n in new[] { "0", "1", "2", "3" }) // the leafier end of the forest floor gradient
+            for (int n = 0; n <= 7; n++)
             {
                 Block b = sapi.World.GetBlock(new AssetLocation("game", "forestfloor-" + n));
                 if (b != null) litterIds.Add(b.BlockId);
@@ -1342,7 +1352,33 @@ public class LandmassGeneratorModSystem : ModSystem
         // GrowTree expects the GROUND block; it grows the trunk above it itself.
         pos.Set(x, topY, z);
         pool[job.Rand.NextInt(pool.Count)].GrowTree(ba, pos, tp, job.Rand);
+        StampLitter(job, ba, pos, x, z, reg);
         return true;
+    }
+
+    // Vanilla concentrates forest floor under tree canopies, so litter stamps
+    // a leafy disc around each planted tree: bare leaves at the trunk, grading
+    // back to grass at the canopy's edge (the forestfloor 0..7 gradient).
+    private void StampLitter(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int treeX, int treeZ, Region reg)
+    {
+        if (reg == null || reg.Litter <= 0 || reg.LitterIds.Length == 0) return;
+        const int radius = 5;
+        for (int dz = -radius; dz <= radius; dz++)
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                double d = Math.Sqrt(dx * dx + dz * dz);
+                if (d > radius) continue;
+                double fade = 1.0 - d / radius; // 1 at the trunk, 0 at the edge
+                if (job.Rand.NextDouble() >= reg.Litter * (0.25 + 0.75 * fade)) continue;
+
+                int x = treeX + dx, z = treeZ + dz;
+                if (!ColumnSurface(job, x, z, job.SeaLevel, out int ty, out bool uw, out int tm, out _, out _, out Region r2) || uw) continue;
+                if (tm != SurfGrass || r2 == null || r2.Pond > 0) continue;
+
+                int idx = Math.Clamp((int)(d / radius * reg.LitterIds.Length), 0, reg.LitterIds.Length - 1);
+                pos.Set(x, ty, z);
+                ba.SetBlock(reg.LitterIds[idx], pos);
+            }
     }
 
     // Cattails ring a pond's rim (or the sea's waterline, on a shore region
@@ -1458,13 +1494,8 @@ public class LandmassGeneratorModSystem : ModSystem
             return true;
         }
 
-        // Leaf litter swaps the grass block itself for leafy forest floor.
-        if (reg.Litter > 0 && reg.LitterIds.Length > 0 && job.Rand.NextDouble() < reg.Litter)
-        {
-            pos.Set(x, topY, z);
-            ba.SetBlock(reg.LitterIds[job.Rand.NextInt(reg.LitterIds.Length)], pos);
-            return true;
-        }
+        // (Leaf litter is not scattered here: it stamps discs under trees, see
+        // StampLitter, which is how the game's own worldgen distributes it.)
 
         // Generic decor: flowers, mushrooms, ferns, whatever scatter= asked for.
         foreach (BushSpec decor in reg.Scatter)

@@ -10,7 +10,7 @@
 # structure, shoreline boulders.
 
 region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium bushes=raspberry:0.002,blueberry:0.002 scatter=cornflower:0.010,forgetmenot:0.010,cowparsley:0.005 height=0.70 shore=16 rough=0.08
-region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak copperbits=0.01 bushes=raspberry:0.012 sticks=0.04 litter=0.18 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012 height=0.75 shore=16 rough=0.08
+region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak copperbits=0.01 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.75 shore=16 rough=0.08
 region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium bushes=cranberry:0.01 scatter=cornflower:0.015,forgetmenot:0.015,horsetail:0.010 height=0.70 shore=16 rough=0.06
 region X rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium flax=0.05 bushes=blackcurrant:0.005,redcurrant:0.005 scatter=catmint:0.008,cowparsley:0.006 height=0.70 shore=16 rough=0.08
 region L rock=slate                  fertility=low    surface=grass ores=copper:medium bushes=cranberry:0.008 scatter=cowparsley:0.004 boulders=0.004 height=0.55 shore=14 rough=0.12
