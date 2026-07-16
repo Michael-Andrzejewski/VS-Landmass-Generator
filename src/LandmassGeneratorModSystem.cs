@@ -172,7 +172,8 @@ public class LandmassGeneratorModSystem : ModSystem
         public int StoneId, StoneId2, SandId, SoilId, GrassId;
         public int CattailId;
         public int[] FlaxIds = Array.Empty<int>();
-        public int[] CopperBitIds = Array.Empty<int>();
+        public int CopperBit1, CopperBit2;                       // loose bit per rock
+        public int CopperOrePoor1, CopperOreMed1, CopperOrePoor2, CopperOreMed2;
         public int[] GrassIds = Array.Empty<int>();
         public int[] LitterIds = Array.Empty<int>();
         public int[] ShellIds = Array.Empty<int>();
@@ -235,6 +236,7 @@ public class LandmassGeneratorModSystem : ModSystem
 
         public int MinX, MinZ, W, H;
         public long I, Total, Placed, Trees, Plants;
+        public List<(int X, int Z, Region Reg)> CopperCenters = new();
         public int ColumnsPerTick;
         public int Phase;                 // 0 terrain, 1 forest
         public LCGRandom Rand;
@@ -735,29 +737,17 @@ public class LandmassGeneratorModSystem : ModSystem
 
         if (r.CopperBits > 0)
         {
-            // Loose copper stones on the ground, the classic "ore below" signal.
-            // Code shape is looseores-{mineral}-{rock}-free, NO grade segment,
-            // and allowedVariants restricts the combos (malachite bits only
-            // occur in limestone/marble). Collect from both of the region's
-            // rocks so bits match the visible geology.
-            var bitIds = new List<int>();
-            foreach (string rock in new[] { r.RockType, rock2 })
+            // Surface copper clusters need a matched set per rock: the loose
+            // bit block plus the shallow ore the cluster buries under it.
+            // nativecopper covers most rocks; malachite is the copper of
+            // limestone/marble (allowedVariants gates the combos).
+            ResolveCopper(r.RockType, out r.CopperBit1, out r.CopperOrePoor1, out r.CopperOreMed1);
+            if (rock2 != null) ResolveCopper(rock2, out r.CopperBit2, out r.CopperOrePoor2, out r.CopperOreMed2);
+            if (r.CopperBit1 == 0 && r.CopperBit2 == 0)
             {
-                if (string.IsNullOrEmpty(rock)) continue;
-                foreach (string mineral in new[] { "nativecopper", "malachite" })
-                {
-                    Block b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-{mineral}-{rock}-free"));
-                    if (b != null) bitIds.Add(b.BlockId);
-                }
+                r.CopperBits = 0;
+                problems.Add($"region {r.Key}: no loose copper blocks for its rocks, copperbits off");
             }
-            if (bitIds.Count == 0) // last resort: rocks copper definitely occurs in
-                foreach (string rock in new[] { "peridotite", "granite" })
-                {
-                    Block b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-nativecopper-{rock}-free"));
-                    if (b != null) { bitIds.Add(b.BlockId); break; }
-                }
-            r.CopperBitIds = bitIds.ToArray();
-            if (bitIds.Count == 0) { r.CopperBits = 0; problems.Add($"region {r.Key}: no loose copper blocks, copperbits off"); }
         }
 
         // Ground cover blocks. Grass tufts and loose granite stones are on by
@@ -867,6 +857,22 @@ public class LandmassGeneratorModSystem : ModSystem
             if (r.ClayId == 0) { r.Clay = 0; problems.Add($"region {r.Key}: no rawclay block, clay off"); }
         }
         return r;
+    }
+
+    // The copper set for one rock: loose bit + shallow ore blocks. Tries
+    // nativecopper first, then malachite (limestone/marble copper).
+    private void ResolveCopper(string rock, out int bit, out int poor, out int med)
+    {
+        bit = poor = med = 0;
+        foreach (string mineral in new[] { "nativecopper", "malachite" })
+        {
+            int b = sapi.World.GetBlock(new AssetLocation("game", $"looseores-{mineral}-{rock}-free"))?.BlockId ?? 0;
+            if (b == 0) continue;
+            bit = b;
+            poor = sapi.World.GetBlock(new AssetLocation("game", $"ore-poor-{mineral}-{rock}"))?.BlockId ?? 0;
+            med = sapi.World.GetBlock(new AssetLocation("game", $"ore-medium-{mineral}-{rock}"))?.BlockId ?? 0;
+            return;
+        }
     }
 
     // A decor name for scatter=: a full block code, or a friendly short name
@@ -985,11 +991,13 @@ public class LandmassGeneratorModSystem : ModSystem
         _islandListenerId = 0;
         _islandJob = null;
         string extra = PlaceLandmarkTrees(job);
+        int copperBits = StampCopperClusters(job);
         _islandBusy = false;
 
         string done = $"Island complete: {job.Placed} column(s)";
         if (job.Trees > 0) done += $", {job.Trees} tree(s)";
         if (job.Plants > 0) done += $", {job.Plants} plant(s)";
+        if (copperBits > 0) done += $", {copperBits} surface copper bit(s) in {job.CopperCenters.Count} cluster(s)";
         ReportIsland(job, done + ". " + extra);
     }
 
@@ -1374,16 +1382,56 @@ public class LandmassGeneratorModSystem : ModSystem
         }
     }
 
-    // Does this column actually hold ore in its upper stone? Samples the same
-    // vein noise the terrain used, so a surface hint never lies.
-    private static bool HasOreBelow(IslandJob job, Region reg, int x, int topY, int z)
+    // Vanilla's "surfacecopper" deposit, reproduced: a small shallow ore disc
+    // in the stone right under the soil (radius ~2.5-4.5, poor/medium grade),
+    // with a loose copper bit on the surface over ~a third of its columns
+    // (vanilla's surfaceBlockChance is 0.33). Digging under any bit finds the
+    // ore. Runs after the plant pass with its own commit; skips columns whose
+    // surface is already occupied by something solid like a trunk.
+    private int StampCopperClusters(IslandJob job)
     {
-        List<OreSpec> ores = reg?.Ores ?? job.Ores;
-        if (ores.Count == 0) return false;
-        for (int y = topY - 3; y > topY - 24 && y > 1; y--)
-            for (int i = 0; i < ores.Count; i++)
-                if (ores[i].TryPick(x, y, z, out _)) return true;
-        return false;
+        if (job.CopperCenters.Count == 0) return 0;
+        var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+        int bits = 0;
+
+        foreach ((int cxw, int czw, Region reg) in job.CopperCenters)
+        {
+            job.Rand.InitPositionSeed(cxw, czw);
+            double radius = 2.5 + job.Rand.NextDouble() * 2.0;
+            int rr = (int)Math.Ceiling(radius);
+            for (int dz = -rr; dz <= rr; dz++)
+                for (int dx = -rr; dx <= rr; dx++)
+                {
+                    if (Math.Sqrt(dx * dx + dz * dz) > radius) continue;
+                    int x = cxw + dx, z = czw + dz;
+                    if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out int tm, out _, out _, out Region r2) || uw) continue;
+                    if (r2 == null || r2.Pond > 0) continue;
+
+                    bool second = job.RockBlend.Noise(x, topY - 4, z) > 0.5;
+                    int poor = second && reg.CopperOrePoor2 != 0 ? reg.CopperOrePoor2 : reg.CopperOrePoor1;
+                    int med = second && reg.CopperOreMed2 != 0 ? reg.CopperOreMed2 : reg.CopperOreMed1;
+                    int oreId = med != 0 && job.Rand.NextDouble() < 0.35 ? med : poor;
+                    if (oreId != 0)
+                    {
+                        pos.Set(x, topY - 3, z); // first stone block under the soil skin
+                        ba.SetBlock(oreId, pos);
+                        if (job.Rand.NextDouble() < 0.5) { pos.Set(x, topY - 4, z); ba.SetBlock(oreId, pos); }
+                    }
+
+                    int bit = second && reg.CopperBit2 != 0 ? reg.CopperBit2 : reg.CopperBit1;
+                    if (bit != 0 && (tm == SurfGrass || tm == SurfRock) && job.Rand.NextDouble() < 0.33)
+                    {
+                        pos.Set(x, topY + 1, z);
+                        Block existing = sapi.World.BlockAccessor.GetBlock(pos);
+                        if (existing.BlockMaterial == EnumBlockMaterial.Wood || existing.BlockMaterial == EnumBlockMaterial.Leaves) continue;
+                        ba.SetBlock(bit, pos);
+                        bits++;
+                    }
+                }
+        }
+        ba.Commit();
+        return bits;
     }
 
     // Vanilla concentrates forest floor under tree canopies, so litter stamps
@@ -1458,14 +1506,13 @@ public class LandmassGeneratorModSystem : ModSystem
             }
         }
 
-        // Loose copper sits DIRECTLY above a real buried deposit, like the
-        // game's own prospecting hints: cheap roll first, then scan the column
-        // for ore so digging under a bit actually finds copper.
-        if ((grass || rock) && reg.CopperBits > 0 && reg.CopperBitIds.Length > 0
-            && job.Rand.NextDouble() < reg.CopperBits && HasOreBelow(job, reg, x, topY, z))
+        // Surface copper spawns in vanilla-style CLUSTERS, not singles: this
+        // column only wins the right to host a cluster centre. The cluster
+        // itself (shallow ore disc + bits over a third of it) is stamped after
+        // the whole pass, so later columns' grass cannot overwrite the bits.
+        if ((grass || rock) && reg.CopperBits > 0 && job.Rand.NextDouble() < reg.CopperBits)
         {
-            pos.Set(x, topY + 1, z);
-            ba.SetBlock(reg.CopperBitIds[job.Rand.NextInt(reg.CopperBitIds.Length)], pos);
+            job.CopperCenters.Add((x, z, reg));
             return true;
         }
 

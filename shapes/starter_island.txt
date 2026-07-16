@@ -10,14 +10,14 @@
 # structure, shoreline boulders.
 
 region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium bushes=raspberry:0.002,blueberry:0.002 scatter=cornflower:0.010,forgetmenot:0.010,cowparsley:0.005 height=0.70 shore=16 rough=0.08
-region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak copperbits=0.15 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.75 shore=16 rough=0.08
+region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:sparse forest=0.015 trees=oak copperbits=0.0012 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.75 shore=16 rough=0.08
 region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:medium bushes=cranberry:0.01 scatter=cornflower:0.015,forgetmenot:0.015,horsetail:0.010 height=0.70 shore=16 rough=0.06
 region X rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:medium flax=0.05 bushes=blackcurrant:0.005,redcurrant:0.005 scatter=catmint:0.008,cowparsley:0.006 height=0.70 shore=16 rough=0.08
 region L rock=slate                  fertility=low    surface=grass ores=copper:medium bushes=cranberry:0.008 scatter=cowparsley:0.004 height=0.55 shore=14 rough=0.12
 region B rock=slate sand=sand-chalk  surface=sand     bushes=birch:0.006,strawberry:0.003 shells=0.02 height=0.16 shore=36 rough=0.03
 region T rock=slate sand=sand-chalk  surface=sand     bushes=birch:0.006,strawberry:0.003 shells=0.02 height=0.16 shore=36 rough=0.03 cattails=1.0
 region C rock=slate sand=sand-slate  surface=rocksand boulders=0.015 height=0.60 shore=3  rough=0.10
-region R rock=slate rock2=peridotite surface=rock     ores=copper:rich copperbits=0.08 boulders=0.010 height=1.0 shore=16 rough=0.12
+region R rock=slate rock2=peridotite surface=rock     ores=copper:rich copperbits=0.0025 boulders=0.010 height=1.0 shore=16 rough=0.12
 region V rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:medium height=0.70 shore=16 rough=0.06
 region c rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:sparse height=0.75 shore=16 rough=0.08
 region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45 lilies=0.10 clay=0.5

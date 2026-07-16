@@ -62,6 +62,17 @@ in [tips.md](tips.md).
   nothing declared for a rock-surface region (boulders on the slate headland,
   copper bits over the mine) ever spawned, silently. When a whole feature is
   absent, check the pass's surface gate before tuning densities.
+- **Natural features come in CLUSTERS; per-column rolls make lonely singles.**
+  Vanilla surface copper is its own deposit config
+  (worldgen/deposits/metalore/nativecopper.json, code "surfacecopper"): a
+  shallow disc radius ~4.25 just under the surface with surfaceBlockChance
+  0.33 putting loose bits over it. Reproduce the mechanism, not the average
+  density. When copying vanilla, find its actual generator config first.
+- **A streaming pass overwrites its own multi-column features.** Columns are
+  processed in order; a cluster stamped around column N writes onto columns
+  N+1... whose own decor pass then replaces the blocks. Collect feature
+  centres during the pass and stamp them AFTER it finishes (own accessor,
+  own commit), checking what already exists (do not replace wood/leaves).
 - **Surface hints must anchor to the real thing.** Loose copper scattered by
   raw chance reads as decoration; sampling the actual ore-vein noise under
   each column ("bit only where digging finds copper") makes it a honest

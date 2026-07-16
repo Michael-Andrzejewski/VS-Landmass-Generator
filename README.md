@@ -94,7 +94,7 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `pond` | Makes the region a pond this many blocks deep: a level water bowl contained by a flat grass rim. |
 | `cattails` | On a pond region: chance per rim column of a cattail, so reeds ring the water. On a shore region: chance per column within 3 blocks of the sea. |
 | `flax` | Chance per grass column of a wild flax plant (mixed maturity). |
-| `copperbits` | Chance per grass or rock column of a loose surface copper stone. Bits only appear over columns that really hold copper ore in their upper stone, so digging under one always finds the deposit. |
+| `copperbits` | Chance per grass or rock column that a surface-copper CLUSTER starts there, reproducing the game's own `surfacecopper` deposits: a shallow poor/medium ore disc in the stone under the soil, with loose copper bits over about a third of it. Digging under any bit finds the ore. Typical values 0.001-0.003 (each cluster is ~10-20 bits). |
 | `bushes` | Bush kinds and chances, e.g. `bushes=raspberry:0.01,birch:0.006`. Any wild fruiting bush type works (`raspberry`, `cranberry`, `blueberry`, `blackcurrant`, ...); `birch` grows a dwarf birch shrub. |
 | `wildgrass` | Chance per grass column of a tallgrass tuft. Defaults to 0.35 everywhere; set 0 to turn off. |
 | `stones` | Chance per column of a loose stone. Defaults to 0.012 everywhere; the stone matches the rock actually under that column (both region rocks, picked by the underground blend). Set 0 to turn off. |
