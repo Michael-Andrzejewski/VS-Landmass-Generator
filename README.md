@@ -144,6 +144,7 @@ daylight.
 | `scale` | 1 | Overall size multiplier (0.5 to 4): scales the tunnel radius AND the chamber events. `scale=2` makes a grand cavern system out of the same layout. |
 | `branches` | 2 | Side tunnels forked off the main run. |
 | `branchdepth` | 2 | How many levels deep branches may branch again. |
+| `branchlen` | 0.5 | Branch length as a fraction of the parent tunnel (each branch varies about 30% around it). Raise toward 1 for long wandering galleries, with a small `scale` for a cramped spidery mine. |
 | `depth` | 60 | The tunnel levels out this many blocks below its mouth. |
 | `mouth` | 2 | Mouth floor height above sea level. Clamped into the hill face. |
 | `ores` | none | Wall lining, e.g. `ores=copper:0.06`: every stone block exposed in the tunnel wall has that chance to become ore (poor/medium/rich mix), matched to whatever rock the wall actually is. |

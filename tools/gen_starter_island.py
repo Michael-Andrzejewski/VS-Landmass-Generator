@@ -148,10 +148,11 @@ def main():
     print("region c rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:0.02   height=0.75 shore=16 rough=0.08")
     print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45 lilies=0.10 clay=0.5")
     print("tree O oak 2.4")
-    # seed=2 picked in the previewer (scale 1.6): wide main adit toward the
-    # centre with several large chambers, galleries fanning under the meadow,
-    # zero steps lost to the water guard.
-    print("cave M heading=auto dip=13 length=95 radius=2.7 squash=0.75 weave=0.45 scale=1.6 branches=3 branchdepth=2 depth=30 mouth=3 ores=copper:0.06 seed=2")
+    # Narrow spidery copper mine (the big scale=1.6 chamber look is reserved
+    # for the tin island's mine). seed=30 picked in the previewer: a web of
+    # long thin galleries under the meadow, 783 steps, only 32 lost to the
+    # water guard at the far west edge, deepest 26 below sea.
+    print("cave M heading=auto dip=13 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=3 ores=copper:0.06 seed=30")
     print()
     print("map")
     for row in grid:

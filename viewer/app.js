@@ -76,7 +76,7 @@ function parseShape(text) {
       // Defaults MUST match ParseCave in the C# mod.
       const d = {
         headingDeg: NaN, dip: 12, length: 80, radius: 2.6, squash: 0.72, weave: 0.5, scale: 1,
-        branches: 2, branchDepth: 2, depth: 60, mouth: 2, seed: 0, oreName: null, oreChance: 0,
+        branches: 2, branchDepth: 2, branchLen: 0.5, depth: 60, mouth: 2, seed: 0, oreName: null, oreChance: 0,
       };
       for (let i = 2; i < tok.length; i++) {
         const eq = tok[i].indexOf('='); if (eq <= 0) continue;
@@ -90,6 +90,7 @@ function parseShape(text) {
         else if (k === 'scale') d.scale = Math.min(4, Math.max(0.5, parseFloat(v) || 1));
         else if (k === 'branches') d.branches = Math.min(8, Math.max(0, Math.trunc(parseFloat(v) || 2)));
         else if (k === 'branchdepth') d.branchDepth = Math.min(4, Math.max(0, Math.trunc(parseFloat(v) || 2)));
+        else if (k === 'branchlen') d.branchLen = Math.min(1.2, Math.max(0.2, parseFloat(v) || 0.5));
         else if (k === 'depth') d.depth = Math.min(200, Math.max(4, parseFloat(v) || 60));
         else if (k === 'mouth') d.mouth = Math.min(30, Math.max(0, Math.trunc(parseFloat(v) || 2)));
         else if (k === 'seed') d.seed = Math.abs(Math.trunc(parseFloat(v) || 0)) >>> 0;
@@ -409,7 +410,7 @@ function traceCaves(island, domeHeight) {
       const f = 0.25 + rand.nextDouble() * 0.6;
       const side = rand.nextDouble() < 0.5 ? -1 : 1;
       const angOff = side * (0.7 + rand.nextDouble() * 0.8);
-      const lenFrac = 0.35 + rand.nextDouble() * 0.3;
+      const lenFrac = def.branchLen * (0.7 + rand.nextDouble() * 0.6);
       const childSeed = rand.nextUInt();
       const p = path[Math.min(Math.max(Math.trunc(f * path.length), 0), path.length - 1)];
       walk(def, p.x, p.y, p.z, p.hor + angOff, dip * 0.75, Math.trunc(length * lenFrac),

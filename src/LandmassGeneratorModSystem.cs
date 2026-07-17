@@ -285,6 +285,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Scale = 1.0;              // overall size multiplier: radius AND room events
         public int Branches = 2;                // side tunnels forking off the main run
         public int BranchDepth = 2;             // branches may branch again this many levels
+        public double BranchLen = 0.5;          // branch length as a fraction of the parent (its midpoint; each branch varies +-30%)
         public double Depth = 60;               // level out this many blocks below the mouth
         public int Mouth = 2;                   // mouth floor this many blocks above sea level
         public uint Seed;                       // 0 = derived from the entrance cell, stable per design
@@ -1094,6 +1095,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "scale": d.Scale = Math.Clamp(ParseD(v, 1), 0.5, 4); break;
                 case "branches": d.Branches = (int)Math.Clamp(ParseD(v, 2), 0, 8); break;
                 case "branchdepth": d.BranchDepth = (int)Math.Clamp(ParseD(v, 2), 0, 4); break;
+                case "branchlen": d.BranchLen = Math.Clamp(ParseD(v, 0.5), 0.2, 1.2); break;
                 case "depth": d.Depth = Math.Clamp(ParseD(v, 60), 4, 200); break;
                 case "mouth": d.Mouth = (int)Math.Clamp(ParseD(v, 2), 0, 30); break;
                 case "seed": d.Seed = (uint)Math.Abs((long)ParseD(v, 0)); break;
@@ -2061,7 +2063,9 @@ public class LandmassGeneratorModSystem : ModSystem
             // Fork 40 to 86 degrees off the parent: side galleries, never a
             // U-turn that would run back out under the sea floor.
             double angOff = side * (0.7 + rand.NextDouble() * 0.8);
-            double lenFrac = 0.35 + rand.NextDouble() * 0.3;
+            // At the default BranchLen 0.5 this is exactly the old
+            // 0.35..0.65 range, so existing cave seeds keep their layouts.
+            double lenFrac = def.BranchLen * (0.7 + rand.NextDouble() * 0.6);
             uint childSeed = rand.NextUInt();
 
             var p = path[Math.Clamp((int)(f * path.Count), 0, path.Count - 1)];
