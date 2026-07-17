@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "island-previewer",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["viewer/serve.js"],
+      "port": 5183
+    }
+  ]
+}

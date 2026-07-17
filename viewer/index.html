@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Landmass previewer</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a1a26; color: #cde; font-family: system-ui, sans-serif; overflow: hidden; }
+    #ui { position: fixed; top: 10px; left: 10px; z-index: 10; background: rgba(0,0,0,0.55); padding: 10px 12px; border-radius: 8px; max-width: 300px; }
+    select, input[type=number] { font-size: 13px; padding: 3px 5px; background: #12303f; color: #cde; border: 1px solid #2a5568; border-radius: 4px; }
+    input[type=number] { width: 58px; }
+    label { font-size: 12px; margin-right: 6px; }
+    .row { margin-top: 6px; }
+    #info { margin-top: 8px; font-size: 12px; opacity: 0.85; line-height: 1.5; white-space: pre-line; }
+    #legend { margin-top: 6px; font-size: 11px; line-height: 1.6; }
+    .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    #hint { position: fixed; bottom: 10px; left: 12px; font-size: 12px; opacity: 0.55; z-index: 10; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <select id="sel"></select>
+    <div class="row">
+      <label>diameter <input id="dia" type="number" value="150"></label>
+      <label>height <input id="hgt" type="number" value="8"></label>
+    </div>
+    <div class="row">
+      <label><input id="xray" type="checkbox" checked> x-ray caves</label>
+      <label><input id="wtr" type="checkbox" checked> water</label>
+    </div>
+    <div id="info">loading...</div>
+    <div id="legend"></div>
+  </div>
+  <div id="hint">drag to orbit &middot; scroll to zoom &middot; caves render the exact in-game path</div>
+  <script src="/viewer/three.min.js"></script>
+  <script src="/viewer/app.js"></script>
+</body>
+</html>

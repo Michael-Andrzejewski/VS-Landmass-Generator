@@ -150,6 +150,23 @@ Height comes from a distance-to-coast field, so interiors rise and shores taper 
     /genisland shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
     /genisland shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid
 
+## Localhost previewer
+
+    node viewer/serve.js        ->  http://localhost:5184
+
+Renders any shape file in the browser (three.js) so an island can be
+critiqued without launching Vintage Story: terrain with region colors, water,
+the pond, tree markers, forest sprinkle, and every declared cave. Terrain
+coastline detail is approximate (the jitter noise is a stand-in), but region
+layout, heights and shores are the same math the mod runs.
+
+Caves are exact, not approximate: the previewer ports the mod's cave walk
+verbatim (same RNG, same constants), so the tunnel on screen is the tunnel
+the game carves. Steps that would touch water render dark: the in-game fluid
+guard SKIPS those, so a dark section means that part of the cave will not
+exist. The info panel counts them; pick a different `seed=` on the cave line
+until the layout stays clean.
+
 ## Notes and current limits
 
 Early standalone build, kept separate from Building Commands until it proves stable.
