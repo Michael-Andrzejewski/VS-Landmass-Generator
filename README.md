@@ -114,6 +114,36 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `clay` | On a pond region: chance a rim column becomes a blue clay deposit. On a normal region: chance per column that the soil becomes clay down to the rock, capped with sparse-grass clay so the deposit hides in the meadow. |
 | `ores`, `forest`, `trees` | As above, but per region. |
 | `tree <char> <type> <size>` | A landmark tree at that spot on the map. |
+| `cave <char> [key=value ...]` | A cave system entering at that spot on the map. See below. |
+
+### Caves (`cave <char> ...`)
+
+A `cave` line declares a hand-placed cave system; every map cell holding its
+char becomes an entrance. Carving works the way the game's own cave generator
+does: a tunnel is a one-block-per-step walk whose direction drifts with
+momentum-smoothed noise, hollowing a tapered ellipsoid at each step. Two of
+vanilla's safety rules are kept: a step that would touch any water is skipped
+whole (a cave beside the ocean can never breach it), and the tunnel always
+keeps a 3-block roof below the surface so it never opens skylights. The mouth
+is the exception: it cuts through the hill face on purpose, so the entrance
+is open from outside.
+
+    cave M heading=auto dip=13 length=110 radius=2.7 weave=0.55 branches=3 branchdepth=2 depth=34 mouth=3 ores=copper:0.06
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `heading` | `auto` | Initial direction in MAP degrees (0 = up on the map, 90 = right), so the design survives `rotate=`. `auto` aims at the island's centre. |
+| `dip` | 12 | Descent angle in degrees while the tunnel is diving. |
+| `length` | 80 | Main tunnel length in blocks. Branches are fractions of it. |
+| `radius` | 2.6 | Horizontal carve radius. The tunnel tapers toward both ends and swells and narrows along the way. |
+| `squash` | 0.72 | Vertical radius as a fraction of `radius` (flatter than wide, like real tunnels). |
+| `weave` | 0.5 | How much the tunnel wanders, 0 dead straight to 1 very windy. |
+| `branches` | 2 | Side tunnels forked off the main run. |
+| `branchdepth` | 2 | How many levels deep branches may branch again. |
+| `depth` | 60 | The tunnel levels out this many blocks below its mouth. |
+| `mouth` | 2 | Mouth floor height above sea level. Clamped into the hill face. |
+| `ores` | none | Wall lining, e.g. `ores=copper:0.06`: every stone block exposed in the tunnel wall has that chance to become ore (poor/medium/rich mix), matched to whatever rock the wall actually is. |
+| `seed` | stable | The cave's path is deterministic per design, so it survives regeneration and matches the previewer. Set `seed=` to reroll a layout you dislike. |
 
 Height comes from a distance-to-coast field, so interiors rise and shores taper naturally, and the coastline is jittered with noise so the grid never shows as stair-steps. The worked examples ship as scripts in `tools/`, each generated from a hand-drawn map: `ideal_island` (a varied island with beach, plains, forest and a rocky slate arm), `starter_island` (a smooth, idyllic player-start island, ~150 across, with a big west beach, sparse oak forest, a meadow pond, and one slate headland), `tin_island` (a tall rocky crescent bent around a sheltered harbor, rusty-arid, heavily devastated, tin through the core), and `forester_island` (a rounded island with a west bay, regions still placeholder):
 

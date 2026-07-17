@@ -271,6 +271,43 @@ public class LandmassGeneratorModSystem : ModSystem
         public float Size;
     }
 
+    // One cave design: where it enters the island and how it descends.
+    // Declared in a shape file as `cave <char> key=value...`; each map cell
+    // holding that char becomes an entrance carved with these parameters.
+    private class CaveDef
+    {
+        public double HeadingDeg = double.NaN;  // map degrees, 0=north 90=east; NaN = aim at the island centre
+        public double DipDeg = 12;              // how steeply the tunnel descends while diving
+        public double Length = 80;              // main tunnel length in blocks
+        public double Radius = 2.6;             // horizontal carve radius
+        public double Squash = 0.72;            // vertical radius = Radius * Squash
+        public double Weave = 0.5;              // 0 dead straight .. 1 very windy
+        public int Branches = 2;                // side tunnels forking off the main run
+        public int BranchDepth = 2;             // branches may branch again this many levels
+        public double Depth = 60;               // level out this many blocks below the mouth
+        public int Mouth = 2;                   // mouth floor this many blocks above sea level
+        public uint Seed;                       // 0 = derived from the entrance cell, stable per design
+        public string OreName;                  // wall-lining ore (ores=copper:0.05)
+        public double OreChance;                // chance per exposed wall block
+    }
+
+    private class CaveMarker
+    {
+        public int Gx, Gz;
+        public CaveDef Def;
+    }
+
+    // Deterministic PRNG for cave paths, shared bit-for-bit with the localhost
+    // previewer (viewer/app.js ports it verbatim), so the preview shows the
+    // SAME weave and branches the game will carve. Do not swap for LCGRandom.
+    private class CaveRand
+    {
+        private uint s;
+        public CaveRand(uint seed) { s = seed == 0 ? 2463534242u : seed; }
+        public uint NextUInt() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
+        public double NextDouble() => (NextUInt() >> 8) / 16777216.0;
+    }
+
     // A drawn island: the character grid, its regions, and the two distance
     // fields that turn a flat mask into terrain with height and a sea floor.
     private class ShapeDef
@@ -283,6 +320,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public float[,] ShoreField;   // per-cell shore width, smoothed across region borders
         public Dictionary<char, Region> Regions = new();
         public List<TreeMarker> Markers = new();
+        public List<CaveMarker> Caves = new();
     }
 
     private class IslandJob
@@ -529,6 +567,7 @@ public class LandmassGeneratorModSystem : ModSystem
 
         var shape = new ShapeDef();
         var markerDefs = new Dictionary<char, (ITreeGenerator gen, float size)>();
+        var caveDefs = new Dictionary<char, CaveDef>();
         var rows = new List<string>();
         bool inMap = false;
         int oreIdx = 0;
@@ -562,6 +601,10 @@ public class LandmassGeneratorModSystem : ModSystem
                 if (gen == null) problems.Add($"no tree generator for '{tok[2]}'");
                 else markerDefs[key] = (gen, size);
             }
+            else if (tok[0].Equals("cave", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
+            {
+                caveDefs[tok[1][0]] = ParseCave(tok, problems);
+            }
         }
 
         if (rows.Count == 0) { err = $"Shape '{file}' has no map."; return null; }
@@ -579,6 +622,11 @@ public class LandmassGeneratorModSystem : ModSystem
                 {
                     shape.Markers.Add(new TreeMarker { Gx = x, Gz = z, Gen = markerDefs[c].gen, Size = markerDefs[c].size });
                     c = '?'; // resolved to a neighbouring region below
+                }
+                else if (caveDefs.ContainsKey(c))
+                {
+                    shape.Caves.Add(new CaveMarker { Gx = x, Gz = z, Def = caveDefs[c] });
+                    c = '?';
                 }
                 shape.Cells[x, z] = c;
             }
@@ -1018,6 +1066,48 @@ public class LandmassGeneratorModSystem : ModSystem
         return r;
     }
 
+    // cave <char> heading=auto|<deg> dip=12 length=80 radius=2.6 squash=0.72
+    //             weave=0.5 branches=2 branchdepth=2 depth=60 mouth=2
+    //             ores=copper:0.05 seed=<n>
+    // heading is in MAP degrees (0 = up on the map, 90 = right), so a shape
+    // stays valid under rotate=; auto aims the tunnel at the island's centre.
+    private static CaveDef ParseCave(string[] tok, List<string> problems)
+    {
+        var d = new CaveDef();
+        for (int i = 2; i < tok.Length; i++)
+        {
+            int eq = tok[i].IndexOf('=');
+            if (eq <= 0) continue;
+            string k = tok[i].Substring(0, eq).ToLowerInvariant();
+            string v = tok[i].Substring(eq + 1);
+            switch (k)
+            {
+                case "heading":
+                    if (!v.Equals("auto", StringComparison.OrdinalIgnoreCase)) d.HeadingDeg = ParseD(v, 0);
+                    break;
+                case "dip": d.DipDeg = Math.Clamp(ParseD(v, 12), 0, 60); break;
+                case "length": d.Length = Math.Clamp(ParseD(v, 80), 8, 600); break;
+                case "radius": d.Radius = Math.Clamp(ParseD(v, 2.6), 1.2, 8); break;
+                case "squash": d.Squash = Math.Clamp(ParseD(v, 0.72), 0.4, 1.5); break;
+                case "weave": d.Weave = Math.Clamp(ParseD(v, 0.5), 0, 1); break;
+                case "branches": d.Branches = (int)Math.Clamp(ParseD(v, 2), 0, 8); break;
+                case "branchdepth": d.BranchDepth = (int)Math.Clamp(ParseD(v, 2), 0, 4); break;
+                case "depth": d.Depth = Math.Clamp(ParseD(v, 60), 4, 200); break;
+                case "mouth": d.Mouth = (int)Math.Clamp(ParseD(v, 2), 0, 30); break;
+                case "seed": d.Seed = (uint)Math.Abs((long)ParseD(v, 0)); break;
+                case "ores":
+                {
+                    string[] parts = v.Split(':');
+                    d.OreName = parts[0].Trim().ToLowerInvariant();
+                    d.OreChance = parts.Length > 1 ? Math.Clamp(ParseD(parts[1], 0.04), 0, 1) : 0.04;
+                    if (d.OreName.Length == 0 || d.OreChance <= 0) { d.OreName = null; d.OreChance = 0; }
+                    break;
+                }
+            }
+        }
+        return d;
+    }
+
     // The surface-cluster set for one rock: loose bit + shallow ore blocks,
     // taking the first candidate mineral that occurs in this rock.
     private void ResolveOreBits(string[] minerals, string rock, out int bit, out int poor, out int med)
@@ -1171,6 +1261,7 @@ public class LandmassGeneratorModSystem : ModSystem
         int oreBits = StampOreBitClusters(job);
         int devPatches = StampDevastation(job);
         int pumpkinPatches = StampPumpkinPatches(job);
+        string caveNote = CarveCaves(job);
         int climRegions = StampClimate(job);
         _islandBusy = false;
 
@@ -1180,6 +1271,7 @@ public class LandmassGeneratorModSystem : ModSystem
         if (oreBits > 0) done += $", {oreBits} surface ore bit(s) in {job.OreBitCenters.Count} cluster(s)";
         if (devPatches > 0) done += $", {devPatches} devastated patch(es)";
         if (pumpkinPatches > 0) done += $", {pumpkinPatches} pumpkin patch(es)";
+        done += caveNote;
         if (climRegions > 0) done += $", climate retinted across {climRegions} map region(s)";
         else if (job.HasClimate) done += ". WARNING: climate= touched no loaded map regions";
         ReportIsland(job, done + ". " + extra);
@@ -1782,6 +1874,322 @@ public class LandmassGeneratorModSystem : ModSystem
         tree.SetDouble("totalHoursForNextStage", sapi.World.Calendar.TotalHours + 12.0);
         be.FromTreeAttributes(tree, sapi.World);
         be.MarkDirty(true);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Caves
+    //
+    //  cave= support: hand-placed cave systems, carved the way the game's own
+    //  GenCaves does it: a tunnel is a 1-block-per-step random walk whose
+    //  horizontal and vertical angles drift by momentum-smoothed noise, each
+    //  step hollowing a tapered ellipsoid. Borrowed vanilla rules: the carve
+    //  radius follows sin(progress*pi) so tunnels taper at both ends, a step
+    //  that would touch ANY fluid is skipped whole (a cave next to the ocean
+    //  must never breach it), and branches recurse with shorter length.
+    //  Added for hand-design: everything is configurable per entrance, the
+    //  walk keeps a 3-block roof below the terrain heightmap (no skylights)
+    //  except at the mouth, and the path RNG is a fixed xorshift32 so the
+    //  localhost previewer replays the exact same cave.
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Shared state for one island's carve pass.
+    private class CaveWork
+    {
+        public IslandJob Job;
+        public IBulkBlockAccessor Ba;
+        public Dictionary<long, int> HeightCache = new();
+        public List<(double X, double Y, double Z, double R, double V, CaveDef Def)> Steps = new();
+        public int TotalSteps;   // runaway guard across the whole system
+        public int Blocks;
+    }
+
+    private string CarveCaves(IslandJob job)
+    {
+        var caves = job.Shape?.Caves;
+        if (caves == null || caves.Count == 0) return "";
+
+        var w = new CaveWork { Job = job, Ba = sapi.World.GetBlockAccessorBulkUpdate(true, true) };
+        var notes = new List<string>();
+        int tunnels = 0;
+
+        foreach (CaveMarker cm in caves)
+        {
+            CaveDef def = cm.Def;
+
+            // Entrance cell to world, forward-rotated like tree markers.
+            double lx = (cm.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
+            double lz = (cm.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
+            int ex = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
+            int ez = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
+
+            if (!ColumnSurface(job, ex, ez, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out _) || uw)
+            {
+                notes.Add($"cave at map {cm.Gx},{cm.Gz} has no dry ground, skipped");
+                continue;
+            }
+
+            // Mouth floor: def.Mouth above sea level, but always inside the
+            // hill face (at least 2 below the local surface).
+            int mouthY = Math.Min(job.SeaLevel - 1 + def.Mouth, topY - 2);
+            if (mouthY < job.SeaLevel - 1) mouthY = job.SeaLevel - 1;
+
+            // Heading: map degrees rotated into the world, or straight at the
+            // island's centre so "into the island" needs no numbers.
+            double hor;
+            if (double.IsNaN(def.HeadingDeg))
+            {
+                hor = Math.Atan2(job.Cz - ez, job.Cx - ex);
+            }
+            else
+            {
+                double th = def.HeadingDeg * Math.PI / 180.0;
+                double mx = Math.Sin(th), mz = -Math.Cos(th);
+                hor = Math.Atan2(mx * job.RotSin + mz * job.RotCos, mx * job.RotCos - mz * job.RotSin);
+            }
+
+            // Stable per design: same shape file, same cave, no matter the
+            // island seed, so a hand-tuned mine survives regeneration and the
+            // previewer can show it. seed= on the cave line rerolls it.
+            uint seed = def.Seed != 0 ? def.Seed
+                : 0x9E3779B9u ^ (uint)(cm.Gx * 668265263) ^ (uint)(cm.Gz * 2246822519);
+
+            // Start a few blocks back along the heading so the mouth carves
+            // through the cliff face from open air and is guaranteed open.
+            double sx = ex + 0.5 - Math.Cos(hor) * 3.0;
+            double sz = ez + 0.5 - Math.Sin(hor) * 3.0;
+            CarveTunnel(w, def, sx, mouthY + 1.6, sz, hor,
+                def.DipDeg * Math.PI / 180.0, (int)def.Length + 3, def.Radius,
+                mouthY + 1.6 - def.Depth, def.Branches, def.BranchDepth, new CaveRand(seed), 7);
+            tunnels++;
+        }
+
+        w.Ba.Commit();
+        int oreBlocks = LineCaveOres(w);
+
+        string note = $", {tunnels} cave(s) carved ({w.Blocks} blocks";
+        if (oreBlocks > 0) note += $", {oreBlocks} wall ore";
+        note += ")";
+        if (notes.Count > 0) note += ". Cave notes: " + string.Join("; ", notes);
+        return tunnels > 0 || notes.Count > 0 ? note : "";
+    }
+
+    // One tunnel: walk, carve, then fork branches off recorded points.
+    // RNG draw order is FIXED and mirrored by viewer/app.js: 8 doubles per
+    // step (plus 1 on a sharp turn), then 4 doubles + 1 uint per branch.
+    // Carving itself never draws, so world state cannot desync the path.
+    private void CarveTunnel(CaveWork w, CaveDef def, double x, double y, double z,
+        double hor, double dip, int length, double radius, double floorY,
+        int branches, int branchDepth, CaveRand rand, int mouthSteps)
+    {
+        var path = new List<(double X, double Y, double Z, double Hor)>();
+        double mh = 0, mv = 0, pulse = 0, vert = -dip * 0.5;
+
+        for (int i = 0; i < length; i++)
+        {
+            if (w.TotalSteps++ > 8000) break;
+            double t = (double)i / length;
+
+            double u1 = rand.NextDouble(), u2 = rand.NextDouble();
+            double u3 = rand.NextDouble(), u4 = rand.NextDouble();
+            double u5 = rand.NextDouble();
+            double u7 = rand.NextDouble(), u8 = rand.NextDouble();
+
+            mh = 0.9 * mh + (u1 * 2 - 1) * u2;
+            hor += def.Weave * 0.25 * mh;
+            if (u5 < 0.018) hor += (rand.NextDouble() - 0.5) * (Math.PI / 2);
+            mv = 0.9 * mv + (u3 * 2 - 1) * u4;
+            vert += def.Weave * 0.05 * mv;
+            pulse = 0.9 * pulse + (u7 * 2 - 1) * u8;
+
+            // Dive at the design dip until the target depth, then level out.
+            double target = y > floorY ? -dip : 0;
+            vert += (target - vert) * 0.12;
+            vert = Math.Clamp(vert, -0.85, 0.3);
+
+            double cv = Math.Cos(vert);
+            x += Math.Cos(hor) * cv;
+            z += Math.Sin(hor) * cv;
+            y += Math.Sin(vert);
+            if (y < 8) y = 8;
+
+            double r = Math.Max(1.5, radius * (0.7 + 0.6 * Math.Sin(t * Math.PI)) + pulse * 0.9);
+            double v = Math.Max(1.45, r * def.Squash);
+            CarveStep(w, def, x, y, z, r, v, i < mouthSteps);
+            path.Add((x, y, z, hor));
+        }
+
+        if (branchDepth <= 0 || path.Count < 20) return;
+        for (int b = 0; b < branches; b++)
+        {
+            double f = 0.25 + rand.NextDouble() * 0.6;
+            double side = rand.NextDouble() < 0.5 ? -1 : 1;
+            double angOff = side * (0.9 + rand.NextDouble() * 1.1);
+            double lenFrac = 0.35 + rand.NextDouble() * 0.3;
+            uint childSeed = rand.NextUInt();
+
+            var p = path[Math.Clamp((int)(f * path.Count), 0, path.Count - 1)];
+            CarveTunnel(w, def, p.X, p.Y, p.Z, p.Hor + angOff, dip * 0.75,
+                (int)(length * lenFrac), radius * 0.85, floorY,
+                Math.Max(1, branches - 1), branchDepth - 1, new CaveRand(childSeed), 0);
+        }
+    }
+
+    // Hollow one step's ellipsoid. Two safety rules, both from vanilla: skip
+    // the WHOLE step if any fluid sits within the padded radius (never breach
+    // the ocean or a pond), and keep a 3-block roof below each column's
+    // terrain height so tunnels never open skylights, except at the mouth,
+    // which must cut the open cliff face.
+    private void CarveStep(CaveWork w, CaveDef def, double cx, double cy, double cz, double hr, double vr, bool mouth)
+    {
+        IslandJob job = w.Job;
+        var world = sapi.World.BlockAccessor;
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+
+        int x0 = (int)Math.Floor(cx - hr - 1), x1 = (int)Math.Ceiling(cx + hr + 1);
+        int z0 = (int)Math.Floor(cz - hr - 1), z1 = (int)Math.Ceiling(cz + hr + 1);
+        int y0 = Math.Max(5, (int)Math.Floor(cy - vr - 1));
+        int y1 = Math.Min(sapi.WorldManager.MapSizeY - 3, (int)Math.Ceiling(cy + vr + 1));
+
+        double pad = (hr + 1) * (hr + 1);
+        for (int xx = x0; xx <= x1; xx++)
+            for (int zz = z0; zz <= z1; zz++)
+            {
+                if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) return;
+                for (int yy = y0; yy <= y1; yy++)
+                {
+                    double dx = xx + 0.5 - cx, dy = yy + 0.5 - cy, dz = zz + 0.5 - cz;
+                    if ((dx * dx + dz * dz) / pad + dy * dy / ((vr + 1) * (vr + 1)) > 1.0) continue;
+                    pos.Set(xx, yy, zz);
+                    if (world.GetBlock(pos, BlockLayersAccess.Fluid).BlockId != 0) return;
+                }
+            }
+
+        double hr2 = hr * hr, vr2 = vr * vr;
+        for (int xx = (int)Math.Floor(cx - hr); xx <= (int)Math.Ceiling(cx + hr); xx++)
+            for (int zz = (int)Math.Floor(cz - hr); zz <= (int)Math.Ceiling(cz + hr); zz++)
+            {
+                if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) continue;
+
+                long key = ((long)(xx - job.MinX) << 21) | (uint)(zz - job.MinZ);
+                if (!w.HeightCache.TryGetValue(key, out int ground))
+                {
+                    pos.Set(xx, job.SeaLevel, zz);
+                    ground = sapi.World.BlockAccessor.GetTerrainMapheightAt(pos);
+                    w.HeightCache[key] = ground;
+                }
+                int roof = mouth ? int.MaxValue : ground - 3;
+
+                int yTop = Math.Min(sapi.WorldManager.MapSizeY - 3, (int)Math.Ceiling(cy + vr));
+                for (int yy = Math.Max(5, (int)Math.Floor(cy - vr)); yy <= yTop; yy++)
+                {
+                    if (yy > roof) continue;
+                    double dx = xx + 0.5 - cx, dy = yy + 0.5 - cy, dz = zz + 0.5 - cz;
+                    if ((dx * dx + dz * dz) / hr2 + dy * dy / vr2 > 1.0) continue;
+                    pos.Set(xx, yy, zz);
+                    w.Ba.SetBlock(0, pos);
+                    w.Ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+                    w.Blocks++;
+                }
+
+                // The mouth must actually OPEN the hill face. When the skin
+                // of terrain left above the tube is thin, clear it up to the
+                // surface so the entrance is a real cutting, not a tube that
+                // dead-ends one block short of daylight.
+                if (mouth && ground > yTop && ground - yTop <= 3)
+                {
+                    double ddx = xx + 0.5 - cx, ddz = zz + 0.5 - cz;
+                    if ((ddx * ddx + ddz * ddz) / hr2 <= 0.6)
+                        for (int yy = yTop + 1; yy <= ground; yy++)
+                        {
+                            pos.Set(xx, yy, zz);
+                            w.Ba.SetBlock(0, pos);
+                            w.Ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+                            w.Blocks++;
+                        }
+                }
+            }
+
+        w.Steps.Add((cx, cy, cz, hr, vr, def));
+    }
+
+    // Line the carved tunnels' walls with ore so the mine reads as a real
+    // deposit: every stone block in the shell just outside the carved air
+    // rolls the cave's ore chance. The ore matches the rock the wall actually
+    // is (the slate/peridotite blend picks per block), resolved lazily and
+    // cached per rock. Runs AFTER the carve commit so it reads real walls.
+    private int LineCaveOres(CaveWork w)
+    {
+        if (w.Steps.Count == 0) return 0;
+
+        IslandJob job = w.Job;
+        var world = sapi.World.BlockAccessor;
+        var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+        var oreForRock = new Dictionary<(string, int), int[]>();
+        var visited = new HashSet<long>();
+        var rand = new CaveRand(0x51ED2701u);
+        int placed = 0;
+
+        foreach ((double cx, double cy, double cz, double hr, double vr, CaveDef def) in w.Steps)
+        {
+            if (def.OreName == null) continue;
+            double or2 = (hr + 1.6) * (hr + 1.6), ov2 = (vr + 1.6) * (vr + 1.6);
+            double ir2 = hr * hr, iv2 = vr * vr;
+            for (int xx = (int)Math.Floor(cx - hr - 1.6); xx <= (int)Math.Ceiling(cx + hr + 1.6); xx++)
+                for (int zz = (int)Math.Floor(cz - hr - 1.6); zz <= (int)Math.Ceiling(cz + hr + 1.6); zz++)
+                {
+                    if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) continue;
+                    for (int yy = Math.Max(5, (int)Math.Floor(cy - vr - 1.6)); yy <= (int)Math.Ceiling(cy + vr + 1.6); yy++)
+                    {
+                        double dx = xx + 0.5 - cx, dy = yy + 0.5 - cy, dz = zz + 0.5 - cz;
+                        double horQ = dx * dx + dz * dz;
+                        // Shell only: outside the carved air, inside the padded bound.
+                        if (horQ / ir2 + dy * dy / iv2 <= 1.0) continue;
+                        if (horQ / or2 + dy * dy / ov2 > 1.0) continue;
+
+                        long key = ((long)(xx - job.MinX) << 42) | ((long)(zz - job.MinZ) << 21) | (uint)yy;
+                        if (!visited.Add(key)) continue;
+                        if (rand.NextDouble() >= def.OreChance) continue;
+
+                        pos.Set(xx, yy, zz);
+                        Block b = world.GetBlock(pos);
+                        if (b.BlockMaterial != EnumBlockMaterial.Stone) continue;
+                        string code = b.Code?.Path;
+                        if (code == null || !code.StartsWith("rock-")) continue;
+
+                        if (!oreForRock.TryGetValue((def.OreName, b.BlockId), out int[] ids))
+                        {
+                            ids = ResolveCaveOre(def.OreName, code.Substring(5));
+                            oreForRock[(def.OreName, b.BlockId)] = ids;
+                        }
+                        if (ids == null) continue;
+
+                        double g = rand.NextDouble();
+                        int ore = g < 0.65 ? ids[0] : g < 0.92 ? ids[1] : ids[2];
+                        if (ore == 0) ore = ids[0] != 0 ? ids[0] : ids[1];
+                        if (ore == 0) continue;
+                        ba.SetBlock(ore, pos);
+                        placed++;
+                    }
+                }
+        }
+        ba.Commit();
+        return placed;
+    }
+
+    // Poor/medium/rich ore ids for a friendly ore name in one rock, or null
+    // if that ore cannot occur there (allowedVariants gates the combos).
+    private int[] ResolveCaveOre(string want, string rock)
+    {
+        string[] minerals = OreAliases.TryGetValue(want, out string[] al) ? al : new[] { want };
+        foreach (string mineral in minerals)
+        {
+            int poor = OreId("poor", mineral, rock);
+            int med = OreId("medium", mineral, rock);
+            int rich = OreId("rich", mineral, rock);
+            if (poor != 0 || med != 0 || rich != 0) return new[] { poor, med, rich };
+        }
+        return null;
     }
 
     // climate= support. Grass and leaf COLOR is not in the block: the client
