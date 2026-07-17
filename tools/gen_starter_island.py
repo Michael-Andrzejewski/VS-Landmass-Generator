@@ -110,17 +110,17 @@ def main():
     if grid[oak[1]][oak[0]] != '.':
         grid[oak[1]][oak[0]] = 'O'
 
-    # Haunted copper mine entrance: in the slate headland's ocean face
-    # (region R, just inland of the C apron at angle -15), heading auto
-    # (toward the island centre), so the adit dives down and diagonally
-    # into the island.
+    # Haunted copper mine entrance: at the base of the slate headland's
+    # steep waterline apron (region C at angle -15), so the adit enters a
+    # rising rock WALL just above the sea, bores in level, then dives
+    # diagonally toward the island centre (heading auto).
     ang = math.radians(-15.0)
-    mx = int(CX + 34.8 * math.cos(ang))
-    mz = int(CY + 34.8 * math.sin(ang))
-    if grid[mz][mx] == 'R':
+    mx = int(CX + 36.6 * math.cos(ang))
+    mz = int(CY + 36.6 * math.sin(ang))
+    if grid[mz][mx] == 'C':
         grid[mz][mx] = 'M'
     else:
-        raise SystemExit(f"cave marker landed on '{grid[mz][mx]}' at {mx},{mz}, expected R")
+        raise SystemExit(f"cave marker landed on '{grid[mz][mx]}' at {mx},{mz}, expected C")
 
     print("# starter_island - player starting island, ~150 blocks across.")
     print("# Regenerate: python tools/gen_starter_island.py > shapes/starter_island.txt")
@@ -152,7 +152,7 @@ def main():
     # for the tin island's mine). seed=30 picked in the previewer: a web of
     # long thin galleries under the meadow, 783 steps, only 32 lost to the
     # water guard at the far west edge, deepest 26 below sea.
-    print("cave M heading=auto dip=13 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=3 ores=copper:0.06 seed=30")
+    print("cave M heading=auto dip=13 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=12 ores=copper:0.06 seed=30")
     print()
     print("map")
     for row in grid:

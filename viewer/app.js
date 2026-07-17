@@ -76,7 +76,7 @@ function parseShape(text) {
       // Defaults MUST match ParseCave in the C# mod.
       const d = {
         headingDeg: NaN, dip: 12, length: 80, radius: 2.6, squash: 0.72, weave: 0.5, scale: 1,
-        branches: 2, branchDepth: 2, branchLen: 0.5, depth: 60, mouth: 2, seed: 0, oreName: null, oreChance: 0,
+        branches: 2, branchDepth: 2, branchLen: 0.5, depth: 60, mouth: 2, entry: 10, seed: 0, oreName: null, oreChance: 0,
       };
       for (let i = 2; i < tok.length; i++) {
         const eq = tok[i].indexOf('='); if (eq <= 0) continue;
@@ -93,6 +93,7 @@ function parseShape(text) {
         else if (k === 'branchlen') d.branchLen = Math.min(1.2, Math.max(0.2, parseFloat(v) || 0.5));
         else if (k === 'depth') d.depth = Math.min(200, Math.max(4, parseFloat(v) || 60));
         else if (k === 'mouth') d.mouth = Math.min(30, Math.max(0, Math.trunc(parseFloat(v) || 2)));
+        else if (k === 'entry') d.entry = Math.min(60, Math.max(0, Math.trunc(parseFloat(v) || 10)));
         else if (k === 'seed') d.seed = Math.abs(Math.trunc(parseFloat(v) || 0)) >>> 0;
         else if (k === 'ores') { const p = v.split(':'); d.oreName = p[0]; d.oreChance = parseFloat(p[1]) || 0.04; }
       }
@@ -327,8 +328,7 @@ function traceCaves(island, domeHeight) {
     const ez = Math.round((cm.gz + 0.5 - shape.H / 2) * wpc);
     const col = island.columnSurface(ex, ez);
     if (!col || col.topY < 0) continue;
-    let mouthY = Math.min(-1 + def.mouth, col.topY - 2);
-    if (mouthY < -1) mouthY = -1;
+    const mouthY = Math.max(-1, -1 + def.mouth);
 
     let hor;
     if (isNaN(def.headingDeg)) hor = Math.atan2(0 - ez, 0 - ex);
@@ -364,7 +364,9 @@ function traceCaves(island, domeHeight) {
 
   function walk(def, x, y, z, hor, dip, length, radius, floorY, branches, branchDepth, rand, level) {
     const path = [];
-    let mh = 0, mv = 0, pulse = 0, vert = -dip * 0.5;
+    // level 0 is the main tunnel: it leaves the mouth dead level for the
+    // entry adit (7 doorway steps + def.entry), mirroring the C# mouthSteps.
+    let mh = 0, mv = 0, pulse = 0, vert = level === 0 ? 0 : -dip * 0.5;
     let hswell = 0, vswell = 0;
     const hor0 = hor;
     const homing = 0.03 + 0.05 * (1 - def.weave);
@@ -392,7 +394,7 @@ function traceCaves(island, domeHeight) {
         hswell += boost;
         vswell += boost * 0.45;
       }
-      const target = y > floorY ? -dip : 0;
+      const target = level === 0 && i < 7 + def.entry ? 0 : (y > floorY ? -dip : 0);
       vert += (target - vert) * 0.12;
       vert = Math.min(Math.max(vert, -0.85), 0.3);
       const cv = Math.cos(vert);

@@ -131,7 +131,7 @@ opens skylights. The mouth is the exception: it stays in open-carve mode
 until the tunnel is genuinely buried, so the entrance always reaches
 daylight.
 
-    cave M heading=auto dip=13 length=95 radius=2.7 weave=0.45 scale=1.6 branches=3 branchdepth=2 depth=30 mouth=3 ores=copper:0.06 seed=2
+    cave M heading=auto dip=13 length=85 radius=2.7 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=12 ores=copper:0.06 seed=30
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -146,7 +146,8 @@ daylight.
 | `branchdepth` | 2 | How many levels deep branches may branch again. |
 | `branchlen` | 0.5 | Branch length as a fraction of the parent tunnel (each branch varies about 30% around it). Raise toward 1 for long wandering galleries, with a small `scale` for a cramped spidery mine. |
 | `depth` | 60 | The tunnel levels out this many blocks below its mouth. |
-| `mouth` | 2 | Mouth floor height above sea level. Clamped into the hill face. |
+| `mouth` | 2 | Mouth floor height above sea level. |
+| `entry` | 10 | Blocks of dead-level adit before the dive starts, so the entrance is a horizontal doorway in the hill face, never a hole in the floor. |
 | `ores` | none | Wall lining, e.g. `ores=copper:0.06`: every stone block exposed in the tunnel wall has that chance to become ore (poor/medium/rich mix), matched to whatever rock the wall actually is. |
 | `seed` | stable | The cave's path is deterministic per design, so it survives regeneration and matches the previewer. Set `seed=` to reroll a layout you dislike. |
 

@@ -288,6 +288,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double BranchLen = 0.5;          // branch length as a fraction of the parent (its midpoint; each branch varies +-30%)
         public double Depth = 60;               // level out this many blocks below the mouth
         public int Mouth = 2;                   // mouth floor this many blocks above sea level
+        public int Entry = 10;                  // blocks of dead-level adit before the dive starts
         public uint Seed;                       // 0 = derived from the entrance cell, stable per design
         public string OreName;                  // wall-lining ore (ores=copper:0.05)
         public double OreChance;                // chance per exposed wall block
@@ -1098,6 +1099,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "branchlen": d.BranchLen = Math.Clamp(ParseD(v, 0.5), 0.2, 1.2); break;
                 case "depth": d.Depth = Math.Clamp(ParseD(v, 60), 4, 200); break;
                 case "mouth": d.Mouth = (int)Math.Clamp(ParseD(v, 2), 0, 30); break;
+                case "entry": d.Entry = (int)Math.Clamp(ParseD(v, 10), 0, 60); break;
                 case "seed": d.Seed = (uint)Math.Abs((long)ParseD(v, 0)); break;
                 case "ores":
                 {
@@ -1932,10 +1934,11 @@ public class LandmassGeneratorModSystem : ModSystem
                 continue;
             }
 
-            // Mouth floor: def.Mouth above sea level, but always inside the
-            // hill face (at least 2 below the local surface).
-            int mouthY = Math.Min(job.SeaLevel - 1 + def.Mouth, topY - 2);
-            if (mouthY < job.SeaLevel - 1) mouthY = job.SeaLevel - 1;
+            // Mouth floor: exactly def.Mouth above sea level. Not clamped to
+            // the entrance column's ground: the wall the adit enters is the
+            // rising face AHEAD of it, not the ground underfoot, and the
+            // level entry section bores horizontally until it is buried.
+            int mouthY = Math.Max(job.SeaLevel - 1, job.SeaLevel - 1 + def.Mouth);
 
             // Heading: map degrees rotated into the world, or straight at the
             // island's centre so "into the island" needs no numbers.
@@ -1987,7 +1990,11 @@ public class LandmassGeneratorModSystem : ModSystem
         int branches, int branchDepth, CaveRand rand, int mouthSteps)
     {
         var path = new List<(double X, double Y, double Z, double Hor)>();
-        double mh = 0, mv = 0, pulse = 0, vert = -dip * 0.5;
+        // A main tunnel leaves its mouth DEAD LEVEL (a horizontal adit out of
+        // the hill face, def.Entry blocks long) and only then starts diving,
+        // so the entrance is a doorway in a wall, never a hole in the floor.
+        // Branches (mouthSteps 0) start on the dive immediately.
+        double mh = 0, mv = 0, pulse = 0, vert = mouthSteps > 0 ? 0 : -dip * 0.5;
         double hswell = 0, vswell = 0;
         double hor0 = hor;
         // Weave wanders AROUND the design bearing instead of forgetting it: a
@@ -2033,8 +2040,10 @@ public class LandmassGeneratorModSystem : ModSystem
                 vswell += boost * 0.45;
             }
 
-            // Dive at the design dip until the target depth, then level out.
-            double target = y > floorY ? -dip : 0;
+            // Level through the entry adit, then dive at the design dip
+            // until the target depth, then level out.
+            double target = mouthSteps > 0 && i < mouthSteps + def.Entry ? 0
+                : y > floorY ? -dip : 0;
             vert += (target - vert) * 0.12;
             vert = Math.Clamp(vert, -0.85, 0.3);
 
@@ -2051,7 +2060,12 @@ public class LandmassGeneratorModSystem : ModSystem
                 int g = DesignedGround(w, (int)Math.Floor(x), (int)Math.Floor(z));
                 if (g - (y + v) >= 2) buried = true;
             }
-            CarveStep(w, def, x, y, z, r, v, i < mouthSteps || (!buried && i < 26));
+            // Doorway steps cut the hill face open; shallow (not yet buried)
+            // steps merely ignore the roof clamp, so the level entry adit
+            // never trenches the ground above itself.
+            int mouthKind = i < mouthSteps ? 2
+                : !buried && i < mouthSteps + def.Entry + 14 ? 1 : 0;
+            CarveStep(w, def, x, y, z, r, v, mouthKind);
             path.Add((x, y, z, hor));
         }
 
@@ -2097,9 +2111,11 @@ public class LandmassGeneratorModSystem : ModSystem
     // Hollow one step's ellipsoid. Two safety rules, both from vanilla: skip
     // the WHOLE step if any fluid sits within the padded radius (never breach
     // the ocean or a pond), and keep a 3-block roof below each column's
-    // designed ground so tunnels never open skylights, except at the mouth,
-    // which must cut the open cliff face.
-    private void CarveStep(CaveWork w, CaveDef def, double cx, double cy, double cz, double hr, double vr, bool mouth)
+    // designed ground so tunnels never open skylights. mouthKind loosens
+    // that: 2 = doorway (no roof, and thin ground above is cut away to open
+    // the hill face), 1 = shallow entry (no roof clamp, but the surface is
+    // never opened), 0 = normal.
+    private void CarveStep(CaveWork w, CaveDef def, double cx, double cy, double cz, double hr, double vr, int mouthKind)
     {
         IslandJob job = w.Job;
         var world = sapi.World.BlockAccessor;
@@ -2131,7 +2147,9 @@ public class LandmassGeneratorModSystem : ModSystem
                 if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) continue;
 
                 int ground = DesignedGround(w, xx, zz);
-                int roof = mouth ? int.MaxValue : ground - 3;
+                // Doorway: carve anything. Shallow entry: keep at least the
+                // surface block, so the ground never opens. Normal: 3 roof.
+                int roof = mouthKind == 2 ? int.MaxValue : mouthKind == 1 ? ground - 1 : ground - 3;
 
                 int yTop = Math.Min(sapi.WorldManager.MapSizeY - 3, (int)Math.Ceiling(cy + vr));
                 for (int yy = Math.Max(5, (int)Math.Floor(cy - vr)); yy <= yTop; yy++)
@@ -2148,8 +2166,8 @@ public class LandmassGeneratorModSystem : ModSystem
                 // The mouth must actually OPEN the hill face. When the skin
                 // of terrain left above the tube is thin, clear it up to the
                 // surface so the entrance is a real cutting, not a tube that
-                // dead-ends one block short of daylight.
-                if (mouth && ground > yTop && ground - yTop <= 3)
+                // dead-ends one block short of daylight. Doorway steps only.
+                if (mouthKind == 2 && ground > yTop && ground - yTop <= 3)
                 {
                     double ddx = xx + 0.5 - cx, ddz = zz + 0.5 - cz;
                     if ((ddx * ddx + ddz * ddz) / hr2 <= 0.6)
