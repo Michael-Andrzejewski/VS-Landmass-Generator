@@ -68,6 +68,12 @@ in [papercuts.md](papercuts.md).
   into a real deposit players can pick at. The path is deterministic per
   design (same layout every regeneration); reroll with `seed=` and pick the
   layout in the previewer.
+- **Mountains are the spine trick in another suit.** The forester island's
+  crag crescent is "distance to a circular arc < band width", stacked: summit
+  knots (pd) above a narrow crag band above high/mid forest bands, heights
+  1.0 / 0.9 / 0.82 / 0.64 stepping down. The bowl INSIDE the arc becomes a
+  hidden dell for free, and a tarn pond fits its centre. Suggested height
+  ~34 on a 300 island reads properly mountainous; 26 read as a big hill.
 - **Mood comes from climate tint as much as blocks.** `climate=arid` rewrites
   the worldgen climate map over the island so grass and leaves render rusty
   desert-yellow; `lush` goes deep green. Pair `climate=arid` with verylow
@@ -97,6 +103,7 @@ file lists the exact block codes vanilla scatters. Parity checklist for a
 | Clay by water | `clay` | pond rim; players NEED clay early game |
 | Surface ore hints | `copperbits` | loose ore stones, real pickupables |
 | Underground ore | `ores=copper:medium,...` | this mod's terrain has NO ore unless asked |
+| Vanilla-true ore | `deposits natural` line | re-runs the game's own deposit pass over the island: same seed, same ore maps propick reads. Needs host rock: coal wants a sedimentary `rock2` (claystone/shale), quartz+copper live in granite. No `ores=` needed at all |
 | Wild pumpkin patches | `pumpkins` | mother plant + parented living vines + fruits + debris |
 | Sand drifts inland | `sandy` | noise blobs of the region's sand across grass |
 
