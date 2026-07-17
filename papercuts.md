@@ -75,6 +75,21 @@ numbers.
 
 ## Terrain-shaping lessons
 
+- **A vanilla-style cave walk FORGETS its heading.** GenCaves' turn logic is
+  a momentum random walk; fine for wilderness caves that go nowhere, fatal
+  for a designed mine adit: at weave 0.55 the tunnel U-turned within 20 steps
+  and bored out under the sea. Designed caves need a homing term pulling the
+  heading back toward the design bearing every step (shortest arc, RNG-free).
+  Same idea as the vertical dip target. Fork angles need capping too (40-86
+  degrees) or side galleries run back out of the island.
+- **The cave fluid guard silently deletes tunnel.** Any carve step whose
+  padded ellipsoid touches water is skipped whole (that is what keeps the
+  ocean out), so a walk that leaves the island's underground footprint just
+  stops existing: the first starter-mine layout lost HALF its steps this way
+  and would have looked fine in chat ("1 cave carved"). The previewer
+  emulates the guard and counts the steps that will not carve; sweep cave
+  seeds there until it reports zero.
+
 - **Do not dither.** A global +-0.7-block dither was added to break contour
   terraces; it made every meadow read as random dirt speckle and Michael
   flagged it twice (on two different islands' generations) before it died. Real
@@ -157,3 +172,12 @@ numbers.
   succeed, but the running world still has the OLD mod loaded.
 - modinfo.json version bumps on every behavior change, or the Mods folder
   collects stale same-name zips.
+- **Embedded browser panes can report a 0-size viewport at load.** The
+  previewer's canvas came out 0x0 (toDataURL returned "data:,") because
+  window.innerWidth was 0 when the script ran and no resize event followed.
+  Self-heal the renderer size inside render() instead of trusting load time.
+- **Keep viewer/app.js's cave walk bit-identical to the C# one.** Same
+  xorshift32, same draw ORDER (7 doubles per step, the sharp-turn draw only
+  when its roll hits, 4 doubles + 1 uint per branch), same constants. Any
+  drift and the preview shows a cave the game will not carve. Both sides
+  carry a comment saying to change them together.

@@ -13,6 +13,10 @@ Rules for working here:
   in there, and it is structural (code/gate/cache/lifecycle), not tuning.
 - When you learn something the hard way, append it to the right file in the
   same pass and push.
+- Preview island designs yourself before asking Michael: `node viewer/serve.js`
+  serves http://localhost:5184, rendering any shape file with exact cave
+  paths. Iterate there first; his screenshots are for what the previewer
+  cannot show (block textures, tint, feel).
 - Shape files (`shapes/*.txt`, copied to `%APPDATA%\VintagestoryData\LandmassGenerator\`)
   are read fresh at command time: no rebuild, no restart. DLL changes need
   `dotnet build -c Release` (auto-deploys the zip) AND a world restart.

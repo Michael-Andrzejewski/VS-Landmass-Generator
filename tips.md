@@ -19,7 +19,12 @@ in [papercuts.md](papercuts.md).
 5. Test with `/genisland shape=<name> diameter=<d> height=<h>` from open ocean.
    Regenerating over an old island works, but old TREES are never cleared, so
    prefer a fresh spot.
-6. You cannot drive the VS client. Ask Michael for screenshots, and tell him
+6. Check the design in the localhost previewer BEFORE asking Michael to test:
+   `node viewer/serve.js`, open http://localhost:5184, pick the shape. It
+   renders terrain, regions, water, markers, and the EXACT cave paths (the
+   viewer ports the mod's cave walk verbatim). Iterate cave `seed=` there
+   until the info panel reports zero steps touching water.
+7. You cannot drive the VS client. Ask Michael for screenshots, and tell him
    exactly which angles help (shoreline, region transitions, the pond).
 
 ## Design language that works
@@ -56,6 +61,13 @@ in [papercuts.md](papercuts.md).
 - **Orientation is a command option, not a shape edit.** `rotate=<deg>` spins
   any drawn island clockwise; design shapes in their natural pose (tin
   island's harbor faces west) and aim them at generation time.
+- **Caves are declared per entrance, not scattered.** A `cave <char>` line
+  plus a map marker gives a hand-placed cave system: `heading=auto` aims it
+  at the island centre, `dip`/`depth` shape the descent, `weave` and
+  `branches` make it a mine. Wall ore (`ores=copper:0.06`) turns the tunnel
+  into a real deposit players can pick at. The path is deterministic per
+  design (same layout every regeneration); reroll with `seed=` and pick the
+  layout in the previewer.
 - **Mood comes from climate tint as much as blocks.** `climate=arid` rewrites
   the worldgen climate map over the island so grass and leaves render rusty
   desert-yellow; `lush` goes deep green. Pair `climate=arid` with verylow
