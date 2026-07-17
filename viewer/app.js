@@ -303,6 +303,19 @@ function buildIsland(shape, diameter, domeHeight) {
   return { shape, wpc, oceanRing, columnSurface };
 }
 
+// Mirror of the mod's open-air scan: walk seaward along the heading for the
+// first column open at mouth height (or water); the mouth anchors there.
+function findOpenS(island, ex, ez, hor, mouthY) {
+  for (let s = 0; s >= -24; s--) {
+    const sxc = Math.floor(ex + 0.5 + Math.cos(hor) * s);
+    const szc = Math.floor(ez + 0.5 + Math.sin(hor) * s);
+    const col = island.columnSurface(sxc, szc);
+    const g = col ? col.topY : -999;
+    if (g <= mouthY - 1 || g <= -2) return s;
+  }
+  return 0;
+}
+
 // ── cave walk: VERBATIM port of the C# CarveTunnel path logic ─────────────
 // Same xorshift32, same draw order, same constants. Do not "improve" this
 // side alone; change both or the preview lies.
@@ -339,9 +352,10 @@ function traceCaves(island, domeHeight) {
     const seed = def.seed !== 0 ? def.seed
       : (0x9E3779B9 ^ Math.imul(cm.gx, 668265263) ^ Math.imul(cm.gz, 2246822519)) >>> 0;
 
-    const sx = ex + 0.5 - Math.cos(hor) * 3, sz = ez + 0.5 - Math.sin(hor) * 3;
-    mouths.push({ x: ex, y: mouthY, z: ez });
-    walk(def, sx, mouthY + 1.6, sz, hor, def.dip * Math.PI / 180, Math.trunc(def.length) + 3,
+    const openS = findOpenS(island, ex, ez, hor, mouthY);
+    const sx = ex + 0.5 + Math.cos(hor) * (openS - 4), sz = ez + 0.5 + Math.sin(hor) * (openS - 4);
+    mouths.push({ x: Math.round(ex + Math.cos(hor) * openS), y: mouthY, z: Math.round(ez + Math.sin(hor) * openS) });
+    walk(def, sx, mouthY + 1.6, sz, hor, def.dip * Math.PI / 180, Math.trunc(def.length) + 4,
       def.radius * def.scale, mouthY + 1.6 - def.depth, def.branches, def.branchDepth, new CaveRand(seed), 0);
   }
 
@@ -491,16 +505,17 @@ function rebuild(shape, dia, hgt) {
     const v0 = Math.max(1.45, r0 * def.squash);
     const cy0 = mouthY + 1.6, rw = r0 + 3;
     const dirx = Math.cos(hor), dirz = Math.sin(hor);
-    const reach = Math.ceil(16 + rw);
+    const openS = findOpenS(island, ex, ez, hor, mouthY);
+    const reach = Math.ceil(18 + Math.abs(openS) + rw);
     for (let zz = ez - reach; zz <= ez + reach; zz++)
       for (let xx = ex - reach; xx <= ex + reach; xx++) {
         const ox = xx - ex, oz = zz - ez;
         const s = ox * dirx + oz * dirz, q = -ox * dirz + oz * dirx;
-        if (s < -1 || s > 16 || Math.abs(q) > rw) continue;
+        if (s < openS - 1 || s > openS + 18 || Math.abs(q) > rw) continue;
         const c2 = island.columnSurface(xx, zz);
         if (!c2 || c2.topY <= -2) continue;
         const shoulder = (q / rw) * (q / rw);
-        const top = Math.round(cy0 + v0 + 2 - 2.5 * shoulder - Math.max(0, 1 - s) * 1.2);
+        const top = Math.round(cy0 + v0 + 2 - 2.5 * shoulder - Math.max(0, openS + 1 - s) * 1.2);
         // >= : even an equal-height column gets its surface turned to rock.
         if (top >= c2.topY) headwalls.set(xx + ',' + zz, top);
       }

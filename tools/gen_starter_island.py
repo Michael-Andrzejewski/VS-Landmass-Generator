@@ -149,12 +149,12 @@ def main():
     print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45 lilies=0.10 clay=0.5")
     print("tree O oak 2.4")
     # Narrow spidery copper mine (the big scale=1.6 chamber look is reserved
-    # for the tin island's mine). seed=30 picked in the previewer: a web of
-    # long thin galleries under the meadow, 783 steps, only 32 lost to the
-    # water guard at the far west edge, deepest 26 below sea.
-    # Steep early dive (dip=20, short entry) so the tunnel ducks under the
-    # soil skin fast and every ceiling is stone, then flattens out at depth.
-    print("cave M heading=auto dip=20 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=4 ores=copper:0.06 seed=30")
+    # for the tin island's mine). Steep early dive (dip=20, short entry) so
+    # the tunnel ducks under the soil skin fast, then flattens out at depth.
+    # seed=12 picked in the previewer after the mouth moved to the true
+    # waterline face: 799 steps, ONE step lost to the water guard, deepest
+    # 30 below sea.
+    print("cave M heading=auto dip=20 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=4 ores=copper:0.06 seed=12")
     print()
     print("map")
     for row in grid:

@@ -1960,20 +1960,38 @@ public class LandmassGeneratorModSystem : ModSystem
             uint seed = def.Seed != 0 ? def.Seed
                 : 0x9E3779B9u ^ (uint)(cm.Gx * 668265263) ^ (uint)(cm.Gz * 2246822519);
 
+            // The bore must BEGIN standing in open air, however far seaward
+            // that is: a sand shelf in front of the face used to stop the
+            // mouth inside it. Scan along the heading, away from the island,
+            // for the first column that is open at mouth height (or water),
+            // and anchor the WHOLE mouth (headwall face and walk start)
+            // there instead of at the marker cell.
+            int openS = 0;
+            bool foundOpen = false;
+            for (int s = 0; s >= -24; s--)
+            {
+                int sxc = (int)Math.Floor(ex + 0.5 + Math.Cos(hor) * s);
+                int szc = (int)Math.Floor(ez + 0.5 + Math.Sin(hor) * s);
+                int g = DesignedGround(w, sxc, szc);
+                if (g <= mouthY - 1 || g <= job.SeaLevel - 2) { openS = s; foundOpen = true; break; }
+            }
+            if (!foundOpen)
+                notes.Add($"cave at map {cm.Gx},{cm.Gz}: no open air within 24 blocks seaward of the mouth, entrance may be buried");
+
             // Terrain that rises one block per step has no wall to bore a
             // horizontal hole into (clearing the thin cover instead cuts an
             // ugly ravine), so the mouth gets a stamped rock HEADWALL: a
             // small outcrop of the local stone, a couple of blocks taller
             // than the tunnel, that the adit visibly enters. Stone ceiling
             // from the first block in.
-            StampHeadwall(w, def, ex, ez, mouthY, hor, entReg?.StoneId ?? job.StoneId);
+            StampHeadwall(w, def, ex, ez, mouthY, hor, entReg?.StoneId ?? job.StoneId, openS);
 
-            // Start a few blocks back along the heading so the mouth carves
-            // through the headwall face from open air and is guaranteed open.
-            double sx = ex + 0.5 - Math.Cos(hor) * 3.0;
-            double sz = ez + 0.5 - Math.Sin(hor) * 3.0;
+            // Start 4 blocks seaward of the face, in open air, so the
+            // horizontal cut runs from daylight through the face.
+            double sx = ex + 0.5 + Math.Cos(hor) * (openS - 4);
+            double sz = ez + 0.5 + Math.Sin(hor) * (openS - 4);
             CarveTunnel(w, def, sx, mouthY + 1.6, sz, hor,
-                def.DipDeg * Math.PI / 180.0, (int)def.Length + 3, def.Radius * def.Scale,
+                def.DipDeg * Math.PI / 180.0, (int)def.Length + 4, def.Radius * def.Scale,
                 mouthY + 1.6 - def.Depth, def.Branches, def.BranchDepth, new CaveRand(seed), 7);
             tunnels++;
         }
@@ -1997,7 +2015,7 @@ public class LandmassGeneratorModSystem : ModSystem
     // never builds out over water. The tunnel is carved through it
     // afterwards, which is what opens the doorway. viewer/app.js mirrors
     // this so the previewer shows the portal.
-    private void StampHeadwall(CaveWork w, CaveDef def, int ex, int ez, int mouthY, double hor, int stoneId)
+    private void StampHeadwall(CaveWork w, CaveDef def, int ex, int ez, int mouthY, double hor, int stoneId, int openS)
     {
         IslandJob job = w.Job;
         double r0 = Math.Max(1.5, def.Radius * def.Scale * 0.7);
@@ -2007,7 +2025,7 @@ public class LandmassGeneratorModSystem : ModSystem
         double dirx = Math.Cos(hor), dirz = Math.Sin(hor);
         var pos = new BlockPos(0, 0, 0, job.Dim);
 
-        int reach = (int)Math.Ceiling(16 + rw);
+        int reach = (int)Math.Ceiling(18 + Math.Abs(openS) + rw);
         for (int zz = ez - reach; zz <= ez + reach; zz++)
             for (int xx = ex - reach; xx <= ex + reach; xx++)
             {
@@ -2015,12 +2033,15 @@ public class LandmassGeneratorModSystem : ModSystem
                 double ox = xx - ex, oz = zz - ez;
                 double s = ox * dirx + oz * dirz;   // along the heading, into the hill
                 double q = -ox * dirz + oz * dirx;  // sideways
-                if (s < -1 || s > 16 || Math.Abs(q) > rw) continue;
+                // The strip is anchored at the FACE (openS), which may sit
+                // well seaward of the marker cell when a sand shelf pushes
+                // the open air out.
+                if (s < openS - 1 || s > openS + 18 || Math.Abs(q) > rw) continue;
 
                 int g = DesignedGround(w, xx, zz);
                 if (g <= job.SeaLevel - 2) continue; // stay off the water
                 double shoulder = (q / rw) * (q / rw);
-                int top = (int)Math.Round(cy0 + v0 + 2 - 2.5 * shoulder - Math.Max(0, 1 - s) * 1.2);
+                int top = (int)Math.Round(cy0 + v0 + 2 - 2.5 * shoulder - Math.Max(0, openS + 1 - s) * 1.2);
                 // Solid from just under the mouth floor (or from the ground,
                 // whichever is lower) up to the wall top: builds the bluff
                 // where the ground is low AND converts dirt to stone where
