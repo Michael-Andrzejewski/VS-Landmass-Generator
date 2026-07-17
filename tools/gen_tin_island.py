@@ -148,6 +148,22 @@ def main():
                 ring[r][c] = 'A'
     grid = ring
 
+    # Tin mine adit: at the harbor-side foot of the knoll (O), so the mouth
+    # opens onto the sheltered water. heading is MANUAL: auto would aim at
+    # the grid centre, which for a crescent is the middle of the harbor.
+    # 198 map degrees bores south-south-west, straight into the arm under
+    # the knoll.
+    phi_m = 108.0
+    a_eff, half = spine(phi_m)
+    rho = a_eff - 0.75 * half
+    ang = math.radians(phi_m)
+    mx = int(CX + rho * math.cos(ang))
+    mz = int(CY + rho * math.sin(ang))
+    if grid[mz][mx] in ('A', 'B', 'O'):
+        grid[mz][mx] = 'V'
+    else:
+        raise SystemExit(f"cave marker landed on '{grid[mz][mx]}' at {mx},{mz}, expected A/B/O")
+
     print("# tin_island - thick basalt crescent around a sheltered harbor, semi-devastated.")
     print("# Regenerate: python tools/gen_tin_island.py > shapes/tin_island.txt")
     print("# Suggested: /genisland shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid")
@@ -174,6 +190,16 @@ def main():
     print("region T rock=basalt fertility=verylow surface=grass ores=tin:0.02 orebits=tin:0.007 wildgrass=0.08 stones=0.02 sandy=0.12 height=0.82 shore=9 rough=0.18")
     print("region S rock=basalt fertility=verylow surface=grass ores=tin:0.02 orebits=tin:0.007 wildgrass=0.08 stones=0.02 sandy=0.12 height=0.74 shore=9 rough=0.16")
     print("region O rock=basalt surface=rocksand ores=tin:0.035 orebits=tin:0.012 boulders=0.015 height=1.0 shore=6 rough=0.35")
+    # The tin mine proper: the big-chamber recipe Michael approved on the
+    # starter island (radius=2.7 scale=1.6 branches=3 branchdepth=2), run
+    # long, windy and DEEP. Walls lined rich with cassiterite.
+    # mouth=6 lifts the adit above the flat harbor beach: at scale 1.6 the
+    # carve ellipsoid is fat enough that a waterline mouth kept clipping
+    # harbor water, and the fluid guard walled off the first gallery steps.
+    # dip=30 gets under the arm's ocean side before the seabed drops.
+    # seed=17 from the previewer sweep: 1336 steps, ZERO steps lost to the
+    # water guard, bottom galleries 85 below sea.
+    print("cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 seed=17")
     print()
     print("map")
     for row in grid:

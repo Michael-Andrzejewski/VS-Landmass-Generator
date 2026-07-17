@@ -74,6 +74,15 @@ in [papercuts.md](papercuts.md).
   1.0 / 0.9 / 0.82 / 0.64 stepping down. The bowl INSIDE the arc becomes a
   hidden dell for free, and a tarn pond fits its centre. Suggested height
   ~34 on a 300 island reads properly mountainous; 26 read as a big hill.
+- **Wide caves need a raised mouth on flat shores.** At `scale` 1.5+ the
+  carve ellipsoid plus the fluid guard's padding reaches 4-5 blocks below
+  the adit floor. A waterline mouth (`mouth=2`) works against a steep apron
+  (starter island), but on a flat beach the first gallery steps keep
+  clipping the water sideways and the guard walls the passage off, and no
+  seed sweep fixes it (the wet run sits in the LEVEL entry, so `dip` does
+  nothing either). `mouth=6` lifts the adit clear. The previewer's "wet on
+  the main tunnel, worst run N" line is the tell: a run above 2 on the main
+  tunnel means a sealed mine, wet branch tips just truncate.
 - **Mood comes from climate tint as much as blocks.** `climate=arid` rewrites
   the worldgen climate map over the island so grass and leaves render rusty
   desert-yellow; `lush` goes deep green. Pair `climate=arid` with verylow
