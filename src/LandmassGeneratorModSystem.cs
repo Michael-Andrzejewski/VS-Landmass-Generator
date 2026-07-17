@@ -1928,7 +1928,7 @@ public class LandmassGeneratorModSystem : ModSystem
             int ex = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
             int ez = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
 
-            if (!ColumnSurface(job, ex, ez, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out _) || uw)
+            if (!ColumnSurface(job, ex, ez, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out Region entReg) || uw)
             {
                 notes.Add($"cave at map {cm.Gx},{cm.Gz} has no dry ground, skipped");
                 continue;
@@ -1960,8 +1960,16 @@ public class LandmassGeneratorModSystem : ModSystem
             uint seed = def.Seed != 0 ? def.Seed
                 : 0x9E3779B9u ^ (uint)(cm.Gx * 668265263) ^ (uint)(cm.Gz * 2246822519);
 
+            // Terrain that rises one block per step has no wall to bore a
+            // horizontal hole into (clearing the thin cover instead cuts an
+            // ugly ravine), so the mouth gets a stamped rock HEADWALL: a
+            // small outcrop of the local stone, a couple of blocks taller
+            // than the tunnel, that the adit visibly enters. Stone ceiling
+            // from the first block in.
+            StampHeadwall(w, def, ex, ez, mouthY, hor, entReg?.StoneId ?? job.StoneId);
+
             // Start a few blocks back along the heading so the mouth carves
-            // through the cliff face from open air and is guaranteed open.
+            // through the headwall face from open air and is guaranteed open.
             double sx = ex + 0.5 - Math.Cos(hor) * 3.0;
             double sz = ez + 0.5 - Math.Sin(hor) * 3.0;
             CarveTunnel(w, def, sx, mouthY + 1.6, sz, hor,
@@ -1978,6 +1986,54 @@ public class LandmassGeneratorModSystem : ModSystem
         note += ")";
         if (notes.Count > 0) note += ". Cave notes: " + string.Join("; ", notes);
         return tunnels > 0 || notes.Count > 0 ? note : "";
+    }
+
+    // A rounded outcrop of stone around the cave mouth, reaching 2 blocks
+    // over the tunnel's ceiling, shouldering off to the sides and tapering
+    // toward the sea. Crucially it is SOLID: it does not just build up low
+    // ground, it also replaces the soil inside the strip with stone (ground
+    // near a coast is often already at the right height but made of dirt),
+    // so the doorway and the first stretch of ceiling are always rock. It
+    // never builds out over water. The tunnel is carved through it
+    // afterwards, which is what opens the doorway. viewer/app.js mirrors
+    // this so the previewer shows the portal.
+    private void StampHeadwall(CaveWork w, CaveDef def, int ex, int ez, int mouthY, double hor, int stoneId)
+    {
+        IslandJob job = w.Job;
+        double r0 = Math.Max(1.5, def.Radius * def.Scale * 0.7);
+        double v0 = Math.Max(1.45, r0 * def.Squash);
+        double cy0 = mouthY + 1.6;
+        double rw = r0 + 3.0;
+        double dirx = Math.Cos(hor), dirz = Math.Sin(hor);
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+
+        int reach = (int)Math.Ceiling(12 + rw);
+        for (int zz = ez - reach; zz <= ez + reach; zz++)
+            for (int xx = ex - reach; xx <= ex + reach; xx++)
+            {
+                if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) continue;
+                double ox = xx - ex, oz = zz - ez;
+                double s = ox * dirx + oz * dirz;   // along the heading, into the hill
+                double q = -ox * dirz + oz * dirx;  // sideways
+                if (s < -1 || s > 12 || Math.Abs(q) > rw) continue;
+
+                int g = DesignedGround(w, xx, zz);
+                if (g <= job.SeaLevel - 2) continue; // stay off the water
+                double shoulder = (q / rw) * (q / rw);
+                int top = (int)Math.Round(cy0 + v0 + 2 - 2.5 * shoulder - Math.Max(0, 1 - s) * 1.2);
+                // Solid from just under the mouth floor (or from the ground,
+                // whichever is lower) up to the wall top: builds the bluff
+                // where the ground is low AND converts dirt to stone where
+                // the ground is already high enough.
+                int yyStart = Math.Max(job.SeaLevel - 1, Math.Min(g + 1, mouthY - 2));
+                for (int yy = yyStart; yy <= top; yy++)
+                {
+                    pos.Set(xx, yy, zz);
+                    w.Ba.SetBlock(stoneId, pos);
+                    w.Ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+                    w.Blocks++;
+                }
+            }
     }
 
     // One tunnel: walk, carve, then fork branches off recorded points.
@@ -2172,31 +2228,11 @@ public class LandmassGeneratorModSystem : ModSystem
                     w.Blocks++;
                 }
 
-                // The mouth must actually OPEN the hill face. When the skin
-                // of terrain left above the tube is thin, clear it up to the
-                // surface so the entrance is a real cutting, not a tube that
-                // dead-ends one block short of daylight. Doorway steps only.
-                // The comparison must use the top block the ellipsoid REALLY
-                // carves in THIS column: the loop bound ceil(cy+vr) sits one
-                // block higher, and testing against it made 1-2 block skins
-                // invisible, sealing every mouth just inside the hill.
-                if (mouthKind == 2 && ground > int.MinValue / 4)
-                {
-                    double ddx = xx + 0.5 - cx, ddz = zz + 0.5 - cz;
-                    double frac = 1.0 - (ddx * ddx + ddz * ddz) / hr2;
-                    if (frac > 0.2)
-                    {
-                        int tubeTop = (int)Math.Floor(cy + vr * Math.Sqrt(frac) - 0.5);
-                        if (ground > tubeTop && ground - tubeTop <= 4)
-                            for (int yy = tubeTop + 1; yy <= ground; yy++)
-                            {
-                                pos.Set(xx, yy, zz);
-                                w.Ba.SetBlock(0, pos);
-                                w.Ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
-                                w.Blocks++;
-                            }
-                    }
-                }
+                // NOTE: no "clear the thin ground above the tube" logic here.
+                // It was tried twice for opening the mouth and on gently
+                // rising ground it slices a RAVINE along the whole entry.
+                // The mouth opens by boring into the stamped headwall
+                // instead (StampHeadwall).
             }
 
         w.Steps.Add((cx, cy, cz, hr, vr, def));

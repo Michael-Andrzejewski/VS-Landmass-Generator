@@ -91,6 +91,18 @@ numbers.
   ColumnSurface is the ground truth for anything the generator itself built;
   it is also exactly what the previewer replays, so preview and game cannot
   disagree about the clamp again.
+- **You cannot bore a horizontal doorway into ground that rises one block
+  per step; BUILD the wall.** Coastal aprons climb gently, so a level adit
+  sits under 1-4 blocks of cover for its whole entry. Clearing that thin
+  cover to "open the mouth" slices a RAVINE along the entrance (Michael's
+  screenshots), and not clearing it seals the mouth. The answer is neither:
+  stamp a solid rock headwall around the mouth (StampHeadwall), replacing
+  the soil in its footprint, and carve the tunnel through it. Michael
+  described the fix himself: "manually place slate rock to cover the
+  ceiling"; when a hand-fix is obvious, codify THAT instead of fighting the
+  terrain. First stamp attempt only FILLED above ground and did nothing (5
+  blocks placed) because the ground was already at height, just made of
+  dirt: the stamp must convert, not just add.
 - **The mouth sealed TWICE, for two different reasons; test the opening
   itself, in game.** Second cause: the skin-clear compared the ground against
   the carve loop's bound ceil(cy+vr), which is one block ABOVE the highest

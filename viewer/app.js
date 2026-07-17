@@ -472,6 +472,38 @@ function rebuild(shape, dia, hgt) {
   const arid = (shape.suggested.climate || '') === 'arid' || (shape.suggested.climate || '') === 'dry';
   const half = Math.ceil(Math.max(shape.W, shape.H) * island.wpc / 2) + 16;
 
+  // Cave-mouth headwalls: mirror of the mod's StampHeadwall, a stone
+  // outcrop around each entrance that the adit bores into.
+  const headwalls = new Map();
+  for (const cm of shape.caves) {
+    const def = cm.def;
+    const ex = Math.round((cm.gx + 0.5 - shape.W / 2) * island.wpc);
+    const ez = Math.round((cm.gz + 0.5 - shape.H / 2) * island.wpc);
+    const col0 = island.columnSurface(ex, ez);
+    if (!col0 || col0.topY < 0) continue;
+    const mouthY = Math.max(-1, -1 + def.mouth);
+    let hor;
+    if (isNaN(def.headingDeg)) hor = Math.atan2(0 - ez, 0 - ex);
+    else { const th = def.headingDeg * Math.PI / 180; hor = Math.atan2(-Math.cos(th), Math.sin(th)); }
+    const r0 = Math.max(1.5, def.radius * def.scale * 0.7);
+    const v0 = Math.max(1.45, r0 * def.squash);
+    const cy0 = mouthY + 1.6, rw = r0 + 3;
+    const dirx = Math.cos(hor), dirz = Math.sin(hor);
+    const reach = Math.ceil(12 + rw);
+    for (let zz = ez - reach; zz <= ez + reach; zz++)
+      for (let xx = ex - reach; xx <= ex + reach; xx++) {
+        const ox = xx - ex, oz = zz - ez;
+        const s = ox * dirx + oz * dirz, q = -ox * dirz + oz * dirx;
+        if (s < -1 || s > 12 || Math.abs(q) > rw) continue;
+        const c2 = island.columnSurface(xx, zz);
+        if (!c2 || c2.topY <= -2) continue;
+        const shoulder = (q / rw) * (q / rw);
+        const top = Math.round(cy0 + v0 + 2 - 2.5 * shoulder - Math.max(0, 1 - s) * 1.2);
+        // >= : even an equal-height column gets its surface turned to rock.
+        if (top >= c2.topY) headwalls.set(xx + ',' + zz, top);
+      }
+  }
+
   // Terrain columns.
   const cols = [];
   let minTop = 0;
@@ -491,12 +523,16 @@ function rebuild(shape, dia, hgt) {
   const forestTrees = [];
   for (let i = 0; i < cols.length; i++) {
     const { x, z, col } = cols[i];
-    const hgtY = col.topY + 1 - base;
+    const hw = headwalls.get(x + ',' + z);
+    const topY = hw !== undefined ? Math.max(hw, col.topY) : col.topY;
+    const hgtY = topY + 1 - base;
     dummy.position.set(x, base + hgtY / 2, z);
     dummy.scale.set(1, hgtY, 1);
     dummy.updateMatrix();
     terr.setMatrixAt(i, dummy.matrix);
-    terr.setColorAt(i, c3.setHex(columnColor(col, x, z, arid)));
+    terr.setColorAt(i, c3.setHex(hw !== undefined && hw >= col.topY
+      ? (ROCK[col.reg ? col.reg.rock : 'granite'] || 0x808080)
+      : columnColor(col, x, z, arid)));
     if (col.mat === 'pond' && col.waterTop > col.topY) pondWater.push({ x, z, y: col.waterTop });
     if (col.reg && col.reg.forest > 0 && col.mat === 'grass'
       && hash2(x, z, 6006) < col.reg.forest) forestTrees.push({ x, z, y: col.topY });

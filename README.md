@@ -128,9 +128,12 @@ reproduced). Two of vanilla's safety rules are kept: a step that would touch
 any water is skipped whole (a cave beside the ocean can never breach it),
 and the tunnel always stays at least 5 blocks below the surface, which both
 prevents skylights and keeps every cave ceiling in ROCK, below the 3-block
-soil skin. The mouth is the exception: it stays in open-carve mode until the
-tunnel is genuinely buried, so the entrance always reaches daylight as a
-horizontal doorway in the hill face.
+soil skin. The mouth is the exception: the generator stamps a small HEADWALL there, a
+solid outcrop of the local rock a couple of blocks taller than the tunnel
+(replacing any soil in its footprint), and bores the adit into it. The
+entrance is therefore always a horizontal doorway in a rock face with a
+stone ceiling, even where the natural ground rises too gently to offer a
+wall.
 
     cave M heading=auto dip=13 length=85 radius=2.7 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=12 ores=copper:0.06 seed=30
 
