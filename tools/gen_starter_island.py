@@ -110,6 +110,18 @@ def main():
     if grid[oak[1]][oak[0]] != '.':
         grid[oak[1]][oak[0]] = 'O'
 
+    # Haunted copper mine entrance: in the slate headland's ocean face
+    # (region R, just inland of the C apron at angle -15), heading auto
+    # (toward the island centre), so the adit dives down and diagonally
+    # into the island.
+    ang = math.radians(-15.0)
+    mx = int(CX + 34.8 * math.cos(ang))
+    mz = int(CY + 34.8 * math.sin(ang))
+    if grid[mz][mx] == 'R':
+        grid[mz][mx] = 'M'
+    else:
+        raise SystemExit(f"cave marker landed on '{grid[mz][mx]}' at {mx},{mz}, expected R")
+
     print("# starter_island - player starting island, ~150 blocks across.")
     print("# Regenerate: python tools/gen_starter_island.py > shapes/starter_island.txt")
     print("# Suggested: /genisland shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite")
@@ -118,8 +130,10 @@ def main():
     print("# rich meadow around the cattail pond, wild flax meadow east, low-fertility")
     print("# south rim. The one rough edge is the north-east slate headland (C apron +")
     print("# R high slate) where the devastated mine will go.")
-    print("# Deferred (add later): ruined chest, teleporter, devastated mine")
-    print("# structure, shoreline boulders.")
+    print("# The haunted copper mine's CAVE is carved (marker M in the slate face,")
+    print("# descending diagonal adit, weaving and branching, copper-lined walls).")
+    print("# Deferred (add later): ruined chest, teleporter, mine structure work")
+    print("# (timbers, cobwebs, lighting) inside the cave, shoreline boulders.")
     print()
     print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   bushes=raspberry:0.002,blueberry:0.002 scatter=cornflower:0.010,forgetmenot:0.010,cowparsley:0.005 height=0.70 shore=16 rough=0.08")
     print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   forest=0.015 trees=oak copperbits=0.0012 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.75 shore=16 rough=0.08")
@@ -134,6 +148,7 @@ def main():
     print("region c rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:0.02   height=0.75 shore=16 rough=0.08")
     print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45 lilies=0.10 clay=0.5")
     print("tree O oak 2.4")
+    print("cave M heading=auto dip=13 length=110 radius=2.7 squash=0.75 weave=0.55 branches=3 branchdepth=2 depth=34 mouth=3 ores=copper:0.06")
     print()
     print("map")
     for row in grid:
