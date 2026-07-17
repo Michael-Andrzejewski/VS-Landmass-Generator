@@ -2007,7 +2007,7 @@ public class LandmassGeneratorModSystem : ModSystem
         double dirx = Math.Cos(hor), dirz = Math.Sin(hor);
         var pos = new BlockPos(0, 0, 0, job.Dim);
 
-        int reach = (int)Math.Ceiling(12 + rw);
+        int reach = (int)Math.Ceiling(16 + rw);
         for (int zz = ez - reach; zz <= ez + reach; zz++)
             for (int xx = ex - reach; xx <= ex + reach; xx++)
             {
@@ -2015,7 +2015,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 double ox = xx - ex, oz = zz - ez;
                 double s = ox * dirx + oz * dirz;   // along the heading, into the hill
                 double q = -ox * dirz + oz * dirx;  // sideways
-                if (s < -1 || s > 12 || Math.Abs(q) > rw) continue;
+                if (s < -1 || s > 16 || Math.Abs(q) > rw) continue;
 
                 int g = DesignedGround(w, xx, zz);
                 if (g <= job.SeaLevel - 2) continue; // stay off the water
@@ -2089,11 +2089,19 @@ public class LandmassGeneratorModSystem : ModSystem
             vswell *= 0.92;
             if (u9 < 0.011)
             {
+                // u10 is ALWAYS drawn on a room roll so the RNG sequence
+                // (and every saved cave seed) is independent of where the
+                // roll lands; the swell is merely not APPLIED during the
+                // mouth entry, where a chamber could balloon the tunnel up
+                // through the headwall while the roof clamp is off.
                 double u10 = rand.NextDouble();
-                double deepFrac = Math.Clamp(1.0 - (y - floorY) / Math.Max(8.0, def.Depth), 0, 1);
-                double boost = (0.8 + u10 * 2.2) * def.Scale * (0.6 + 1.4 * deepFrac);
-                hswell += boost;
-                vswell += boost * 0.45;
+                if (!(mouthSteps > 0 && i < mouthSteps + def.Entry + 10))
+                {
+                    double deepFrac = Math.Clamp(1.0 - (y - floorY) / Math.Max(8.0, def.Depth), 0, 1);
+                    double boost = (0.8 + u10 * 2.2) * def.Scale * (0.6 + 1.4 * deepFrac);
+                    hswell += boost;
+                    vswell += boost * 0.45;
+                }
             }
 
             // Level through the entry adit, then dive at the design dip

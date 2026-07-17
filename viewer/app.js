@@ -388,11 +388,13 @@ function traceCaves(island, domeHeight) {
       hswell *= 0.92;
       vswell *= 0.92;
       if (u9 < 0.011) {
-        const u10 = rand.nextDouble();
-        const deepFrac = Math.min(Math.max(1 - (y - floorY) / Math.max(8, def.depth), 0), 1);
-        const boost = (0.8 + u10 * 2.2) * def.scale * (0.6 + 1.4 * deepFrac);
-        hswell += boost;
-        vswell += boost * 0.45;
+        const u10 = rand.nextDouble(); // always drawn: keeps seeds stable
+        if (!(level === 0 && i < 7 + def.entry + 10)) {
+          const deepFrac = Math.min(Math.max(1 - (y - floorY) / Math.max(8, def.depth), 0), 1);
+          const boost = (0.8 + u10 * 2.2) * def.scale * (0.6 + 1.4 * deepFrac);
+          hswell += boost;
+          vswell += boost * 0.45;
+        }
       }
       const target = level === 0 && i < 7 + def.entry ? 0 : (y > floorY ? -dip : 0);
       vert += (target - vert) * 0.12;
@@ -489,12 +491,12 @@ function rebuild(shape, dia, hgt) {
     const v0 = Math.max(1.45, r0 * def.squash);
     const cy0 = mouthY + 1.6, rw = r0 + 3;
     const dirx = Math.cos(hor), dirz = Math.sin(hor);
-    const reach = Math.ceil(12 + rw);
+    const reach = Math.ceil(16 + rw);
     for (let zz = ez - reach; zz <= ez + reach; zz++)
       for (let xx = ex - reach; xx <= ex + reach; xx++) {
         const ox = xx - ex, oz = zz - ez;
         const s = ox * dirx + oz * dirz, q = -ox * dirz + oz * dirx;
-        if (s < -1 || s > 12 || Math.abs(q) > rw) continue;
+        if (s < -1 || s > 16 || Math.abs(q) > rw) continue;
         const c2 = island.columnSurface(xx, zz);
         if (!c2 || c2.topY <= -2) continue;
         const shoulder = (q / rw) * (q / rw);
