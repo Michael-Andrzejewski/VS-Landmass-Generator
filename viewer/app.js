@@ -634,12 +634,24 @@ function rebuild(shape, dia, hgt) {
   scene.add(group);
   applyToggles();
 
-  let deepest = 0, wet = 0;
-  for (const st of caves.steps) { if (st.y < deepest) deepest = st.y; if (st.wet) wet++; }
+  // Wet totals, plus the number that sit on the MAIN tunnel and the longest
+  // consecutive wet run there: one skipped step in a wide gallery still
+  // reads through in-game, but a RUN of them walls the passage off.
+  let deepest = 0, wet = 0, wetMain = 0, wetRun = 0, run = 0;
+  for (const st of caves.steps) {
+    if (st.y < deepest) deepest = st.y;
+    if (st.wet) wet++;
+    if (st.level === 0) {
+      if (st.wet) { wetMain++; run++; if (run > wetRun) wetRun = run; }
+      else run = 0;
+    }
+  }
   return {
     columns: cols.length,
     caveSteps: caves.steps.length,
     caveWet: wet,
+    caveWetMain: wetMain,
+    caveWetRun: wetRun,
     caveMouths: caves.mouths.length,
     caveDeepest: Math.round(-deepest),
     size: half * 2,
@@ -708,7 +720,8 @@ function refresh() {
   info.textContent = `${sel.value}: ${stats.columns.toLocaleString()} columns`
     + (stats.caveMouths
       ? `\ncaves: ${stats.caveMouths} mouth(s), ${stats.caveSteps} steps, deepest ${stats.caveDeepest} below sea`
-        + (stats.caveWet ? `\n${stats.caveWet} step(s) touch water and will NOT carve (dark)` : '')
+        + (stats.caveWet ? `\n${stats.caveWet} step(s) touch water and will NOT carve (dark): `
+          + `${stats.caveWetMain} on the main tunnel, worst run ${stats.caveWetRun}` : '')
       : '\nno caves declared');
 
   legend.innerHTML = '';
