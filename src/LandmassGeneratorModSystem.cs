@@ -2176,17 +2176,26 @@ public class LandmassGeneratorModSystem : ModSystem
                 // of terrain left above the tube is thin, clear it up to the
                 // surface so the entrance is a real cutting, not a tube that
                 // dead-ends one block short of daylight. Doorway steps only.
-                if (mouthKind == 2 && ground > yTop && ground - yTop <= 3)
+                // The comparison must use the top block the ellipsoid REALLY
+                // carves in THIS column: the loop bound ceil(cy+vr) sits one
+                // block higher, and testing against it made 1-2 block skins
+                // invisible, sealing every mouth just inside the hill.
+                if (mouthKind == 2 && ground > int.MinValue / 4)
                 {
                     double ddx = xx + 0.5 - cx, ddz = zz + 0.5 - cz;
-                    if ((ddx * ddx + ddz * ddz) / hr2 <= 0.6)
-                        for (int yy = yTop + 1; yy <= ground; yy++)
-                        {
-                            pos.Set(xx, yy, zz);
-                            w.Ba.SetBlock(0, pos);
-                            w.Ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
-                            w.Blocks++;
-                        }
+                    double frac = 1.0 - (ddx * ddx + ddz * ddz) / hr2;
+                    if (frac > 0.2)
+                    {
+                        int tubeTop = (int)Math.Floor(cy + vr * Math.Sqrt(frac) - 0.5);
+                        if (ground > tubeTop && ground - tubeTop <= 4)
+                            for (int yy = tubeTop + 1; yy <= ground; yy++)
+                            {
+                                pos.Set(xx, yy, zz);
+                                w.Ba.SetBlock(0, pos);
+                                w.Ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+                                w.Blocks++;
+                            }
+                    }
                 }
             }
 

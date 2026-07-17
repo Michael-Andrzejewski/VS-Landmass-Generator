@@ -152,7 +152,9 @@ def main():
     # for the tin island's mine). seed=30 picked in the previewer: a web of
     # long thin galleries under the meadow, 783 steps, only 32 lost to the
     # water guard at the far west edge, deepest 26 below sea.
-    print("cave M heading=auto dip=13 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=12 ores=copper:0.06 seed=30")
+    # Steep early dive (dip=20, short entry) so the tunnel ducks under the
+    # soil skin fast and every ceiling is stone, then flattens out at depth.
+    print("cave M heading=auto dip=20 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=4 ores=copper:0.06 seed=30")
     print()
     print("map")
     for row in grid:
