@@ -49,6 +49,17 @@ Friendly names (`copper`, `iron`, `tin`, `zinc`, `lead`, `nickel`, `chromium`, `
 
 Ore blocks are rock-specific, so an ore that does not occur in your `stone` rock is reported and skipped rather than silently dropped.
 
+### Natural ore (`deposits=natural`)
+
+Instead of (or on top of) hand-placed veins, the island can carry the ore the game itself would have generated there. Add `deposits=natural` to the command, or the line `deposits natural` to a shape file (`deposits=off` on the command overrides the shape line).
+
+After terrain, caves and climate are done, the mod re-runs the game's own deposit generator over the island's chunk columns: same world seed, same per-chunk randomness, same regional ore maps the prospecting pick reads. If the sea floor nearby propicks "high native copper", the island gets that same high copper, exactly where vanilla worldgen would have put it. Quartz with its gold and silver pockets, coal seams, gems, clay and gravel lenses, loose surface ore bits: everything from the game's deposit tables, at natural depths below the island's actual surface.
+
+Two things to know:
+
+- An ore only appears where its host rock exists. Coal seams need a sedimentary rock (claystone, sandstone, shale, chalk, limestone, chert, conglomerate), quartz lives in nearly everything, copper in most igneous and sedimentary rock. Pick `rock=`/`rock2=` per region with that in mind; the second rock blends through the underground in blobs, so `rock=granite rock2=claystone` hosts both quartz veins and coal.
+- The pass also writes the island's real surface into the engine's per-column heightmaps (this happens for every island now, deposits or not). Prospecting readings, rain and snow previously still believed the surface was the old sea floor; now they see the island.
+
 ### Forest
 
     forest=0.02 trees=oak,pine,birch
@@ -77,13 +88,14 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
     region B rock=granite surface=sand     ores=              forest=0     height=0.10 shore=34 rough=0.08
     region R rock=slate   surface=rocksand ores=copper:medium forest=0     height=0.66 shore=4  rough=0.7
     tree O oak 2.2
+    deposits natural
 
     map
     ..........FFFFFFFF..........
     .......PPPPPPPPPPPPPBBBB....
     ...
 
-`.` is ocean, every other character is a region. Region keys:
+`.` is ocean, every other character is a region. The standalone line `deposits natural` turns on the vanilla ore pass for the whole island (see "Natural ore" above). Region keys:
 
 | Key | Meaning |
 | --- | --- |

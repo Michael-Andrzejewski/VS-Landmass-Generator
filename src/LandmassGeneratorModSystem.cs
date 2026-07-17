@@ -324,6 +324,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public Dictionary<char, Region> Regions = new();
         public List<TreeMarker> Markers = new();
         public List<CaveMarker> Caves = new();
+        public bool NaturalDeposits;  // `deposits natural`: run the game's own ore pass
     }
 
     private class IslandJob
@@ -352,6 +353,11 @@ public class LandmassGeneratorModSystem : ModSystem
         public bool HasClimate;
         public int ClimTempRaw, ClimRainRaw;
         public double ClimRadius;
+
+        // deposits natural / deposits=natural: after terrain, run the game's own
+        // GenDeposits over the island's chunk columns, so the stone carries the
+        // same ore the world would have generated there.
+        public bool NaturalDeposits;
 
         public NormalizedSimplexNoise CoastNoise, SurfNoise, RockBlend;
         public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
@@ -472,6 +478,7 @@ public class LandmassGeneratorModSystem : ModSystem
             if (shape == null) return TextCommandResult.Error(err);
 
             job.Shape = shape;
+            job.NaturalDeposits = shape.NaturalDeposits;
             job.WorldPerCell = diameter / (double)Math.Max(shape.W, shape.H);
             job.OceanRing = Math.Max(24.0, diameter * 0.22);
             // Half the grid's diagonal, plus the offshore ring we reshape.
@@ -510,6 +517,12 @@ public class LandmassGeneratorModSystem : ModSystem
             }
             job.SummitTree = FindTreeGenerator("oak");
         }
+
+        // deposits=natural forces the vanilla ore pass on; deposits=off forces it
+        // off, overriding the shape file's `deposits natural` line either way.
+        string depOpt = OptStr(opt, "deposits", null);
+        if (depOpt != null)
+            job.NaturalDeposits = depOpt.Equals("natural", StringComparison.OrdinalIgnoreCase);
 
         job.MinX = ox - reach; job.MinZ = oz - reach;
         job.W = reach * 2 + 1; job.H = reach * 2 + 1;
@@ -607,6 +620,11 @@ public class LandmassGeneratorModSystem : ModSystem
             else if (tok[0].Equals("cave", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
             {
                 caveDefs[tok[1][0]] = ParseCave(tok, problems);
+            }
+            else if (tok[0].Equals("deposits", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
+            {
+                if (tok[1].Equals("natural", StringComparison.OrdinalIgnoreCase)) shape.NaturalDeposits = true;
+                else problems.Add($"unknown deposits mode '{tok[1]}', only 'natural' exists");
             }
         }
 
@@ -1269,6 +1287,7 @@ public class LandmassGeneratorModSystem : ModSystem
         int pumpkinPatches = StampPumpkinPatches(job);
         string caveNote = CarveCaves(job);
         int climRegions = StampClimate(job);
+        string depositNote = SyncHeightmapsAndDeposits(job);
         _islandBusy = false;
 
         string done = $"Island complete: {job.Placed} column(s)";
@@ -1278,6 +1297,7 @@ public class LandmassGeneratorModSystem : ModSystem
         if (devPatches > 0) done += $", {devPatches} devastated patch(es)";
         if (pumpkinPatches > 0) done += $", {pumpkinPatches} pumpkin patch(es)";
         done += caveNote;
+        done += depositNote;
         if (climRegions > 0) done += $", climate retinted across {climRegions} map region(s)";
         else if (job.HasClimate) done += ". WARNING: climate= touched no loaded map regions";
         ReportIsland(job, done + ". " + extra);
@@ -2420,6 +2440,140 @@ public class LandmassGeneratorModSystem : ModSystem
                     sapi.WorldManager.ResendMapChunk(cx, cz, true);
         }
         return regionsTouched;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Natural deposits: the game's own ore, mirrored onto the island
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // Vanilla ore deposits only exist where worldgen ran over land; stone this
+    // mod places is barren, and the engine's per-column heightmaps still say
+    // "sea floor" under the island. This pass first writes the DESIGNED surface
+    // into WorldGenTerrainHeightMap / RainHeightMap (which also fixes propick
+    // readings, rain and snow on every island), then re-runs the game's own
+    // GenDeposits over the island's chunk columns.
+    //
+    // The deposit walk is fully deterministic per (world seed, chunk coords):
+    // the same LCGRandom draws vanilla worldgen would have made, the same
+    // regional ore maps the prospecting pick reads. So a "high native copper"
+    // propick reading on the nearby sea floor produces the SAME high copper
+    // inside the island, provided the island's rock can host that ore. Deposits
+    // already generated below the old sea floor re-place identically (the RNG
+    // is the same), so re-running is safe; only the surface-relative ores move
+    // up into the new rock, which is the point.
+    //
+    // We drive a PRIVATE GenDeposits instance, exactly the way the prospecting
+    // pick's ProPickWorkSpace does (setApi + initAssets(blockCallbacks: false)
+    // + initWorldGen). blockCallbacks: false routes every write through plain
+    // chunk-data sets, so nothing touches the real worldgen thread's block
+    // accessor. One reflection read (GenPartial.chunkRand) lets us position-seed
+    // the walk per neighbour chunk like GenChunkColumn does.
+
+    private Vintagestory.ServerMods.GenDeposits _depositGen;
+    private FieldInfo _depositChunkRandField;
+    private string _depositGenErr;
+
+    private void EnsureDepositGen()
+    {
+        if (_depositGen != null || _depositGenErr != null) return;
+        try
+        {
+            var gd = new Vintagestory.ServerMods.GenDeposits();
+            gd.addHandbookAttributes = false;   // the real instance already wrote those
+            gd.setApi(sapi);
+            gd.initAssets(sapi, blockCallbacks: false);
+            gd.initWorldGen();
+            _depositChunkRandField = typeof(Vintagestory.ServerMods.GenPartial)
+                .GetField("chunkRand", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (_depositChunkRandField == null) { _depositGenErr = "GenPartial.chunkRand field not found"; return; }
+            _depositGen = gd;
+        }
+        catch (Exception e)
+        {
+            _depositGenErr = e.Message;
+        }
+    }
+
+    private string SyncHeightmapsAndDeposits(IslandJob job)
+    {
+        if (job.Dim != 0)
+            return job.NaturalDeposits ? ". Natural deposits skipped: worldgen maps only exist in dimension 0" : "";
+
+        int cs = GlobalConstants.ChunkSize;
+        int cx1 = FloorDiv(job.MinX, cs), cx2 = FloorDiv(job.MinX + job.W - 1, cs);
+        int cz1 = FloorDiv(job.MinZ, cs), cz2 = FloorDiv(job.MinZ + job.H - 1, cs);
+
+        // 1. Engine heightmaps -> designed surface, land columns only. Ocean
+        // columns keep their engine values (their reshape blended back into the
+        // original sea floor, and rain height over water is the sea surface
+        // either way).
+        for (int cx = cx1; cx <= cx2; cx++)
+            for (int cz = cz1; cz <= cz2; cz++)
+            {
+                IMapChunk mapChunk = sapi.WorldManager.GetMapChunk(cx, cz);
+                if (mapChunk == null) continue;
+                bool touched = false;
+                for (int lz = 0; lz < cs; lz++)
+                    for (int lx = 0; lx < cs; lx++)
+                    {
+                        int x = cx * cs + lx, z = cz * cs + lz;
+                        if (x < job.MinX || x >= job.MinX + job.W || z < job.MinZ || z >= job.MinZ + job.H) continue;
+                        if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out _, out _, out _, out int waterTopY, out Region reg)
+                            || reg == null) continue;
+                        int idx = lz * cs + lx;
+                        mapChunk.WorldGenTerrainHeightMap[idx] = (ushort)topY;
+                        mapChunk.RainHeightMap[idx] = (ushort)Math.Max(topY, waterTopY);
+                        touched = true;
+                    }
+                if (touched) mapChunk.MarkDirty();
+            }
+
+        if (!job.NaturalDeposits) return "";
+
+        EnsureDepositGen();
+        if (_depositGen == null)
+            return ". Natural deposits FAILED: " + _depositGenErr;
+
+        var chunkRand = (LCGRandom)_depositChunkRandField.GetValue(_depositGen);
+        int range = _depositGen.depositChunkRange;
+        int chunksY = sapi.WorldManager.MapSizeY / cs;
+        int done = 0, missing = 0;
+
+        for (int cx = cx1; cx <= cx2; cx++)
+            for (int cz = cz1; cz <= cz2; cz++)
+            {
+                var chunks = new IServerChunk[chunksY];
+                bool loaded = true;
+                for (int cy = 0; cy < chunksY; cy++)
+                {
+                    chunks[cy] = sapi.WorldManager.GetChunk(cx, cy, cz);
+                    if (chunks[cy] == null) { loaded = false; break; }
+                }
+                if (!loaded) { missing++; continue; }
+
+                // Deposits centred up to `range` chunks away spill into this
+                // column, exactly like vanilla GenChunkColumn's neighbour walk.
+                for (int i = -range; i <= range; i++)
+                    for (int j = -range; j <= range; j++)
+                    {
+                        chunkRand.InitPositionSeed(cx + i, cz + j);
+                        _depositGen.GeneratePartial(chunks, cx, cz, i, j);
+                    }
+
+                // The generator writes straight into chunk data, bypassing the
+                // usual accessors, so persist and resend by hand. Ore swaps rock
+                // for rock, both opaque: no relight needed.
+                for (int cy = 0; cy < chunksY; cy++)
+                {
+                    chunks[cy].MarkModified();
+                    sapi.WorldManager.BroadcastChunk(cx, cy, cz, true);
+                }
+                done++;
+            }
+
+        string note = $". Natural ore deposits re-rolled across {done} chunk column(s)";
+        if (missing > 0) note += $" ({missing} column(s) skipped: not loaded)";
+        return note;
     }
 
     private static bool ParseClimate(string s, out float tempC, out float rain, out string err)

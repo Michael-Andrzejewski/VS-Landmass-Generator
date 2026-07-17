@@ -4,7 +4,7 @@
     "name": "VS Landmass Generator",
     "authors": ["Michael-Andrzejewski"],
     "description": "Procedural landmass generation for Vintage Story. /genisland builds a whole island around you (dome, noise coastline, sand beach, stone cliffs, deepening water, summit oak), spread across ticks so it never freezes the server.",
-    "version": "0.24.0",
+    "version": "0.25.0",
     "side": "Universal",
     "requiredOnClient": false,
     "dependencies": {
