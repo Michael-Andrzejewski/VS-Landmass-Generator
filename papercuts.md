@@ -91,6 +91,13 @@ numbers.
   ColumnSurface is the ground truth for anything the generator itself built;
   it is also exactly what the previewer replays, so preview and game cannot
   disagree about the clamp again.
+- **The mouth sealed TWICE, for two different reasons; test the opening
+  itself, in game.** Second cause: the skin-clear compared the ground against
+  the carve loop's bound ceil(cy+vr), which is one block ABOVE the highest
+  block the ellipsoid actually removes, so real 1-2 block skins looked like
+  "no skin" and were never cleared. Any is-it-exposed test must use the top
+  block actually carved in that column (cy + vr*sqrt(1 - horizontal frac),
+  floored), not a bounding-box edge.
 - **A cave mouth's open-carve window must end on BURIAL, not a step count.**
   With "doorway mode" fixed at the first 7 steps, entrances frequently sealed
   themselves: past step 7 the entry section preserved the surface block, so
