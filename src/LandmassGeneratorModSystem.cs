@@ -1983,6 +1983,11 @@ public class LandmassGeneratorModSystem : ModSystem
     {
         var path = new List<(double X, double Y, double Z, double Hor)>();
         double mh = 0, mv = 0, pulse = 0, vert = -dip * 0.5;
+        double hor0 = hor;
+        // Weave wanders AROUND the design bearing instead of forgetting it: a
+        // pure drunk walk turns an adit back on itself within ~20 steps, so
+        // every step also pulls the heading back toward hor0 (shortest arc).
+        double homing = 0.03 + 0.05 * (1 - def.Weave);
 
         for (int i = 0; i < length; i++)
         {
@@ -1997,6 +2002,7 @@ public class LandmassGeneratorModSystem : ModSystem
             mh = 0.9 * mh + (u1 * 2 - 1) * u2;
             hor += def.Weave * 0.25 * mh;
             if (u5 < 0.018) hor += (rand.NextDouble() - 0.5) * (Math.PI / 2);
+            hor += Math.Atan2(Math.Sin(hor0 - hor), Math.Cos(hor0 - hor)) * homing;
             mv = 0.9 * mv + (u3 * 2 - 1) * u4;
             vert += def.Weave * 0.05 * mv;
             pulse = 0.9 * pulse + (u7 * 2 - 1) * u8;
@@ -2023,7 +2029,9 @@ public class LandmassGeneratorModSystem : ModSystem
         {
             double f = 0.25 + rand.NextDouble() * 0.6;
             double side = rand.NextDouble() < 0.5 ? -1 : 1;
-            double angOff = side * (0.9 + rand.NextDouble() * 1.1);
+            // Fork 40 to 86 degrees off the parent: side galleries, never a
+            // U-turn that would run back out under the sea floor.
+            double angOff = side * (0.7 + rand.NextDouble() * 0.8);
             double lenFrac = 0.35 + rand.NextDouble() * 0.3;
             uint childSeed = rand.NextUInt();
 
