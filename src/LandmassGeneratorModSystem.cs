@@ -282,6 +282,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Radius = 2.6;             // horizontal carve radius
         public double Squash = 0.72;            // vertical radius = Radius * Squash
         public double Weave = 0.5;              // 0 dead straight .. 1 very windy
+        public double Scale = 1.0;              // overall size multiplier: radius AND room events
         public int Branches = 2;                // side tunnels forking off the main run
         public int BranchDepth = 2;             // branches may branch again this many levels
         public double Depth = 60;               // level out this many blocks below the mouth
@@ -1090,6 +1091,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "radius": d.Radius = Math.Clamp(ParseD(v, 2.6), 1.2, 8); break;
                 case "squash": d.Squash = Math.Clamp(ParseD(v, 0.72), 0.4, 1.5); break;
                 case "weave": d.Weave = Math.Clamp(ParseD(v, 0.5), 0, 1); break;
+                case "scale": d.Scale = Math.Clamp(ParseD(v, 1), 0.5, 4); break;
                 case "branches": d.Branches = (int)Math.Clamp(ParseD(v, 2), 0, 8); break;
                 case "branchdepth": d.BranchDepth = (int)Math.Clamp(ParseD(v, 2), 0, 4); break;
                 case "depth": d.Depth = Math.Clamp(ParseD(v, 60), 4, 200); break;
@@ -1958,7 +1960,7 @@ public class LandmassGeneratorModSystem : ModSystem
             double sx = ex + 0.5 - Math.Cos(hor) * 3.0;
             double sz = ez + 0.5 - Math.Sin(hor) * 3.0;
             CarveTunnel(w, def, sx, mouthY + 1.6, sz, hor,
-                def.DipDeg * Math.PI / 180.0, (int)def.Length + 3, def.Radius,
+                def.DipDeg * Math.PI / 180.0, (int)def.Length + 3, def.Radius * def.Scale,
                 mouthY + 1.6 - def.Depth, def.Branches, def.BranchDepth, new CaveRand(seed), 7);
             tunnels++;
         }
@@ -1975,19 +1977,25 @@ public class LandmassGeneratorModSystem : ModSystem
 
     // One tunnel: walk, carve, then fork branches off recorded points.
     // RNG draw order is FIXED and mirrored by viewer/app.js: 8 doubles per
-    // step (plus 1 on a sharp turn), then 4 doubles + 1 uint per branch.
-    // Carving itself never draws, so world state cannot desync the path.
+    // step, plus 1 on a sharp turn, plus 1 on a room event, then 4 doubles +
+    // 1 uint per branch. Carving itself never draws, so world state cannot
+    // desync the path.
     private void CarveTunnel(CaveWork w, CaveDef def, double x, double y, double z,
         double hor, double dip, int length, double radius, double floorY,
         int branches, int branchDepth, CaveRand rand, int mouthSteps)
     {
         var path = new List<(double X, double Y, double Z, double Hor)>();
         double mh = 0, mv = 0, pulse = 0, vert = -dip * 0.5;
+        double hswell = 0, vswell = 0;
         double hor0 = hor;
         // Weave wanders AROUND the design bearing instead of forgetting it: a
         // pure drunk walk turns an adit back on itself within ~20 steps, so
         // every step also pulls the heading back toward hor0 (shortest arc).
         double homing = 0.03 + 0.05 * (1 - def.Weave);
+        // The mouth stays in open-carve mode until the tunnel is genuinely
+        // buried, so the entrance always reaches daylight no matter how the
+        // hill face slopes. Branches start buried.
+        bool buried = mouthSteps == 0;
 
         for (int i = 0; i < length; i++)
         {
@@ -1998,6 +2006,7 @@ public class LandmassGeneratorModSystem : ModSystem
             double u3 = rand.NextDouble(), u4 = rand.NextDouble();
             double u5 = rand.NextDouble();
             double u7 = rand.NextDouble(), u8 = rand.NextDouble();
+            double u9 = rand.NextDouble();
 
             mh = 0.9 * mh + (u1 * 2 - 1) * u2;
             hor += def.Weave * 0.25 * mh;
@@ -2006,6 +2015,21 @@ public class LandmassGeneratorModSystem : ModSystem
             mv = 0.9 * mv + (u3 * 2 - 1) * u4;
             vert += def.Weave * 0.05 * mv;
             pulse = 0.9 * pulse + (u7 * 2 - 1) * u8;
+
+            // Vanilla-style room events: an occasional widening impulse that
+            // decays over the following steps, blowing the tunnel out into a
+            // chamber. Impulses grow with depth (vanilla's big rooms live
+            // well below the surface) and with the cave's scale.
+            hswell *= 0.92;
+            vswell *= 0.92;
+            if (u9 < 0.011)
+            {
+                double u10 = rand.NextDouble();
+                double deepFrac = Math.Clamp(1.0 - (y - floorY) / Math.Max(8.0, def.Depth), 0, 1);
+                double boost = (0.8 + u10 * 2.2) * def.Scale * (0.6 + 1.4 * deepFrac);
+                hswell += boost;
+                vswell += boost * 0.45;
+            }
 
             // Dive at the design dip until the target depth, then level out.
             double target = y > floorY ? -dip : 0;
@@ -2018,9 +2042,14 @@ public class LandmassGeneratorModSystem : ModSystem
             y += Math.Sin(vert);
             if (y < 8) y = 8;
 
-            double r = Math.Max(1.5, radius * (0.7 + 0.6 * Math.Sin(t * Math.PI)) + pulse * 0.9);
-            double v = Math.Max(1.45, r * def.Squash);
-            CarveStep(w, def, x, y, z, r, v, i < mouthSteps);
+            double r = Math.Min(13.0, Math.Max(1.5, radius * (0.7 + 0.6 * Math.Sin(t * Math.PI)) + pulse * 0.9 + hswell));
+            double v = Math.Min(10.0, Math.Max(1.45, r * def.Squash + vswell * 0.5));
+            if (!buried)
+            {
+                int g = DesignedGround(w, (int)Math.Floor(x), (int)Math.Floor(z));
+                if (g - (y + v) >= 2) buried = true;
+            }
+            CarveStep(w, def, x, y, z, r, v, i < mouthSteps || (!buried && i < 26));
             path.Add((x, y, z, hor));
         }
 
@@ -2042,10 +2071,29 @@ public class LandmassGeneratorModSystem : ModSystem
         }
     }
 
+    // The ground height the ISLAND DESIGN puts at this column. Never use the
+    // engine heightmap here: it can still hold the pre-island seabed after
+    // our bulk fills, which once clamped the whole cave down to "3 blocks
+    // under the old ocean floor" and reduced it to a few deep pockets. Our
+    // own ColumnSurface is the truth the carve was designed against, and it
+    // is exactly what the previewer replays.
+    private int DesignedGround(CaveWork w, int x, int z)
+    {
+        IslandJob job = w.Job;
+        if (x < job.MinX || x >= job.MinX + job.W || z < job.MinZ || z >= job.MinZ + job.H)
+            return int.MinValue / 2;
+        long key = ((long)(x - job.MinX) << 21) | (uint)(z - job.MinZ);
+        if (w.HeightCache.TryGetValue(key, out int g)) return g;
+        g = ColumnSurface(job, x, z, job.SeaLevel, out int topY, out _, out _, out _, out _, out _)
+            ? topY : int.MinValue / 2;
+        w.HeightCache[key] = g;
+        return g;
+    }
+
     // Hollow one step's ellipsoid. Two safety rules, both from vanilla: skip
     // the WHOLE step if any fluid sits within the padded radius (never breach
     // the ocean or a pond), and keep a 3-block roof below each column's
-    // terrain height so tunnels never open skylights, except at the mouth,
+    // designed ground so tunnels never open skylights, except at the mouth,
     // which must cut the open cliff face.
     private void CarveStep(CaveWork w, CaveDef def, double cx, double cy, double cz, double hr, double vr, bool mouth)
     {
@@ -2078,13 +2126,7 @@ public class LandmassGeneratorModSystem : ModSystem
             {
                 if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) continue;
 
-                long key = ((long)(xx - job.MinX) << 21) | (uint)(zz - job.MinZ);
-                if (!w.HeightCache.TryGetValue(key, out int ground))
-                {
-                    pos.Set(xx, job.SeaLevel, zz);
-                    ground = sapi.World.BlockAccessor.GetTerrainMapheightAt(pos);
-                    w.HeightCache[key] = ground;
-                }
+                int ground = DesignedGround(w, xx, zz);
                 int roof = mouth ? int.MaxValue : ground - 3;
 
                 int yTop = Math.Min(sapi.WorldManager.MapSizeY - 3, (int)Math.Ceiling(cy + vr));

@@ -82,6 +82,15 @@ numbers.
   heading back toward the design bearing every step (shortest arc, RNG-free).
   Same idea as the vertical dip target. Fork angles need capping too (40-86
   degrees) or side galleries run back out of the island.
+- **Clamp caves against the DESIGNED surface, not the engine heightmap.**
+  The cave roof clamp first used GetTerrainMapheightAt, which still held the
+  pre-island ocean seabed after our bulk fills, so "keep 3 blocks under the
+  surface" became "carve nothing above the old sea floor": in-game caves came
+  out as tiny deep pockets with no visible mouth while the previewer showed
+  a full system. Michael caught it by noclipping inside. The generator's own
+  ColumnSurface is the ground truth for anything the generator itself built;
+  it is also exactly what the previewer replays, so preview and game cannot
+  disagree about the clamp again.
 - **The cave fluid guard silently deletes tunnel.** Any carve step whose
   padded ellipsoid touches water is skipped whole (that is what keeps the
   ocean out), so a walk that leaves the island's underground footprint just

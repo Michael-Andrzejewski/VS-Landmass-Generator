@@ -121,14 +121,17 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 A `cave` line declares a hand-placed cave system; every map cell holding its
 char becomes an entrance. Carving works the way the game's own cave generator
 does: a tunnel is a one-block-per-step walk whose direction drifts with
-momentum-smoothed noise, hollowing a tapered ellipsoid at each step. Two of
-vanilla's safety rules are kept: a step that would touch any water is skipped
-whole (a cave beside the ocean can never breach it), and the tunnel always
-keeps a 3-block roof below the surface so it never opens skylights. The mouth
-is the exception: it cuts through the hill face on purpose, so the entrance
-is open from outside.
+momentum-smoothed noise, hollowing a tapered ellipsoid at each step, and
+random widening impulses occasionally blow the tunnel out into large
+chambers, bigger the deeper the tunnel is (vanilla's big underground rooms,
+reproduced). Two of vanilla's safety rules are kept: a step that would touch
+any water is skipped whole (a cave beside the ocean can never breach it),
+and the tunnel always keeps a 3-block roof below the surface so it never
+opens skylights. The mouth is the exception: it stays in open-carve mode
+until the tunnel is genuinely buried, so the entrance always reaches
+daylight.
 
-    cave M heading=auto dip=13 length=110 radius=2.7 weave=0.55 branches=3 branchdepth=2 depth=34 mouth=3 ores=copper:0.06
+    cave M heading=auto dip=13 length=95 radius=2.7 weave=0.45 scale=1.6 branches=3 branchdepth=2 depth=30 mouth=3 ores=copper:0.06 seed=2
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -138,6 +141,7 @@ is open from outside.
 | `radius` | 2.6 | Horizontal carve radius. The tunnel tapers toward both ends and swells and narrows along the way. |
 | `squash` | 0.72 | Vertical radius as a fraction of `radius` (flatter than wide, like real tunnels). |
 | `weave` | 0.5 | How much the tunnel wanders, 0 dead straight to 1 very windy. |
+| `scale` | 1 | Overall size multiplier (0.5 to 4): scales the tunnel radius AND the chamber events. `scale=2` makes a grand cavern system out of the same layout. |
 | `branches` | 2 | Side tunnels forked off the main run. |
 | `branchdepth` | 2 | How many levels deep branches may branch again. |
 | `depth` | 60 | The tunnel levels out this many blocks below its mouth. |

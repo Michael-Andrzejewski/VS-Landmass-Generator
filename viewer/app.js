@@ -75,7 +75,7 @@ function parseShape(text) {
     } else if (/^cave$/i.test(tok[0]) && tok.length >= 2) {
       // Defaults MUST match ParseCave in the C# mod.
       const d = {
-        headingDeg: NaN, dip: 12, length: 80, radius: 2.6, squash: 0.72, weave: 0.5,
+        headingDeg: NaN, dip: 12, length: 80, radius: 2.6, squash: 0.72, weave: 0.5, scale: 1,
         branches: 2, branchDepth: 2, depth: 60, mouth: 2, seed: 0, oreName: null, oreChance: 0,
       };
       for (let i = 2; i < tok.length; i++) {
@@ -87,6 +87,7 @@ function parseShape(text) {
         else if (k === 'radius') d.radius = Math.min(8, Math.max(1.2, parseFloat(v) || 2.6));
         else if (k === 'squash') d.squash = Math.min(1.5, Math.max(0.4, parseFloat(v) || 0.72));
         else if (k === 'weave') d.weave = Math.min(1, Math.max(0, parseFloat(v) || 0));
+        else if (k === 'scale') d.scale = Math.min(4, Math.max(0.5, parseFloat(v) || 1));
         else if (k === 'branches') d.branches = Math.min(8, Math.max(0, Math.trunc(parseFloat(v) || 2)));
         else if (k === 'branchdepth') d.branchDepth = Math.min(4, Math.max(0, Math.trunc(parseFloat(v) || 2)));
         else if (k === 'depth') d.depth = Math.min(200, Math.max(4, parseFloat(v) || 60));
@@ -340,7 +341,7 @@ function traceCaves(island, domeHeight) {
     const sx = ex + 0.5 - Math.cos(hor) * 3, sz = ez + 0.5 - Math.sin(hor) * 3;
     mouths.push({ x: ex, y: mouthY, z: ez });
     walk(def, sx, mouthY + 1.6, sz, hor, def.dip * Math.PI / 180, Math.trunc(def.length) + 3,
-      def.radius, mouthY + 1.6 - def.depth, def.branches, def.branchDepth, new CaveRand(seed), 0);
+      def.radius * def.scale, mouthY + 1.6 - def.depth, def.branches, def.branchDepth, new CaveRand(seed), 0);
   }
 
   // Emulates the carver's fluid guard: a step whose padded ellipsoid reaches
@@ -363,6 +364,7 @@ function traceCaves(island, domeHeight) {
   function walk(def, x, y, z, hor, dip, length, radius, floorY, branches, branchDepth, rand, level) {
     const path = [];
     let mh = 0, mv = 0, pulse = 0, vert = -dip * 0.5;
+    let hswell = 0, vswell = 0;
     const hor0 = hor;
     const homing = 0.03 + 0.05 * (1 - def.weave);
     for (let i = 0; i < length; i++) {
@@ -372,6 +374,7 @@ function traceCaves(island, domeHeight) {
       const u3 = rand.nextDouble(), u4 = rand.nextDouble();
       const u5 = rand.nextDouble();
       const u7 = rand.nextDouble(), u8 = rand.nextDouble();
+      const u9 = rand.nextDouble();
       mh = 0.9 * mh + (u1 * 2 - 1) * u2;
       hor += def.weave * 0.25 * mh;
       if (u5 < 0.018) hor += (rand.nextDouble() - 0.5) * (Math.PI / 2);
@@ -379,6 +382,15 @@ function traceCaves(island, domeHeight) {
       mv = 0.9 * mv + (u3 * 2 - 1) * u4;
       vert += def.weave * 0.05 * mv;
       pulse = 0.9 * pulse + (u7 * 2 - 1) * u8;
+      hswell *= 0.92;
+      vswell *= 0.92;
+      if (u9 < 0.011) {
+        const u10 = rand.nextDouble();
+        const deepFrac = Math.min(Math.max(1 - (y - floorY) / Math.max(8, def.depth), 0), 1);
+        const boost = (0.8 + u10 * 2.2) * def.scale * (0.6 + 1.4 * deepFrac);
+        hswell += boost;
+        vswell += boost * 0.45;
+      }
       const target = y > floorY ? -dip : 0;
       vert += (target - vert) * 0.12;
       vert = Math.min(Math.max(vert, -0.85), 0.3);
@@ -387,8 +399,8 @@ function traceCaves(island, domeHeight) {
       z += Math.sin(hor) * cv;
       y += Math.sin(vert);
       if (y < -102) y = -102; // the C# clamp at absolute y=8 (sea level ~110)
-      const r = Math.max(1.5, radius * (0.7 + 0.6 * Math.sin(t * Math.PI)) + pulse * 0.9);
-      const v = Math.max(1.45, r * def.squash);
+      const r = Math.min(13, Math.max(1.5, radius * (0.7 + 0.6 * Math.sin(t * Math.PI)) + pulse * 0.9 + hswell));
+      const v = Math.min(10, Math.max(1.45, r * def.squash + vswell * 0.5));
       steps.push({ x, y, z, r, v, level, wet: touchesWater(x, y, z, r, v) });
       path.push({ x, y, z, hor });
     }
