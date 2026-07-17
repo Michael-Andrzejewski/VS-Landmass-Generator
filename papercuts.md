@@ -217,3 +217,13 @@ numbers.
   when its roll hits, 4 doubles + 1 uint per branch), same constants. Any
   drift and the preview shows a cave the game will not carve. Both sides
   carry a comment saying to change them together.
+- **PowerShell `>` redirection writes UTF-16, and the previewer reads UTF-8.**
+  `python gen.py > shapes/x.txt` from PowerShell produced a UTF-16-LE file:
+  the GAME still read it fine (File.ReadAllLines detects the BOM), but the
+  previewer's fetch decoded it as UTF-8 into NUL-riddled garbage, showing
+  "0 columns / no caves declared" for a perfectly good shape. Worse, that
+  failed build left the camera radius NaN (Math.max propagates NaN), so even
+  a good reload rendered nothing until the page was reopened (now guarded in
+  refresh()). Regenerate shapes from bash, or pass -Encoding utf8 explicitly;
+  if the viewer shows 0 columns, check the file's first bytes before
+  debugging the parser.

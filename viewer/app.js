@@ -700,7 +700,10 @@ function refresh() {
   const dia = parseInt(document.getElementById('dia').value, 10) || 150;
   const hgt = parseInt(document.getElementById('hgt').value, 10) || 8;
   const stats = rebuild(currentShape, dia, hgt);
-  rad = Math.max(rad, stats.size * 1.1);
+  // A failed load can leave rad NaN (Math.max propagates it), which blanks
+  // the canvas forever; re-seed it from the island size instead.
+  const fit = isFinite(stats.size) ? stats.size * 1.1 : 260;
+  rad = isFinite(rad) ? Math.max(rad, fit) : fit;
   updateCam();
   info.textContent = `${sel.value}: ${stats.columns.toLocaleString()} columns`
     + (stats.caveMouths
