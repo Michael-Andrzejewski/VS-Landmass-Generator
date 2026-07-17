@@ -91,7 +91,15 @@ numbers.
   ColumnSurface is the ground truth for anything the generator itself built;
   it is also exactly what the previewer replays, so preview and game cannot
   disagree about the clamp again.
-- **The cave fluid guard silently deletes tunnel.** Any carve step whose
+- **A cave mouth's open-carve window must end on BURIAL, not a step count.**
+  With "doorway mode" fixed at the first 7 steps, entrances frequently sealed
+  themselves: past step 7 the entry section preserved the surface block, so
+  on the rising hill face the tube's top got clipped and the tunnel began a
+  few blocks INSIDE the hill with no opening (Michael hit this on every
+  island). Doorway mode now runs until the tube top is 5+ blocks under the
+  designed ground. The 5 matters too: the island's soil skin is 3 blocks, so
+  a roof clamp of ground-3 gave DIRT cave ceilings; ground-5 keeps every
+  ceiling in rock with a spare stone layer above it. Any carve step whose
   padded ellipsoid touches water is skipped whole (that is what keeps the
   ocean out), so a walk that leaves the island's underground footprint just
   stops existing: the first starter-mine layout lost HALF its steps this way

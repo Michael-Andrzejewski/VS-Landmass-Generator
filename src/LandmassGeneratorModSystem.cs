@@ -2057,14 +2057,21 @@ public class LandmassGeneratorModSystem : ModSystem
             double v = Math.Min(10.0, Math.Max(1.45, r * def.Squash + vswell * 0.5));
             if (!buried)
             {
+                // Buried = the tube's top sits 5+ blocks under the designed
+                // ground: past the 3-block soil skin with stone above the
+                // ceiling, and safely below the normal roof clamp, so the
+                // moment doorway mode ends nothing clips the tunnel.
                 int g = DesignedGround(w, (int)Math.Floor(x), (int)Math.Floor(z));
-                if (g - (y + v) >= 2) buried = true;
+                if (g - (y + v) >= 5) buried = true;
             }
-            // Doorway steps cut the hill face open; shallow (not yet buried)
-            // steps merely ignore the roof clamp, so the level entry adit
-            // never trenches the ground above itself.
-            int mouthKind = i < mouthSteps ? 2
-                : !buried && i < mouthSteps + def.Entry + 14 ? 1 : 0;
+            // Doorway mode cuts the hill face open and lasts until the
+            // tunnel is genuinely buried (a fixed step count stopped short
+            // of the face and left the mouth sealed a few blocks in). If a
+            // tunnel is STILL shallow after the cap, it merely keeps the
+            // surface intact instead of trenching it.
+            int mouthKind = mouthSteps > 0 && !buried
+                ? (i < 26 ? 2 : 1)
+                : 0;
             CarveStep(w, def, x, y, z, r, v, mouthKind);
             path.Add((x, y, z, hor));
         }
@@ -2147,9 +2154,11 @@ public class LandmassGeneratorModSystem : ModSystem
                 if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) continue;
 
                 int ground = DesignedGround(w, xx, zz);
-                // Doorway: carve anything. Shallow entry: keep at least the
-                // surface block, so the ground never opens. Normal: 3 roof.
-                int roof = mouthKind == 2 ? int.MaxValue : mouthKind == 1 ? ground - 1 : ground - 3;
+                // Doorway: carve anything. Shallow: keep at least the
+                // surface block, so the ground never opens. Normal: stay 5
+                // under the ground, which puts the ceiling below the 3-block
+                // soil skin: cave ceilings are always ROCK, never dirt.
+                int roof = mouthKind == 2 ? int.MaxValue : mouthKind == 1 ? ground - 1 : ground - 5;
 
                 int yTop = Math.Min(sapi.WorldManager.MapSizeY - 3, (int)Math.Ceiling(cy + vr));
                 for (int yy = Math.Max(5, (int)Math.Floor(cy - vr)); yy <= yTop; yy++)
