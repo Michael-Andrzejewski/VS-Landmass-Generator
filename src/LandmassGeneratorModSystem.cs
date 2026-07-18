@@ -372,6 +372,7 @@ public class LandmassGeneratorModSystem : ModSystem
         // before the first block write, or writes are silently dropped.
         public bool ChunksRequested, ChunksLoaded;
         public int WaitTicks;
+        public int LastMissing = int.MaxValue;
 
         // deposits natural / deposits=natural: after terrain, run the game's own
         // GenDeposits over the island's chunk columns, so the stone carries the
@@ -1337,16 +1338,21 @@ public class LandmassGeneratorModSystem : ModSystem
             {
                 job.ChunksLoaded = true;
             }
-            else if (job.WaitTicks++ < 750)
-            {
-                if (job.WaitTicks == 1)
-                    ReportIsland(job, $"Loading {missing} chunk column(s) under the island before building...");
-                return;
-            }
             else
             {
+                // Keep waiting as long as the loader is making progress; only
+                // give up after 30s of NO new columns (big islands can take
+                // longer than 30s in total, and that is fine).
+                if (missing < job.LastMissing)
+                {
+                    if (job.LastMissing == int.MaxValue)
+                        ReportIsland(job, $"Loading {missing} chunk column(s) under the island before building...");
+                    job.LastMissing = missing;
+                    job.WaitTicks = 0;
+                }
+                if (job.WaitTicks++ < 750) return;
                 job.ChunksLoaded = true;
-                ReportIsland(job, $"WARNING: {missing} chunk column(s) still not loaded after 30s; parts of the island may be missing. Stand closer to the target area and regenerate.");
+                ReportIsland(job, $"WARNING: {missing} chunk column(s) never loaded (30s without progress); parts of the island may be missing. Stand closer to the target area and regenerate.");
             }
         }
 
