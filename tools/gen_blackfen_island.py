@@ -42,7 +42,14 @@ MERES = [
     (-4.0, 14.0, 5.0, 4.0),
     (-22.0, 12.0, 4.0, 3.0),
     (2.0, -2.0, 3.5, 3.0),
+    (24.0, -4.0, 4.0, 3.0),
+    (-5.0, -21.0, 4.5, 3.0),
 ]
+
+# Flooded marsh wedges: the two coast inlets widen into shallow drowned
+# flats (flood=1) that cut deep into the fen. Swamp cypress stands in the
+# water and reed beds clump through it; a raft cannot cross, a player wades.
+MARSHES = [(105.0, 20.0, 0.50), (255.0, 17.0, 0.55)]   # (bearing, half-angle, t inner edge)
 
 HOLLOWS = [(-16.0, 8.0, 9.0), (12.0, -10.0, 8.0), (22.0, 2.0, 6.0), (-6.0, -20.0, 6.5)]
 HUMMOCKS = [(-8.0, -30.0, 6.0), (24.0, -20.0, 5.0), (-28.0, -8.0, 5.0), (8.0, 24.0, 6.0), (-14.0, 24.0, 4.5)]
@@ -102,6 +109,10 @@ def region(c, r):
             if math.hypot(dx - ux, dz - uz) < ur:
                 return 'H'
 
+    for (mb, mh, mt) in MARSHES:
+        if adist(ang, mb) < mh and t > mt:
+            return 'W'
+
     if t > 0.90:
         return 'A'
     return 'F'
@@ -130,8 +141,10 @@ def main():
     print("# (ores=coal seams AND deposits natural, so propick reads honestly).")
     print("# Meres M hold cattails, lilies and blue clay; hollows D grow the")
     print("# killer mushroom guild under swamp cypress; hummocks H are the only")
-    print("# dry-ish ground. Knoll R hosts the BOG MINE (V), walls seamed with")
-    print("# coal. Cool sodden tint (6C rain 0.95) baked into every region.")
+    print("# dry-ish ground. Both coast inlets widen into flooded marsh W:")
+    print("# knee-deep drowned flats with cypress standing IN the water and")
+    print("# clumped reed beds, unraftable, wadeable. Knoll R hosts the BOG")
+    print("# MINE (V), walls seamed with coal. Cool sodden tint everywhere.")
     print("# Structures reserved (later pass): drowned ruin in the great mere,")
     print("# peat-cutter's camp on a hummock, props in the bog mine.")
     print()
@@ -139,6 +152,7 @@ def main():
     print(f"region F rock=shale rock2=claystone surface=peat ores=coal:0.02 forest=0.012 trees=baldcypressswamp,riverbirch bushes=cranberry:0.010,cloudberry:0.008,blueberry:0.005 scatter=heather:0.012,horsetail:0.010,fieldmushroom:0.004,commonmorel:0.003 wildgrass=0.22 sticks=0.03 stones=0.004 height=0.48 shore=8 rough=0.04 {clim}")
     print(f"region A rock=shale rock2=claystone surface=peat cattails=0.30 clay=0.05 wildgrass=0.15 stones=0.004 height=0.30 shore=6 rough=0.03 {clim}")
     print(f"region M rock=shale rock2=claystone surface=peat pond=2 cattails=0.45 lilies=0.10 clay=0.35 height=0.48 shore=8 {clim}")
+    print(f"region W rock=shale rock2=claystone surface=peat flood=1 forest=0.022 trees=baldcypressswamp cattails=0.35 height=0.30 shore=8 rough=0.03 {clim}")
     print(f"region D rock=shale rock2=claystone surface=peat ores=coal:0.02 forest=0.050 trees=baldcypressswamp scatter=jackolantern:0.007,deathcap:0.006,elfinsaddle:0.005,devilbolete:0.004,ghostpipewhite:0.006,ghostpipered:0.003,blacktrumpet:0.004 wildgrass=0.10 sticks=0.05 height=0.44 shore=8 rough=0.05 {clim}")
     print(f"region H rock=shale rock2=claystone fertility=low surface=grass forest=0.030 trees=scotspine,dwarfbirch bushes=birch:0.010,blueberry:0.006 scatter=westerngorse:0.008,heather:0.010,wilddaisy:0.004 wildgrass=0.30 sticks=0.03 height=0.85 shore=8 rough=0.10 {clim}")
     print(f"region R rock=shale rock2=claystone surface=rocksand boulders=0.012 stones=0.03 height=1.0 shore=4 rough=0.16 {clim}")
