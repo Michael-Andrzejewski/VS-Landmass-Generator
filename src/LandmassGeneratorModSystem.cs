@@ -2694,12 +2694,20 @@ public class LandmassGeneratorModSystem : ModSystem
     // is the same), so re-running is safe; only the surface-relative ores move
     // up into the new rock, which is the point.
     //
-    // We drive a PRIVATE GenDeposits instance, exactly the way the prospecting
-    // pick's ProPickWorkSpace does (setApi + initAssets(blockCallbacks: false)
-    // + initWorldGen). blockCallbacks: false routes every write through plain
-    // chunk-data sets, so nothing touches the real worldgen thread's block
-    // accessor. One reflection read (GenPartial.chunkRand) lets us position-seed
-    // the walk per neighbour chunk like GenChunkColumn does.
+    // We drive a PRIVATE GenDeposits instance, the way the prospecting pick's
+    // ProPickWorkSpace does (setApi + initAssets + initWorldGen), except with
+    // blockCallbacks: true. The pro pick passes false because it only reads
+    // statistics, but false strips withBlockCallback from every deposit, and
+    // saltpeter NEEDS its callback: the deposit targets cave AIR and the
+    // callback (BlockFullCoating.TryPlaceBlockForWorldGen) picks the coating
+    // variant from which neighbour faces are solid. Without it, the raw-write
+    // branch stamps floor-variant saltpeter-d into the whole disc of air,
+    // attached to nothing, and every crust pops into an item on the first
+    // neighbour update. Callbacks write through our instance's blockAccessor,
+    // which setApi points at the plain world accessor (we never attach the
+    // worldgen thread's), and the replay runs on the main thread: safe.
+    // One reflection read (GenPartial.chunkRand) lets us position-seed the
+    // walk per neighbour chunk like GenChunkColumn does.
 
     private Vintagestory.ServerMods.GenDeposits _depositGen;
     private FieldInfo _depositChunkRandField;
@@ -2713,7 +2721,7 @@ public class LandmassGeneratorModSystem : ModSystem
             var gd = new Vintagestory.ServerMods.GenDeposits();
             gd.addHandbookAttributes = false;   // the real instance already wrote those
             gd.setApi(sapi);
-            gd.initAssets(sapi, blockCallbacks: false);
+            gd.initAssets(sapi, blockCallbacks: true);
             gd.initWorldGen();
             _depositChunkRandField = typeof(Vintagestory.ServerMods.GenPartial)
                 .GetField("chunkRand", BindingFlags.NonPublic | BindingFlags.Instance);
