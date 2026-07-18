@@ -2782,8 +2782,17 @@ public class LandmassGeneratorModSystem : ModSystem
                 {
                     chunks[cy] = sapi.WorldManager.GetChunk(cx, cy, cz);
                     if (chunks[cy] == null) { loaded = false; break; }
+                    // The island takes minutes to build and the server packs
+                    // idle chunk data away in seconds. GenDeposits reads Data
+                    // raw (GetBlockIdUnsafe skips the packed check by design),
+                    // so a packed chunk NREs inside the vanilla generator.
+                    chunks[cy].Unpack();
                 }
                 if (!loaded) { missing++; continue; }
+                // The generator also reads these without null checks.
+                IMapChunk depMc = chunks[0].MapChunk;
+                if (depMc?.WorldGenTerrainHeightMap == null || depMc.RainHeightMap == null || depMc.MapRegion == null)
+                { missing++; continue; }
 
                 // Deposits centred up to `range` chunks away spill into this
                 // column, exactly like vanilla GenChunkColumn's neighbour walk.
@@ -2806,7 +2815,7 @@ public class LandmassGeneratorModSystem : ModSystem
             }
 
         string note = $". Natural ore deposits re-rolled across {done} chunk column(s)";
-        if (missing > 0) note += $" ({missing} column(s) skipped: not loaded)";
+        if (missing > 0) note += $" ({missing} column(s) skipped: not loaded or missing worldgen maps)";
         return note;
     }
 
