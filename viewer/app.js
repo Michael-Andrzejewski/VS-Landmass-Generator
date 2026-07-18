@@ -210,13 +210,19 @@ function buildIsland(shape, diameter, domeHeight) {
     for (let x = 0; x < W; x++) {
       const c = shape.cells[z][x];
       if (c !== '.' && shape.regions[c]) {
-        rawH[z * W + x] = shape.regions[c].height;
+        // Flooded regions count as height 0 (water level), like the mod.
+        rawH[z * W + x] = shape.regions[c].flood > 0 ? 0 : shape.regions[c].height;
         rawS[z * W + x] = shape.regions[c].shore;
         known[z * W + x] = 1;
       }
     }
   const heightField = smoothField(rawH, known, W, H, 5);
   const shoreField = smoothField(rawS, known, W, H, 5);
+  // Distance to the nearest DRY land cell: flood depth ramps from that edge.
+  const distToDry = distanceField((x, z) => {
+    const c = shape.cells[z][x];
+    return c !== '.' && shape.regions[c] && !(shape.regions[c].flood > 0);
+  }, W, H, false);
 
   const oceanRing = Math.max(24, diameter * 0.22);
   const water = 30; // /genisland default carve depth just off the coast
@@ -286,8 +292,13 @@ function buildIsland(shape, diameter, domeHeight) {
       if (mat === 'rocksand') mat = fbm(x * 0.9 / 40, z * 0.9 / 40, 4004) > 0.5 ? 'rock' : 'sand';
       if (reg.sandy > 0 && (mat === 'grass' || mat === 'barren')
         && fbm(x * 0.23 / 4, z * 0.23 / 4, 5005) > 1 - reg.sandy * 0.62) mat = 'sand';
-      // flood=: ground capped under the sea, water flows over (mirrors the mod).
-      if (reg.flood > 0 && topY > -1 - reg.flood) topY = -1 - reg.flood;
+      // flood=: ground sinks under the sea with depth ramping from the
+      // nearest dry land (mirrors the mod's DistToDry cap).
+      if (reg.flood > 0) {
+        const dDry = bilinear(distToDry, W, H, gx, gz) * wpc;
+        const cap = -1 - Math.round(reg.flood * smooth(dDry / 8));
+        if (topY > cap) topY = cap;
+      }
       return { topY, waterTop: topY < -1 ? -1 : -1000, mat, reg, cell };
     }
 

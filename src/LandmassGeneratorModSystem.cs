@@ -234,6 +234,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Sandy;              // fraction-ish of grass columns turned to sand, in noise blobs
         public double Pumpkins;           // chance per column of a wild pumpkin patch centre
         public int Flood;                 // region sits this many blocks under the sea: shallow flats
+        public double Kelp;               // flood region: chance per water column of a seaweed stalk
         public bool HasClimate;           // this region stamps its own plant-tint climate
         public int ClimTempRaw, ClimRainRaw;
         public List<BushSpec> Bushes = new();
@@ -253,6 +254,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public int LooseStoneId, LooseStoneId2, LooseStickId, LilyId, BoulderId, ClayId, ClaySparseId;
         public int PeatId, PeatSparseId;                         // surface=peat: bare + verysparse-grass peat
         public int WaterCattailId;                               // reeds growing IN 1-deep water (flood= flats)
+        public int KelpTopId, KelpSectionId;                     // kelp=: seaweed stalks in salt shallows
         public int SparseGrassId, SparseGrassId2;                // surface=barren: verysparse + sparse grass soil
         public int[] MotherIds = Array.Empty<int>();             // pumpkins=: crop-pumpkin mother plants
         public int[] VineIds = Array.Empty<int>();
@@ -334,6 +336,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public float[,] DistToOcean;  // land cell -> distance to the nearest water cell
         public float[,] DistToLand;   // water cell -> distance to the nearest land cell
         public float[,] HeightField;  // per-cell peak fraction, smoothed across region borders
+        public float[,] DistToDry;    // flood support: distance to the nearest dry land cell
         public float[,] ShoreField;   // per-cell shore width, smoothed across region borders
         public Dictionary<char, Region> Regions = new();
         public List<TreeMarker> Markers = new();
@@ -701,9 +704,28 @@ public class LandmassGeneratorModSystem : ModSystem
         shape.DistToOcean = DistanceField(isOcean, shape.W, shape.H, true);
         shape.DistToLand = DistanceField(isLand, shape.W, shape.H, false);
 
+        // Flooded regions need a third field: distance to the nearest DRY land
+        // cell. Their water depth ramps from zero at that edge, so a marsh
+        // meets the meadow as a smooth descent instead of a square step.
+        bool anyFlood = false;
+        foreach (Region fr in shape.Regions.Values) if (fr.Flood > 0) { anyFlood = true; break; }
+        if (anyFlood)
+        {
+            var isDry = new bool[shape.W, shape.H];
+            for (int z = 0; z < shape.H; z++)
+                for (int x = 0; x < shape.W; x++)
+                {
+                    char c = shape.Cells[x, z];
+                    isDry[x, z] = c != '.' && shape.Regions.TryGetValue(c, out Region rg2) && rg2.Flood == 0;
+                }
+            shape.DistToDry = DistanceField(isDry, shape.W, shape.H, false);
+        }
+
         // Per-cell height and shore, then smoothed so inland region borders ramp
         // into each other instead of forming vertical seams. Materials stay
-        // crisp; only the elevation blends.
+        // crisp; only the elevation blends. Flooded regions count as height 0
+        // (water level): the neighbouring meadow then ramps DOWN to the water
+        // through the smoothing, and the flood cap takes it under.
         var rawH = new float[shape.W, shape.H];
         var rawS = new float[shape.W, shape.H];
         for (int z = 0; z < shape.H; z++)
@@ -712,7 +734,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 char c = shape.Cells[x, z];
                 if (c != '.' && shape.Regions.TryGetValue(c, out Region rg))
                 {
-                    rawH[x, z] = (float)rg.Height;
+                    rawH[x, z] = rg.Flood > 0 ? 0f : (float)rg.Height;
                     rawS[x, z] = (float)rg.ShoreWidth;
                 }
             }
@@ -862,6 +884,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "sandy": r.Sandy = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "pumpkins": r.Pumpkins = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "flood": r.Flood = (int)Math.Clamp(ParseD(v, 1), 1, 3); break; // shallow sea over the region
+                case "kelp": r.Kelp = Math.Clamp(ParseD(v, 0), 0, 1); break;        // seaweed in the flooded water
                 case "climate": climateStr = v; break;   // this region's own plant tint
             }
         }
@@ -948,6 +971,13 @@ public class LandmassGeneratorModSystem : ModSystem
                 if (g != null) r.Trees.Add(g);
             }
             if (r.Trees.Count == 0) { r.Forest = 0; problems.Add($"region {r.Key}: no usable trees, forest off"); }
+        }
+
+        if (r.Kelp > 0)
+        {
+            r.KelpTopId = sapi.World.GetBlock(new AssetLocation("game", "seaweed-top"))?.BlockId ?? 0;
+            r.KelpSectionId = sapi.World.GetBlock(new AssetLocation("game", "seaweed-section"))?.BlockId ?? r.KelpTopId;
+            if (r.KelpTopId == 0) { r.Kelp = 0; problems.Add($"region {r.Key}: no seaweed blocks, kelp off"); }
         }
 
         if (r.Cattails > 0)
@@ -1579,11 +1609,17 @@ public class LandmassGeneratorModSystem : ModSystem
                 topY = pondN != null ? PondRim(job, pondN) - 1 : landY;
                 topMat = SurfaceMat(job, r, x, z);
 
-                // flood=: the region's ground is capped below sea level, and
-                // the sea flows over it: marsh flats, mangrove shallows,
-                // lurking reefs. Shallow enough to wade, too shallow to raft.
-                if (r.Flood > 0 && topY > job.SeaLevel - 1 - r.Flood)
-                    topY = job.SeaLevel - 1 - r.Flood;
+                // flood=: the region's ground sinks below sea level and the
+                // sea flows over it: marsh flats, mangrove shallows, lurking
+                // reefs. The depth RAMPS from zero at the nearest dry land
+                // (DistToDry) so the meadow descends into the water smoothly
+                // instead of stepping off a square edge.
+                if (r.Flood > 0 && s.DistToDry != null)
+                {
+                    double dDry = Bilinear(s.DistToDry, s.W, s.H, gx, gz) * job.WorldPerCell;
+                    int cap = job.SeaLevel - 1 - (int)Math.Round(r.Flood * Smooth(dDry / 8.0));
+                    if (topY > cap) topY = cap;
+                }
                 if (topY < job.SeaLevel - 1)
                 {
                     underwater = true;
@@ -1755,19 +1791,23 @@ public class LandmassGeneratorModSystem : ModSystem
         if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out int waterTopY, out Region reg))
             return;
 
-        // Waterlilies float on the pond's surface, so they go on the water
-        // columns themselves, before the dry-land gate below.
+        // Pond water columns: swamp trees stand in the knee-deep rim (a pond
+        // region with forest= grows cypress out of the mere), waterlilies
+        // float on the surface.
         if (reg != null && reg.Pond > 0)
         {
-            if (reg.Lilies > 0 && reg.LilyId != 0 && waterTopY > topY)
+            job.Rand.InitPositionSeed(x, z);
+            if (reg.Forest > 0 && waterTopY - topY == 1
+                && TryPlantTree(job, ba, pos, x, z, topY, reg))
             {
-                job.Rand.InitPositionSeed(x, z);
-                if (job.Rand.NextDouble() < reg.Lilies)
-                {
-                    pos.Set(x, waterTopY + 1, z);
-                    ba.SetBlock(reg.LilyId, pos);
-                    job.Plants++;
-                }
+                job.Trees++;
+                return;
+            }
+            if (reg.Lilies > 0 && reg.LilyId != 0 && waterTopY > topY && job.Rand.NextDouble() < reg.Lilies)
+            {
+                pos.Set(x, waterTopY + 1, z);
+                ba.SetBlock(reg.LilyId, pos);
+                job.Plants++;
             }
             return;
         }
@@ -1780,7 +1820,21 @@ public class LandmassGeneratorModSystem : ModSystem
         {
             job.Rand.InitPositionSeed(x, z);
             if (TryPlantTree(job, ba, pos, x, z, topY, reg)) { job.Trees++; return; }
-            if (reg.Cattails > 0 && reg.WaterCattailId != 0 && waterTopY - topY == 1
+            int depth = waterTopY - topY;
+            // Kelp: seaweed stalks rooted on the flooded bed, up to the
+            // surface. This is what belongs in SALT shallows.
+            if (reg.Kelp > 0 && reg.KelpTopId != 0 && depth >= 1 && job.Rand.NextDouble() < reg.Kelp)
+            {
+                int stalk = 1 + job.Rand.NextInt(Math.Min(depth, 3));
+                for (int i = 1; i <= stalk; i++)
+                {
+                    pos.Set(x, topY + i, z);
+                    ba.SetBlock(i == stalk ? reg.KelpTopId : reg.KelpSectionId, pos);
+                }
+                job.Plants++;
+                return;
+            }
+            if (reg.Cattails > 0 && reg.WaterCattailId != 0 && depth == 1
                 && job.SurfNoise.Noise(x * 0.045, z * 0.045) > 0.58
                 && job.Rand.NextDouble() < Math.Min(1.0, reg.Cattails * 2.2))
             {
