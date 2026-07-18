@@ -85,6 +85,25 @@ numbers.
   the exact IL instruction with System.Reflection.Metadata sequence points +
   ilspycmd -il, turning "something in this method is null" into "THIS
   dereference is null" with certainty.
+- **`initAssets(blockCallbacks: false)` does not just mute callbacks, it
+  REWRITES the deposit configs** (`variant.WithBlockCallback &= flag`), and
+  saltpeter cannot survive that. Its deposit targets cave AIR and relies on
+  its callback (BlockFullCoating.TryPlaceBlockForWorldGen) to read which
+  neighbour faces are solid and pick the matching coating variant
+  (saltpeter-d/-n/-nd/...); the callback also enforces the y-window and the
+  darkness check, and places nothing when no face is solid. With callbacks
+  stripped, GenDeposit's raw-write branch stamps floor-variant saltpeter-d
+  into every air cell of the disc, floating unattached, and each one pops
+  into a ground item on its first neighbour update (OnNeighbourBlockChange
+  drops a stack per lost face, breaks at zero). We had copied
+  blockCallbacks: false from ProPickWorkSpace, which only READS deposit
+  stats. Fixed in 0.28.2: pass true; writes go through our instance's
+  blockAccessor, which setApi points at the plain world accessor (the
+  worldgen thread's accessor is only attached by an event we never hook),
+  and the replay runs on the main thread, so that is safe. Note vanilla's
+  clay/peat use withLastLayerBlockCallback, a GENERATOR property the flag
+  never touched, so those callbacks had been firing through the plain
+  accessor all along: the proof it works.
 - **A resolver failing quietly downgrades a feature to "missing".** Every
   optional feature here reports resolution failures via the problems list;
   keep that pattern for anything new, and treat any problem line in chat as a
