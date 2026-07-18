@@ -296,3 +296,12 @@ numbers.
   worked. Batch big rects into bands (we use 256 columns) chained via
   ChunkLoadOptions.OnLoaded, and leave headroom for the players' own chunk
   loading sharing the same queue.
+
+- **Mod worldconfig lang keys need a specially named file.** The main menu
+  preloads world-config translations from `assets/game/lang/worldconfig-<locale>.json`
+  inside the mod (TranslationService.PreLoadModWorldConfig enumerates exactly
+  that filename), NOT from the normal `en.json`. Keys in `en.json` work
+  in-world but the Customize World tab and checkbox show raw lang keys at the
+  menu. Also: a mod worldconfig.json without `"playStyles": []` NREs the
+  vanilla world list, and the customize row label key is `worldattribute-<code>`
+  (with optional `-desc` hover), while the tab is `worldconfig-category-<category>`.
