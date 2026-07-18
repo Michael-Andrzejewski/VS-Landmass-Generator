@@ -151,6 +151,14 @@ public class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.OptionalAll("options"))
                 .HandleWith(OnGenIsland));
 
+        RegisterCmd(api, "genstoryloc", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Pin a vanilla story location at your position and regenerate the area so it appears now, without a world restart. Codes: resonancearchive, lazaret, village, devastationarea, tobiascave, treasurehunter. Optional chunk range overrides how far chunks are deleted for regeneration.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .RequiresPlayer()
+                .WithArgs(p.Word("code"), p.OptionalInt("range"))
+                .HandleWith(OnGenStoryLoc));
+
         api.Logger.Notification($"[landmassgenerator] Ready. Shape files go in: {shapeFolder}");
     }
 
@@ -173,6 +181,131 @@ public class LandmassGeneratorModSystem : ModSystem
                 api.Logger.Error($"[landmassgenerator] Could not register /{name} or /{alt}: {e2.Message}");
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  /genstoryloc: place a vanilla story location mid-session
+    //
+    //  Vanilla already has all the pieces: /wgen story setpos registers the
+    //  location and forces land + landform + climate into the map, and
+    //  /wgen delr deletes chunks AND their map regions so the next
+    //  generation pass rebuilds everything, structure included. The one
+    //  missing piece is the devastation: GenDevastationLayer, Timeswitch
+    //  and ModSystemDevastationEffects each snapshot the devastationarea
+    //  location ONCE at world load, so a mid-session setpos leaves them
+    //  pointing at the old spot (tower generates, devastated land does
+    //  not). This command chains the vanilla commands and re-points those
+    //  snapshots in between, so one command does the whole job.
+    // ─────────────────────────────────────────────────────────────────────
+
+    private TextCommandResult OnGenStoryLoc(TextCommandCallingArgs args)
+    {
+        string code = ((string)args[0] ?? "").ToLowerInvariant();
+
+        string lore = sapi.World.Config.GetAsString("loreContent", "true") ?? "true";
+        if (lore.Equals("false", StringComparison.OrdinalIgnoreCase) || lore == "0")
+        {
+            return TextCommandResult.Error("This world was created with lore content disabled, so story structures cannot generate at all.");
+        }
+
+        var genStory = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
+        if (genStory == null)
+        {
+            return TextCommandResult.Error("GenStoryStructures mod system not found; is the survival mod loaded?");
+        }
+
+        var pos = args.Caller.Entity.Pos;
+        int x = (int)pos.X, z = (int)pos.Z;
+
+        // 1. Vanilla setpos: writes the location registry entry and forces
+        //    land, landform and climate around it. Absolute coordinates so
+        //    there is no map-middle ambiguity.
+        TextCommandResult sub = null;
+        sapi.ChatCommands.ExecuteUnparsed(
+            $"/wgen story setpos {code} ={x} =1 ={z} true",
+            new TextCommandCallingArgs { Caller = args.Caller },
+            r => sub = r);
+        if (sub == null || sub.Status != EnumCommandStatus.Success)
+        {
+            return TextCommandResult.Error($"setpos step failed: {sub?.StatusMessage ?? "no response from /wgen story setpos"}");
+        }
+
+        var loc = genStory.Structures.Get(code);
+        if (loc == null)
+        {
+            return TextCommandResult.Error($"setpos reported success but no location was stored for '{code}'.");
+        }
+
+        string extra = "";
+        if (code == "devastationarea")
+        {
+            string failed = RepointDevastationSystems(genStory, loc);
+            if (failed != null)
+            {
+                return TextCommandResult.Error(
+                    $"Location was pinned, but re-pointing the devastation systems failed ({failed}). " +
+                    "A game update likely moved an internal field. Restarting the world instead will pick the location up correctly.");
+            }
+            extra = " Devastation layer, timeswitch and effects re-pointed.";
+        }
+
+        // 2. Vanilla delr: deletes chunk columns and their map regions so
+        //    everything (terrain, structure, devastation) regenerates.
+        int radius = Math.Max(loc.LandformRadius, loc.GenerationRadius) + 32;
+        int range = args.Parsers[1].IsMissing ? Math.Min(50, radius / 32 + 3) : GameMath.Clamp((int)args[1], 1, 50);
+        sub = null;
+        sapi.ChatCommands.ExecuteUnparsed(
+            $"/wgen delr {range}",
+            new TextCommandCallingArgs { Caller = args.Caller },
+            r => sub = r);
+        if (sub == null || sub.Status != EnumCommandStatus.Success)
+        {
+            return TextCommandResult.Error($"Location pinned{extra} but the chunk regen step failed: {sub?.StatusMessage ?? "no response from /wgen delr"}");
+        }
+
+        return TextCommandResult.Success(
+            $"{code} pinned at your position; {range * 32} blocks in every direction deleted for regeneration.{extra} " +
+            "Move or fly around the area and it regenerates with the structure in place.");
+    }
+
+    // The devastation systems cache the story location at world load. After a
+    // mid-session setpos, point them at the new location the same way their
+    // own InitWorldGen does. Returns null on success, or a description of
+    // what could not be updated.
+    private string RepointDevastationSystems(Vintagestory.GameContent.GenStoryStructures genStory, Vintagestory.ServerMods.StoryStructureLocation loc)
+    {
+        var deva = sapi.ModLoader.GetModSystem<Vintagestory.ServerMods.GenDevastationLayer>();
+        var timeswitch = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.Timeswitch>();
+        var effects = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.ModSystemDevastationEffects>();
+        if (deva == null || timeswitch == null || effects == null)
+        {
+            return "one of the devastation mod systems is missing";
+        }
+
+        var locField = deva.GetType().GetField("devastationLocation", BindingFlags.NonPublic | BindingFlags.Instance);
+        var dim2Field = deva.GetType().GetField("dim2Size", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (locField == null || dim2Field == null)
+        {
+            return "GenDevastationLayer internals changed";
+        }
+
+        locField.SetValue(deva, loc);
+        timeswitch.SetPos(loc.CenterPos);
+        int dim2Size = timeswitch.SetupDim2TowerGeneration(loc, genStory);
+        dim2Field.SetValue(deva, dim2Size);
+
+        effects.DevaLocationPresent = loc.CenterPos.ToVec3d();
+        effects.DevaLocationPast = loc.CenterPos.Copy().SetDimension(2).ToVec3d();
+        effects.EffectRadius = loc.GenerationRadius;
+
+        // Clients get the location once on join; push the new one so the
+        // fog and rift effects move without a relog.
+        sapi.Network.GetChannel("devastation").BroadcastPacket(new Vintagestory.GameContent.DevaLocation
+        {
+            Pos = loc.CenterPos,
+            Radius = loc.GenerationRadius
+        });
+        return null;
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -256,3 +256,11 @@ All verified against 1.22.3 assets. When in doubt, grep
   restarting and you get tower-but-no-devastation (and the fog/effects/past
   dimension point at the old spot). Recovery: restart, then
   `/wgen story rmsc devastationarea`, then `/wgen delr 22` at the site.
+- `/genstoryloc <code> [chunkRange]` (mod 0.30.0+) places a story location at
+  your feet mid-session: chains vanilla setpos + delr (delr also deletes map
+  regions, so the forced landform re-applies even in already-generated areas)
+  and, for devastationarea, re-points the three systems that snapshot the
+  location at world load (GenDevastationLayer, Timeswitch, devastation
+  effects) plus broadcasts the new location to clients. Default range covers
+  landformRadius + 32; everything in that square is DELETED and regenerates
+  as you fly around.
