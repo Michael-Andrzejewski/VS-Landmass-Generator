@@ -223,3 +223,29 @@ All verified against 1.22.3 assets. When in doubt, grep
   floating.
 - Run `/genisland shapes` and read the chat for region problem notes (missing
   blocks are reported, not silently dropped).
+
+## Vanilla story locations in the ocean world (verified 1.22)
+
+- `/wgen story setpos <code> <x 1 z> true` pins a story location; codes:
+  resonancearchive, lazaret, village, devastationarea, tobiascave,
+  treasurehunter. Plain coordinates are HUD/map-center relative, so with the
+  starter island at 0,0 the planned map coords work directly. Y is ignored.
+- setpos also forces LAND into the ocean map (patch radius = landformRadius
+  + 32, NaturalShape-grown to roughly double area, so ~650 blocks wide at
+  the vanilla radius 200), plus the required landform and, for the village,
+  climate. Structures generate only during CHUNK GENERATION; regen with
+  `/wgen delr N` if the area already generated as ocean.
+- Do all setpos calls immediately on first join (treasurehunter auto-rolls
+  within ~1100 of spawn and spawn chunks generate instantly), then restart
+  once so the auto-rolled forced-land entries are dropped; the forcing list
+  is rebuilt from saved locations at every world load.
+- Island size per location is `landformRadius` in
+  `worldgen/storystructures.json`; shrunk for Rustfall by the
+  extras/rustfall-story-tweaks patch mod (floors: must cover the schematic,
+  village is 195x225). Radius changes only affect newly generated chunks.
+- Never /genisland over a story site: the stamp would shred the schematic.
+  Treasure hunter therefore sits ~450 blocks off Forester Island as its own
+  islet.
+- `.mapzoom 0.1` (client command, mod 0.29.0+) zooms the map past vanilla's
+  0.25 floor to see the whole 12k world; map must be open. Very low values
+  load a lot of map chunks at once, don't go below ~0.05.
