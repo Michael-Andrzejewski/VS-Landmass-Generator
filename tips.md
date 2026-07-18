@@ -112,6 +112,16 @@ in [papercuts.md](papercuts.md).
   Pair with `rock=shale rock2=claystone` and `ores=coal:0.02` for honest
   coal country (`coal`, `quartz`, `sulfur` and the other ungraded minerals
   work in `ores=` and cave `ores=` since v0.26: one block, all grades).
+- **flood= puts the sea ON a region (v0.27+).** The region's ground caps
+  1-3 blocks below sea level and salt water flows over it: marsh flats a
+  raft cannot cross (Blackfen's drowned inlets), mangrove-style shallows
+  where the region's trees stand IN the water, and lurker reefs (a small
+  rock islet with `flood=1` sits one block under the surface, invisible
+  from a raft: Salt Teeth's 'U' shards). Waterline `cattails` everywhere
+  now clump into 20-40 block reed beds instead of an even hem, and a
+  flood region's cattails use the game's water reed inside 1-deep water.
+  A dry region checked BEFORE the flood wedge (a hummock, a knoll) becomes
+  an island inside the marsh for free.
 - **Salt is a ROCK, not an ore.** Vanilla halite comes as solid `rock-halite`
   domes inside sedimentary rock (claystone/sandstone/shale/chalk/limestone/
   chert/conglomerate). For a salt island, give the dome region

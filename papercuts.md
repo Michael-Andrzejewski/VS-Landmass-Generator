@@ -227,6 +227,19 @@ numbers.
   refresh()). Regenerate shapes from bash, or pass -Encoding utf8 explicitly;
   if the viewer shows 0 columns, check the file's first bytes before
   debugging the parser.
+- **Three "different" big-island bugs, one root cause: unloaded chunks.**
+  A 500-wide island came out with missing slices (bulk writes into unloaded
+  chunks are silently dropped), most climate strips never tinted
+  (StampClimate skips unloaded map regions), and the finish chain died with
+  an NRE in SyncHeightmapsAndDeposits (a map chunk existed with a null
+  WorldGenTerrainHeightMap). server-main.log had the stack; the chat showed
+  nothing because the exception killed the tick handler before the report.
+  Fixed in 0.27.0: a preload gate force-loads every chunk column under the
+  island (LoadChunkColumnPriority + wait loop that only gives up after 30s
+  WITHOUT loader progress), heightmap null guards, and a try/catch around
+  the finish chain that reports the error in chat. The lesson for any new
+  pass: never assume a chunk, map chunk, map region, or heightmap exists,
+  and never let a finish pass throw silently.
 - **The browser pane can lose its WebGL context, and stats survive while
   renders lie.** After two `computer` screenshot calls timed out, the pane's
   GPU process died: every capture came back blank (same byte count each
