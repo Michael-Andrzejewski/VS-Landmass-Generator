@@ -1,0 +1,12 @@
+{
+    "type": "content",
+    "modid": "rustfallstorytweaks",
+    "name": "Rustfall Story Tweaks",
+    "authors": ["Michael-Andrzejewski"],
+    "description": "Shrinks the forced landmasses around vanilla story locations. Made for the Rustfall ocean world, where the default patches read as oversized blobs next to hand-built islands.",
+    "version": "1.0.0",
+    "side": "Server",
+    "dependencies": {
+        "game": "1.22.0"
+    }
+}

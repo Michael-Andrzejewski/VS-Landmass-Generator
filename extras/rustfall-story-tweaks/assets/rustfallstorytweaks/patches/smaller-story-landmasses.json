@@ -1,0 +1,17 @@
+[
+	// landformRadius drives BOTH the flattened landform zone and the forced
+	// land patch in the ocean map (patch radius = landformRadius + 32, then
+	// NaturalShape roughly doubles its area). Vanilla uses 200 for everything
+	// but the devastation, which yields ~650-block blobs in an ocean world.
+	//
+	// Floors: the radius must still cover the schematic footprint.
+	// Schematic sizes (1.22): resoarchive 204x171, lazaret 50x62,
+	// village 195x225, tobiascave 197x190, treasurehunter 18x19.
+	// Structure array order: 0 resonancearchive, 1 lazaret, 2 village,
+	// 3 devastationarea (untouched), 4 tobiascave, 5 treasurehunter.
+	{ "op": "replace", "path": "/structures/0/landformRadius", "value": 150, "file": "game:worldgen/storystructures.json", "side": "Server" },
+	{ "op": "replace", "path": "/structures/1/landformRadius", "value": 100, "file": "game:worldgen/storystructures.json", "side": "Server" },
+	{ "op": "replace", "path": "/structures/2/landformRadius", "value": 160, "file": "game:worldgen/storystructures.json", "side": "Server" },
+	{ "op": "replace", "path": "/structures/4/landformRadius", "value": 150, "file": "game:worldgen/storystructures.json", "side": "Server" },
+	{ "op": "replace", "path": "/structures/5/landformRadius", "value": 80, "file": "game:worldgen/storystructures.json", "side": "Server" }
+]
