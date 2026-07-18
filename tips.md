@@ -277,3 +277,15 @@ All verified against 1.22.3 assets. When in doubt, grep
   spawn land patch is hardcoded (ForceRandomLandArea, radius 128 at map
   center) and must be cleared from GenMaps.requireLandAt plus delr'd to
   make 0,0 open ocean.
+- Pure ocean has THREE land sources, not one (all verified in 1.22 code):
+  landcover rolls ~1km continent cells (0 = none); upheavelCommonness
+  raises seafloor independently (0 = none); and the LANDFORM map still
+  rolls normal landforms under the ocean, which GenTerra merely shifts
+  down by oceanicity * MapSizeY/256 * 0.333 (~85 blocks), so tall
+  landforms (largeislands, mountains...) breach the surface as random
+  small islands. 0.33.0 fixes the third source when the plan says
+  pureocean: every new map region's LandformMap is set to veryflat
+  outside story-location circles and its UpheavelMap zeroed
+  (MapRegionGeneration handler, runs after GenMaps by mod load order).
+  Regions generated BEFORE the flag was set keep their islands; delr
+  them or make the world fresh.

@@ -171,7 +171,87 @@ public class LandmassGeneratorModSystem : ModSystem
         // first player join of such a world, run the world setup once.
         api.Event.PlayerJoin += OnPlayerJoinMaybeRustfallSetup;
 
+        // Pure ocean, part 2. landcover 0 stops the continent roll and
+        // upheavelCommonness 0 stops raised seafloors, but GenTerra only
+        // SHIFTS the landform terrain down by oceanicity (~85 blocks at
+        // map height 256), so tall landforms rolled under the ocean still
+        // breach the surface as small random islands. In pure-ocean worlds
+        // flatten every landform cell to veryflat (except around story
+        // locations) and zero the upheaval map as each region generates.
+        // Registered after vanilla GenMaps' own handler (mod load order),
+        // so the maps exist and story landform forcing already ran.
+        api.Event.MapRegionGeneration(OnMapRegionGenPureOcean, "standard");
+
         api.Logger.Notification($"[landmassgenerator] Ready. Shape files go in: {shapeFolder}");
+    }
+
+    private int _pureOceanLandformIndex = int.MinValue;
+
+    private void OnMapRegionGenPureOcean(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
+    {
+        if (!sapi.WorldManager.SaveGame.WorldConfiguration.GetBool("lgPureOcean", false)) return;
+        var lfMap = mapRegion.LandformMap;
+        if (lfMap?.Data == null || lfMap.Data.Length == 0) return;
+
+        if (_pureOceanLandformIndex == int.MinValue)
+        {
+            _pureOceanLandformIndex = -1;
+            var byIndex = Vintagestory.ServerMods.NoiseLandforms.landforms?.LandFormsByIndex;
+            if (byIndex != null)
+            {
+                for (int i = 0; i < byIndex.Length; i++)
+                {
+                    if (byIndex[i].Code.Path == "veryflat") { _pureOceanLandformIndex = i; break; }
+                }
+            }
+            if (_pureOceanLandformIndex < 0)
+            {
+                sapi.Logger.Warning("[landmassgenerator] Pure ocean: landform 'veryflat' not found; underwater landforms stay vanilla and may breach the surface.");
+            }
+        }
+        if (_pureOceanLandformIndex < 0) return;
+
+        // Story locations keep their forced terrain. Their landform forcing
+        // wobbles cell positions by up to ~80 blocks, hence the margin.
+        var keeps = new List<(int X, int Z, long RadSq)>();
+        var genStory = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
+        if (genStory?.Structures != null)
+        {
+            foreach (var pair in genStory.Structures)
+            {
+                long r = pair.Value.LandformRadius + 128;
+                keeps.Add((pair.Value.CenterPos.X, pair.Value.CenterPos.Z, r * r));
+            }
+        }
+
+        int inner = lfMap.InnerSize;
+        int pad = lfMap.TopLeftPadding;
+        int size = lfMap.Size;
+        int cellSize = sapi.WorldManager.RegionSize / Math.Max(1, inner);
+        for (int iz = 0; iz < size; iz++)
+        {
+            for (int ix = 0; ix < size; ix++)
+            {
+                int wx = (regionX * inner + ix - pad) * cellSize;
+                int wz = (regionZ * inner + iz - pad) * cellSize;
+                bool keep = false;
+                for (int k = 0; k < keeps.Count; k++)
+                {
+                    long dx = wx - keeps[k].X, dz = wz - keeps[k].Z;
+                    if (dx * dx + dz * dz < keeps[k].RadSq) { keep = true; break; }
+                }
+                if (!keep) lfMap.Data[iz * size + ix] = _pureOceanLandformIndex;
+            }
+        }
+
+        // No raised seafloor anywhere either, regardless of what the world
+        // creation slider said. Vanilla already zeroes it around story
+        // locations; their forced land does not come from upheaval.
+        var upheavelMap = mapRegion.UpheavelMap;
+        if (upheavelMap?.Data != null && upheavelMap.Data.Length > 0)
+        {
+            Array.Clear(upheavelMap.Data, 0, upheavelMap.Data.Length);
+        }
     }
 
     private void OnPlayerJoinMaybeRustfallSetup(IServerPlayer byPlayer)
@@ -454,7 +534,11 @@ storyloc devastationarea -2550 -8750
             var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
             wc.SetString("landcover", "0");
             wc.SetString("upheavelCommonness", "0");
-            notes.Add("pure ocean on (landcover 0, upheavel 0)");
+            // Read by OnMapRegionGenPureOcean: flattens underwater landforms
+            // in every region generated from here on, so no seamount peaks
+            // breach the surface as random islands.
+            wc.SetBool("lgPureOcean", true);
+            notes.Add("pure ocean on (landcover 0, upheavel 0, underwater landforms flattened)");
         }
 
         // 2. Pin every story location via vanilla setpos (absolute coords).
