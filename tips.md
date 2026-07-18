@@ -246,6 +246,7 @@ All verified against 1.22.3 assets. When in doubt, grep
 - Never /genisland over a story site: the stamp would shred the schematic.
   Treasure hunter therefore sits ~450 blocks off Forester Island as its own
   islet.
-- `.mapzoom 0.1` (client command, mod 0.29.0+) zooms the map past vanilla's
+- `.mapzoom 0.1` (client command, standalone Map Zoom Out mod at
+  Desktop\vs-map-zoom) zooms the map past vanilla's
   0.25 floor to see the whole 12k world; map must be open. Very low values
   load a lot of map chunks at once, don't go below ~0.05.
