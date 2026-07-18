@@ -250,3 +250,9 @@ All verified against 1.22.3 assets. When in doubt, grep
   Desktop\vs-map-zoom) zooms the map past vanilla's
   0.25 floor to see the whole 12k world; map must be open. Very low values
   load a lot of map chunks at once, don't go below ~0.05.
+- Devastation ordering trap: GenDevastationLayer snapshots the devastationarea
+  location ONCE at world load (InitWorldGen), while the tower schematic reads
+  the live registry at chunkgen. Generate the area after a setpos WITHOUT
+  restarting and you get tower-but-no-devastation (and the fog/effects/past
+  dimension point at the old spot). Recovery: restart, then
+  `/wgen story rmsc devastationarea`, then `/wgen delr 22` at the site.
