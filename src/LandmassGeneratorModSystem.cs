@@ -591,6 +591,13 @@ storyloc devastationarea -2550 -8750
             {
                 for (int cz = ccz - clearSpawnRange; cz <= ccz + clearSpawnRange; cz++)
                 {
+                    // Keep a small core under the player. Deleting the ground
+                    // they stand on makes their client re-request those
+                    // columns every tick while worldgen retires them in
+                    // bursts, which is the perfect storm for a (vanilla)
+                    // request/retire race that kills the server. The starter
+                    // island overwrites this core anyway.
+                    if (Math.Abs(cx - ccx) <= 2 && Math.Abs(cz - ccz) <= 2) continue;
                     sapi.WorldManager.DeleteChunkColumn(cx, cz);
                 }
             }
@@ -617,7 +624,10 @@ storyloc devastationarea -2550 -8750
                 (loc.CenterPos.X - radius) / 32, (loc.CenterPos.Z - radius) / 32,
                 (loc.CenterPos.X + radius) / 32, (loc.CenterPos.Z + radius) / 32));
         }
-        if (queue.Count > 0) PregenNextStoryArea(queue, 0);
+        // Let the spawn-area churn settle before the pregen storm starts;
+        // simultaneous request and retire bursts on the chunk queue can
+        // trip a fatal race inside the vanilla request index.
+        if (queue.Count > 0) sapi.Event.RegisterCallback(_ => PregenNextStoryArea(queue, 0), 4000);
 
         string summary = $"World setup started: {sites.Count} story location(s) pinned"
             + (notes.Count > 0 ? "; " + string.Join("; ", notes) : "")
@@ -654,7 +664,7 @@ storyloc devastationarea -2550 -8750
         if (bandCz1 > s.Cz2)
         {
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] {s.Code} area generated.", EnumChatType.Notification);
-            PregenNextStoryArea(queue, idx + 1);
+            sapi.Event.RegisterCallback(_ => PregenNextStoryArea(queue, idx + 1), 2000);
             return;
         }
         int bandCz2 = Math.Min(s.Cz2, bandCz1 + rowsPerBand - 1);
@@ -663,7 +673,12 @@ storyloc devastationarea -2550 -8750
             sapi.WorldManager.LoadChunkColumnPriority(s.Cx1, bandCz1, s.Cx2, bandCz2, new ChunkLoadOptions
             {
                 KeepLoaded = false,
-                OnLoaded = () => PregenNextBand(queue, idx, bandCz2 + 1, rowsPerBand)
+                // The cooldown before the next request lets this band's
+                // requests retire first. Requesting a column in the same
+                // instant its previous request is retired can kill the
+                // server (vanilla GetOrAdd/TryRemove race in the chunk
+                // request index), so keep bursts temporally separated.
+                OnLoaded = () => sapi.Event.RegisterCallback(_ => PregenNextBand(queue, idx, bandCz2 + 1, rowsPerBand), 750)
             });
         }
         catch (Exception e)

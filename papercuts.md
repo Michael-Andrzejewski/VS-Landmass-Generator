@@ -305,3 +305,15 @@ numbers.
   menu. Also: a mod worldconfig.json without `"playStyles": []` NREs the
   vanilla world list, and the customize row label key is `worldattribute-<code>`
   (with optional `-desc` hover), while the tab is `worldconfig-category-<category>`.
+
+- **Requesting a chunk column while its previous request retires kills the
+  server.** Vanilla addChunkColumnRequest does GetOrAdd into the request
+  index while retirement does TryRemove(key) on other threads; lose the race
+  and EnqueueWithoutAddingToIndex throws "In queue but missed from index!",
+  which dies as "Exception during Process". Hit it when the world setup's
+  clearspawn deleted the columns under the player (their client re-requests
+  them every tick while regen retires them in bursts) plus back-to-back
+  pregen band requests. Cannot be caught from mod code (throws on a server
+  thread). Mitigation in 0.34.0: never delete the chunks under the player,
+  and separate every chunk request burst with RegisterCallback cooldowns
+  (750ms between bands, 2s between sites, 4s after clearspawn).
