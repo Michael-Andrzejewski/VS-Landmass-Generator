@@ -68,6 +68,23 @@ numbers.
   mother per patch and adopt every vine onto it by rewriting the BE's tree
   attributes (parentPlantPosX/Y/Z). Use the plain block accessor, not a bulk
   one, so the BE exists immediately after SetBlock.
+- **Loaded chunks PACK their block data away in seconds; vanilla worldgen
+  code assumes they never do.** Both v0.28 islands died in the finish pass
+  with an NRE inside vanilla's DiscDepositGenerator: the PDB mapped the crash
+  line to `chunks[y/32].Data.GetBlockIdUnsafe(...)`, and `Data` was null
+  because the server had packed (compressed) the chunks during the ~2 minutes
+  the island spent building. GenDeposits runs during chunk generation in
+  vanilla, so it never meets a packed chunk; a replay minutes later does.
+  `GetBlockIdUnsafe` is "unsafe" precisely because it skips the packed check.
+  Fix (0.28.1): call `chunk.Unpack()` on every chunk before handing the
+  column to GeneratePartial, which is exactly what vanilla's own /wgen regen
+  command does before touching Data on loaded chunks. Corollary of the
+  unloaded-chunks lesson below: a chunk being non-null does not mean its
+  DATA is resident either. Diagnosis trick worth keeping: the game DLLs ship
+  portable PDBs, so a crash line like "DiscGenerator.cs:318" can be mapped to
+  the exact IL instruction with System.Reflection.Metadata sequence points +
+  ilspycmd -il, turning "something in this method is null" into "THIS
+  dereference is null" with certainty.
 - **A resolver failing quietly downgrades a feature to "missing".** Every
   optional feature here reports resolution failures via the problems list;
   keep that pattern for anything new, and treat any problem line in chat as a
