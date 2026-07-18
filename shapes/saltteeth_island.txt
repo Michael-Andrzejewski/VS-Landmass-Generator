@@ -1,6 +1,7 @@
-# saltteeth_island - white chalk karst impaled on a ridge of blades: teeth
-# row runs THROUGH the island (interior spires) and out both sides, with
-# scattered shards and one-block-under lurker reefs all around the coast.
+# saltteeth_island - white chalk karst impaled on a ridge: short sharp
+# teeth taper to POINTS (shore ~ blade width makes each rise a cone),
+# the interior spires alone tower, a solid halite spire stands over the
+# salt dome, and lurker reefs sit one block under the surface offshore.
 # Regenerate: python tools/gen_saltteeth_island.py > shapes/saltteeth_island.txt
 # Suggested: /genisland shape=saltteeth_island diameter=300 height=26
 #
@@ -14,15 +15,16 @@
 # Structures reserved (later pass): salt-evaporation ruin on beach B,
 # beacon cairn on the outermost tooth.
 
-region K rock=chalk rock2=limestone fertility=low surface=grass forest=0.008 trees=scotspine,dwarfbirch bushes=birch:0.006 scatter=edelweiss:0.008,westerngorse:0.008,wilddaisy:0.005,mugwort:0.004 wildgrass=0.15 stones=0.02 height=0.55 shore=10 rough=0.10 climate=dry
-region S rock=chalk rock2=limestone surface=rocksand ores=quartz:0.05 boulders=0.014 stones=0.03 height=0.92 shore=5 rough=0.24 climate=dry
-region P rock=chalk rock2=limestone surface=rock ores=quartz:0.05 boulders=0.010 height=1.28 shore=2 rough=0.35 climate=dry
-region T rock=chalk rock2=halite fertility=verylow surface=barren ores=quartz:0.05 wildgrass=0 stones=0.03 boulders=0.008 height=0.65 shore=6 rough=0.14 climate=dry
-region C rock=chalk rock2=limestone surface=rock boulders=0.010 height=0.55 shore=3 rough=0.16 climate=dry
-region B rock=chalk surface=sand shells=0.030 cattails=0.10 height=0.14 shore=14 rough=0.04 climate=dry
-region E rock=chalk surface=rock boulders=0.020 stones=0.02 height=1.05 shore=2 rough=0.45 climate=dry
-region F rock=chalk surface=rock boulders=0.015 stones=0.02 height=0.88 shore=2 rough=0.45 climate=dry
-region J rock=chalk surface=rock boulders=0.02 height=0.85 shore=1 rough=0.50 climate=dry
+region K rock=chalk rock2=limestone fertility=low surface=grass ores=copper:0.010,lead:0.006,iron:0.006 forest=0.008 trees=scotspine,dwarfbirch bushes=birch:0.006 scatter=edelweiss:0.008,westerngorse:0.008,wilddaisy:0.005,mugwort:0.004 wildgrass=0.15 stones=0.02 height=0.55 shore=10 rough=0.10 climate=dry
+region S rock=chalk rock2=limestone surface=rocksand ores=quartz:0.05,zinc:0.008,copper:0.008 boulders=0.014 stones=0.03 height=0.92 shore=6 rough=0.24 climate=dry
+region P rock=chalk rock2=limestone surface=rock ores=quartz:0.05,silver:0.006 boulders=0.010 height=1.28 shore=5 rough=0.35 climate=dry
+region Q rock=halite surface=rock height=0.95 shore=3 rough=0.18 climate=dry
+region T rock=chalk rock2=halite fertility=verylow surface=barren ores=quartz:0.05,copper:0.008 wildgrass=0 stones=0.03 boulders=0.008 height=0.65 shore=6 rough=0.14 climate=dry
+region C rock=chalk rock2=limestone surface=rock ores=copper:0.008,lead:0.005 boulders=0.010 height=0.55 shore=6 rough=0.16 climate=dry
+region B rock=chalk surface=sand shells=0.030 height=0.14 shore=14 rough=0.04 climate=dry
+region E rock=chalk surface=rock boulders=0.020 stones=0.02 height=0.62 shore=5 rough=0.40 climate=dry
+region F rock=chalk surface=rock boulders=0.015 stones=0.02 height=0.45 shore=5 rough=0.40 climate=dry
+region J rock=chalk surface=rock boulders=0.02 height=0.35 shore=3 rough=0.45 climate=dry
 region U rock=chalk surface=rock flood=1 height=0.30 shore=1 rough=0.20 climate=dry
 cave V heading=126 dip=24 length=180 radius=2.6 squash=0.8 weave=0.55 scale=1.4 branches=3 branchdepth=2 branchlen=0.6 depth=65 mouth=5 entry=6 ores=quartz:0.12 seed=23
 deposits natural
@@ -97,10 +99,10 @@ map
 .............JJJ......CCCCCCCKKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTPPSSSPPPPPBBBB......................................................
 ............JJJJ.J...CCCCCCCKKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTSSSSSPPPPBBBBB.....................................................
 .............JJJJ....CCCCCCCKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTSSSSSKPPKKBBBB.....................................................
-.............J.JJ....CCCCCCKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTTSSSSKKKKKKBBBBB....................................................
-....................CCCCCCCKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTTSSSKKKKKKKKBBBB....................................................
-....................CCCCCCKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTTTSSKKKKKKKKKBBBBB...................................................
-....................CCCCCCKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTTTSKKKKKKKKKKBBBBB...................................................
+.............J.JJ....CCCCCCKKKKKKKKKKKKKKKKKKKKKKQQTTTTTTTTTTTTSSSSKKKKKKBBBBB....................................................
+....................CCCCCCCKKKKKKKKKKKKKKKKKKKKKQQQQTTTTTTTTTTTSSSKKKKKKKKBBBB....................................................
+....................CCCCCCKKKKKKKKKKKKKKKKKKKKKKQQQQTTTTTTTTTTTSSKKKKKKKKKBBBBB...................................................
+....................CCCCCCKKKKKKKKKKKKKKKKKKKKKKKQQTTTTTTTTTTTTSKKKKKKKKKKBBBBB...................................................
 ....................BBCCCCKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTTSKKKKKKKKKKKKBBBB...................................................
 ...........UUU......BBBBKKKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTTKKKKKKKKKKKKKBBBBB..................................................
 ..........UUUU......BBBBKKKKKKKKKKKKKKKKKKKKKKKKKTTTTTTTTTTTTKKKKKKKKKKKKKKBBBBB......J...........................................
