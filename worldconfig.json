@@ -1,0 +1,12 @@
+{
+    "worldConfigAttributes": [
+        {
+            "dataType": "Bool",
+            "category": "rustfall",
+            "code": "rustfallWorld",
+            "default": "false",
+            "onCustomizeScreen": true,
+            "onlyDuringWorldCreate": true
+        }
+    ]
+}

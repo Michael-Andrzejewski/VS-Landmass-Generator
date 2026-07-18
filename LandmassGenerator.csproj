@@ -36,6 +36,8 @@
     <ItemGroup>
       <PackageFiles Include="$(TargetPath)" />
       <PackageFiles Include="modinfo.json" />
+      <PackageFiles Include="worldconfig.json" />
+      <PackageAssets Include="$(ProjectDir)assets\**\*" />
       <OldZipsBin Include="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\LandmassGenerator*.zip" />
       <OldZipsDeploy Include="$(APPDATA)\VintagestoryData\Mods\LandmassGenerator*.zip" />
       <StaleUnpackCache
@@ -45,7 +47,9 @@
 
     <!-- 1. Clean old bin zips and build the new zip -->
     <Delete Files="@(OldZipsBin)" />
+    <RemoveDir Directories="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\mod" />
     <Copy SourceFiles="@(PackageFiles)" DestinationFolder="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\mod\" />
+    <Copy SourceFiles="@(PackageAssets)" DestinationFolder="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\mod\assets\%(RecursiveDir)" />
     <ZipDirectory SourceDirectory="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\mod\" DestinationFile="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\$(ZipName)" Overwrite="true" />
 
     <!-- 2. Best-effort cleanup of deployed/cached artifacts (may be locked while the game runs) -->

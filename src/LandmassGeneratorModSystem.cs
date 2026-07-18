@@ -166,7 +166,35 @@ public class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.OptionalWord("plan"))
                 .HandleWith(OnGenWorldSetup));
 
+        // The 'Rustfall world' checkbox on the world creation screen (see
+        // worldconfig.json at the mod root) lands in the world config; on the
+        // first player join of such a world, run the world setup once.
+        api.Event.PlayerJoin += OnPlayerJoinMaybeRustfallSetup;
+
         api.Logger.Notification($"[landmassgenerator] Ready. Shape files go in: {shapeFolder}");
+    }
+
+    private void OnPlayerJoinMaybeRustfallSetup(IServerPlayer byPlayer)
+    {
+        if (!sapi.World.Config.GetBool("rustfallWorld", false)) return;
+        if (sapi.WorldManager.SaveGame.GetData<bool>("lgRustfallSetupDone", false)) return;
+        sapi.WorldManager.SaveGame.StoreData("lgRustfallSetupDone", true);
+
+        // Give the join a moment to settle, then run the default plan with a
+        // console-privileged caller (the wgen subcommands require
+        // controlserver, which a fresh player may not have yet).
+        sapi.Event.RegisterCallback(_ =>
+        {
+            sapi.BroadcastMessageToAllGroups("[genworldsetup] Rustfall world detected, running first-time setup...", EnumChatType.Notification);
+            var caller = new Caller
+            {
+                Type = EnumCallerType.Console,
+                CallerPrivileges = new[] { "*" },
+                FromChatGroupId = GlobalConstants.GeneralChatGroup
+            };
+            TextCommandResult result = RunWorldSetup(caller, "worldplan");
+            sapi.BroadcastMessageToAllGroups("[genworldsetup] " + (result.StatusMessage ?? "done"), EnumChatType.Notification);
+        }, 3000);
     }
 
     private void RegisterCmd(ICoreServerAPI api, string name, Action<string> build)
@@ -357,7 +385,11 @@ storyloc devastationarea -2550 -8750
 
     private TextCommandResult OnGenWorldSetup(TextCommandCallingArgs args)
     {
-        string planName = args.Parsers[0].IsMissing ? "worldplan" : (string)args[0];
+        return RunWorldSetup(args.Caller, args.Parsers[0].IsMissing ? "worldplan" : (string)args[0]);
+    }
+
+    private TextCommandResult RunWorldSetup(Caller caller, string planName)
+    {
         string planPath = Path.Combine(shapeFolder, planName + ".txt");
         bool freshPlan = false;
         if (!File.Exists(planPath))
@@ -433,7 +465,7 @@ storyloc devastationarea -2550 -8750
             TextCommandResult sub = null;
             sapi.ChatCommands.ExecuteUnparsed(
                 $"/wgen story setpos {site.Code} ={midX + site.MapX} =1 ={midZ + site.MapZ} true",
-                new TextCommandCallingArgs { Caller = args.Caller },
+                new TextCommandCallingArgs { Caller = caller },
                 r => sub = r);
             if (sub == null || sub.Status != EnumCommandStatus.Success)
             {
@@ -509,6 +541,14 @@ storyloc devastationarea -2550 -8750
         return TextCommandResult.Success(summary);
     }
 
+    // The server's chunk request fifo holds 2000 entries
+    // (MagicNum.RequestChunkColumnsQueueSize) and OVERFLOWING IT KILLS THE
+    // SERVER, so a site is never requested in one go (the devastation alone
+    // is ~3000 columns). Each site is sliced into bands of at most this many
+    // columns, chained via OnLoaded, leaving plenty of queue headroom for
+    // the players' own chunk loading.
+    private const int PregenBatchColumns = 256;
+
     private void PregenNextStoryArea(List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> queue, int idx)
     {
         if (idx >= queue.Count)
@@ -517,17 +557,37 @@ storyloc devastationarea -2550 -8750
             return;
         }
         var s = queue[idx];
-        int cols = (s.Cx2 - s.Cx1 + 1) * (s.Cz2 - s.Cz1 + 1);
+        int width = s.Cx2 - s.Cx1 + 1;
+        int cols = width * (s.Cz2 - s.Cz1 + 1);
+        int rowsPerBand = Math.Max(1, PregenBatchColumns / width);
         sapi.BroadcastMessageToAllGroups($"[genworldsetup] Generating {s.Code} area ({idx + 1} of {queue.Count}, {cols} chunk columns)...", EnumChatType.Notification);
-        sapi.WorldManager.LoadChunkColumnPriority(s.Cx1, s.Cz1, s.Cx2, s.Cz2, new ChunkLoadOptions
+        PregenNextBand(queue, idx, s.Cz1, rowsPerBand);
+    }
+
+    private void PregenNextBand(List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> queue, int idx, int bandCz1, int rowsPerBand)
+    {
+        var s = queue[idx];
+        if (bandCz1 > s.Cz2)
         {
-            KeepLoaded = false,
-            OnLoaded = () =>
+            sapi.BroadcastMessageToAllGroups($"[genworldsetup] {s.Code} area generated.", EnumChatType.Notification);
+            PregenNextStoryArea(queue, idx + 1);
+            return;
+        }
+        int bandCz2 = Math.Min(s.Cz2, bandCz1 + rowsPerBand - 1);
+        try
+        {
+            sapi.WorldManager.LoadChunkColumnPriority(s.Cx1, bandCz1, s.Cx2, bandCz2, new ChunkLoadOptions
             {
-                sapi.BroadcastMessageToAllGroups($"[genworldsetup] {s.Code} area generated.", EnumChatType.Notification);
-                PregenNextStoryArea(queue, idx + 1);
-            }
-        });
+                KeepLoaded = false,
+                OnLoaded = () => PregenNextBand(queue, idx, bandCz2 + 1, rowsPerBand)
+            });
+        }
+        catch (Exception e)
+        {
+            sapi.Logger.Error("[genworldsetup] Chunk request for {0} rows {1}-{2} failed: {3}", s.Code, bandCz1, bandCz2, e);
+            sapi.BroadcastMessageToAllGroups($"[genworldsetup] Chunk request for {s.Code} failed ({e.Message}); retrying that band in 5 seconds.", EnumChatType.Notification);
+            sapi.Event.RegisterCallback(_ => PregenNextBand(queue, idx, bandCz1, rowsPerBand), 5000);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────

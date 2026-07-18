@@ -287,3 +287,12 @@ numbers.
   dead tab are still trustworthy (the cave walk and wet guard are pure CPU);
   only the pixels were wrong. Check `renderer.getContext().isContextLost()`
   before trusting any capture.
+
+- **LoadChunkColumnPriority over ~2000 columns kills the server.** The chunk
+  request fifo (MagicNum.RequestChunkColumnsQueueSize, default 2000) throws
+  "Indexed Fifo Queue overflow" on overflow and that exception takes the whole
+  server down ("Exception during Process"). The devastation pregen (3025
+  columns in one call) crashed exactly this way while five smaller sites
+  worked. Batch big rects into bands (we use 256 columns) chained via
+  ChunkLoadOptions.OnLoaded, and leave headroom for the players' own chunk
+  loading sharing the same queue.

@@ -1,0 +1,5 @@
+{
+    "worldconfig-category-rustfall": "Rustfall",
+    "worldattribute-rustfallWorld": "Rustfall world",
+    "worldattribute-rustfallWorld-desc": "Automatically sets up the Rustfall story world on first join: pure ocean, all six story locations pinned at their planned coordinates, spawn cleared for the hand-built starter island, and every story area pregenerated. Progress is reported in chat. Uses the worldplan.txt plan file from the LandmassGenerator folder."
+}
