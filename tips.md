@@ -112,6 +112,24 @@ in [papercuts.md](papercuts.md).
   Pair with `rock=shale rock2=claystone` and `ores=coal:0.02` for honest
   coal country (`coal`, `quartz`, `sulfur` and the other ungraded minerals
   work in `ores=` and cave `ores=` since v0.26: one block, all grades).
+- **Pointed peaks come from shore, not height.** A region whose `shore` is
+  about equal to its own radius rises as a CONE (the coast-distance ramp
+  never saturates), while a tiny `shore` makes a flat-topped tower with
+  cliff walls. Michael specifically rejected the towers ("narrow towards
+  the top and sharpen to points"): sharp islets and spires want
+  `shore ~ half-width`, heavy `rough`, and most of them SHORT, with only
+  one spine left tall. Abrupt cliffs everywhere read as unnatural; save
+  shore=2-3 for one deliberate cliff face.
+- **Rivers are just snaking ponds.** Two touching pond regions with the
+  same `height` share one water level, so a winding pond=2 region drawn as
+  a thick polyline between meres becomes a continuous waterway. Give pond
+  regions `forest=` and (v0.28) the trees stand in the knee-deep rim
+  water: cypress-lined rivers for free.
+- **Salt water and fresh water want different plants.** Cattails and
+  waterlilies are freshwater: meres, rivers, pond rims. The sea and
+  sea-connected flood flats want `kelp=` (seaweed stalks, v0.28) over a
+  dark `sand=` bed instead. Michael called this out on the fen: reeds
+  hemming the SALT shore looked wrong.
 - **flood= puts the sea ON a region (v0.27+).** The region's ground caps
   1-3 blocks below sea level and salt water flows over it: marsh flats a
   raft cannot cross (Blackfen's drowned inlets), mangrove-style shallows
