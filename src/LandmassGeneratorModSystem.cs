@@ -48,9 +48,15 @@ public class LandmassGeneratorModSystem : ModSystem
     // Graded ore minerals the game ships (worldproperties/block/ore-graded).
     private static readonly string[] OreMinerals =
     {
+        // Graded minerals: blocks are ore-{grade}-{mineral}-{rock}.
         "nativecopper", "limonite", "galena", "cassiterite", "chromite", "ilmenite",
         "sphalerite", "bismuthinite", "magnetite", "hematite", "malachite",
-        "pentlandite", "uranium", "wolframite", "rhodochrosite"
+        "pentlandite", "uranium", "wolframite", "rhodochrosite",
+        "quartz_nativegold", "quartz_nativesilver", "galena_nativesilver",
+        // Ungraded minerals: one block, ore-{mineral}-{rock} (no grade segment).
+        "lignite", "bituminouscoal", "anthracite", "quartz", "olivine", "sulfur",
+        "alum", "borax", "cinnabar", "fluorite", "graphite", "kernite",
+        "phosphorite", "lapislazuli", "corundum", "sylvite"
     };
 
     // A friendly metal name maps to the minerals that carry it, in preference
@@ -64,7 +70,9 @@ public class LandmassGeneratorModSystem : ModSystem
         { "tin", new[] { "cassiterite" } },
         { "zinc", new[] { "sphalerite" } },
         { "lead", new[] { "galena" } },
-        { "silver", new[] { "galena" } },
+        { "silver", new[] { "galena_nativesilver", "quartz_nativesilver", "galena" } },
+        { "gold", new[] { "quartz_nativegold" } },
+        { "coal", new[] { "bituminouscoal", "lignite", "anthracite" } },
         { "nickel", new[] { "pentlandite" } },
         { "chromium", new[] { "chromite" } },
         { "chrome", new[] { "chromite" } },
@@ -198,7 +206,8 @@ public class LandmassGeneratorModSystem : ModSystem
 
     // Surface treatments a region can have. SurfSoil is bare dirt (pond beds,
     // and surface=barren regions: exposed fertility soil with no grass cover).
-    private const int SurfGrass = 0, SurfSand = 1, SurfRock = 2, SurfRockSand = 3, SurfSoil = 4;
+    // SurfPeat is a bog floor: peat blocks a few deep, a real fuel deposit.
+    private const int SurfGrass = 0, SurfSand = 1, SurfRock = 2, SurfRockSand = 3, SurfSoil = 4, SurfPeat = 5;
 
     // One labelled area of a drawn island (forest, plains, beach, rocky arm...).
     private class Region
@@ -224,6 +233,8 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Clay;               // pond region: chance a rim column becomes a clay deposit
         public double Sandy;              // fraction-ish of grass columns turned to sand, in noise blobs
         public double Pumpkins;           // chance per column of a wild pumpkin patch centre
+        public bool HasClimate;           // this region stamps its own plant-tint climate
+        public int ClimTempRaw, ClimRainRaw;
         public List<BushSpec> Bushes = new();
         public List<BushSpec> Scatter = new();   // generic decor: flowers, mushrooms, ferns...
         public List<ITreeGenerator> Trees = new();
@@ -239,6 +250,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public int[] LitterIds = Array.Empty<int>();
         public int[] ShellIds = Array.Empty<int>();
         public int LooseStoneId, LooseStoneId2, LooseStickId, LilyId, BoulderId, ClayId, ClaySparseId;
+        public int PeatId, PeatSparseId;                         // surface=peat: bare + verysparse-grass peat
         public int SparseGrassId, SparseGrassId2;                // surface=barren: verysparse + sparse grass soil
         public int[] MotherIds = Array.Empty<int>();             // pumpkins=: crop-pumpkin mother plants
         public int[] VineIds = Array.Empty<int>();
@@ -466,8 +478,10 @@ public class LandmassGeneratorModSystem : ModSystem
             job.HasClimate = true;
             job.ClimTempRaw = Math.Clamp(Climate.DescaleTemperature(climTempC), 0, 255);
             job.ClimRainRaw = (int)Math.Clamp(climRain * 255.0, 0, 255);
-            job.ClimRadius = diameter / 2.0;
         }
+        // Set even without a command climate=: shape regions may carry their
+        // own climate=, and the stamp needs the island's radius either way.
+        job.ClimRadius = diameter / 2.0;
 
         int reach;
         string shapeName = OptStr(opt, "shape", null);
@@ -788,7 +802,7 @@ public class LandmassGeneratorModSystem : ModSystem
     private Region ParseRegion(string[] tok, IslandJob job, long seed, ref int oreIdx, List<string> problems)
     {
         var r = new Region { Key = tok[1][0] };
-        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null, oreBitsStr = null;
+        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null, oreBitsStr = null, climateStr = null;
 
         for (int i = 2; i < tok.Length; i++)
         {
@@ -812,6 +826,7 @@ public class LandmassGeneratorModSystem : ModSystem
                         "rock" => SurfRock,
                         "rocksand" => SurfRockSand,
                         "barren" => SurfSoil,   // bare fertility soil, no grass cover
+                        "peat" => SurfPeat,     // bog floor: minable peat, sparse grass
                         _ => SurfGrass
                     };
                     break;
@@ -838,7 +853,22 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "clay": r.Clay = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "sandy": r.Sandy = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "pumpkins": r.Pumpkins = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "climate": climateStr = v; break;   // this region's own plant tint
             }
+        }
+
+        // Per-region climate: same presets/syntax as the command's climate=,
+        // stamped only over this region's footprint. Lets one island carry
+        // several tints (or a test island carry every one of them).
+        if (climateStr != null)
+        {
+            if (ParseClimate(climateStr, out float ct, out float cr, out string cerr))
+            {
+                r.HasClimate = true;
+                r.ClimTempRaw = Math.Clamp(Climate.DescaleTemperature(ct), 0, 255);
+                r.ClimRainRaw = (int)Math.Clamp(cr * 255.0, 0, 255);
+            }
+            else problems.Add($"region {r.Key}: climate: {cerr}");
         }
 
         Block stone = sapi.World.GetBlock(new AssetLocation("game", "rock-" + r.RockType));
@@ -886,6 +916,17 @@ public class LandmassGeneratorModSystem : ModSystem
         string sparseFert = fert ?? "medium";
         r.SparseGrassId = sapi.World.GetBlock(new AssetLocation("game", $"soil-{sparseFert}-verysparse"))?.BlockId ?? r.SoilId;
         r.SparseGrassId2 = sapi.World.GetBlock(new AssetLocation("game", $"soil-{sparseFert}-sparse"))?.BlockId ?? r.SparseGrassId;
+
+        if (r.Surface == SurfPeat)
+        {
+            r.PeatId = sapi.World.GetBlock(new AssetLocation("game", "peat-none"))?.BlockId ?? 0;
+            r.PeatSparseId = sapi.World.GetBlock(new AssetLocation("game", "peat-verysparse"))?.BlockId ?? r.PeatId;
+            if (r.PeatId == 0)
+            {
+                r.Surface = SurfSoil;
+                problems.Add($"region {r.Key}: no peat block, using bare soil");
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(oreStr))
             ParseOres(oreStr, r.RockType, seed + 31 * (oreIdx++ + 1), r.Ores, problems);
@@ -1195,6 +1236,13 @@ public class LandmassGeneratorModSystem : ModSystem
                     RichId = OreId("rich", mineral, rockType),
                     BountifulId = OreId("bountiful", mineral, rockType)
                 };
+                // Ungraded minerals (coal, quartz, sulfur, olivine...) have a
+                // single block with no grade segment: use it for every grade.
+                if (o.PoorId == 0 && o.MediumId == 0 && o.RichId == 0 && o.BountifulId == 0)
+                {
+                    int u = sapi.World.GetBlock(new AssetLocation("game", $"ore-{mineral}-{rockType}"))?.BlockId ?? 0;
+                    if (u != 0) o.PoorId = o.MediumId = o.RichId = o.BountifulId = u;
+                }
                 o.Threshold = CalibrateThreshold(o.Noise, RichnessToDensity(rich), seed + idx);
                 if (o.PoorId != 0 || o.MediumId != 0 || o.RichId != 0 || o.BountifulId != 0) { found = o; break; }
             }
@@ -1360,9 +1408,12 @@ public class LandmassGeneratorModSystem : ModSystem
                     : topMat == SurfSoil ? (reg != null && reg.Pond == 0 && reg.SparseGrassId != 0
                         ? (job.SurfNoise.Noise(x * 0.31, z * 0.31) > 0.5 ? reg.SparseGrassId2 : reg.SparseGrassId)
                         : soilId)
+                    : topMat == SurfPeat ? (job.SurfNoise.Noise(x * 0.31, z * 0.31) > 0.45 ? reg.PeatSparseId : reg.PeatId)
                     : topMat == SurfSand ? sandId : stoneId;
             else if (y > topY - skin)
-                id = topMat == SurfGrass || topMat == SurfSoil ? soilId : topMat == SurfSand ? sandId : stoneId;
+                id = topMat == SurfGrass || topMat == SurfSoil ? soilId
+                    : topMat == SurfPeat ? reg.PeatId
+                    : topMat == SurfSand ? sandId : stoneId;
             else
                 id = PickStone(job, ores, stoneId, stoneId2, x, y, z);
             ba.SetBlock(id, pos);
@@ -1643,10 +1694,10 @@ public class LandmassGeneratorModSystem : ModSystem
             return;
         }
 
-        if (underwater || (topMat != SurfGrass && topMat != SurfSand && topMat != SurfRock && topMat != SurfSoil)) return;
+        if (underwater || (topMat != SurfGrass && topMat != SurfSand && topMat != SurfRock && topMat != SurfSoil && topMat != SurfPeat)) return;
 
         job.Rand.InitPositionSeed(x, z);
-        if (topMat == SurfGrass && TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
+        if ((topMat == SurfGrass || topMat == SurfPeat) && TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
         else if (TryPlantFlora(job, ba, pos, x, z, topY, topMat, reg)) job.Plants++;
     }
 
@@ -1782,7 +1833,7 @@ public class LandmassGeneratorModSystem : ModSystem
                     int x = cxw + dx, z = czw + dz;
                     if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out int tm, out _, out _, out Region r2) || uw) continue;
                     if (r2 == null || r2.Pond > 0) continue;
-                    if (tm != SurfGrass && tm != SurfSand && tm != SurfRock && tm != SurfSoil) continue;
+                    if (tm != SurfGrass && tm != SurfSand && tm != SurfRock && tm != SurfSoil && tm != SurfPeat) continue;
 
                     double fade = 1.0 - d / radius; // 1 at the centre
                     int idx = Math.Clamp((int)Math.Round(fade * 10.0), 0, reg.DevSoilIds.Length - 1);
@@ -1879,7 +1930,7 @@ public class LandmassGeneratorModSystem : ModSystem
         topY = 0;
         if (!ColumnSurface(job, x, z, job.SeaLevel, out topY, out bool uw, out int tm, out _, out _, out Region r2) || uw) return false;
         if (r2 == null || r2.Pond > 0) return false;
-        if (tm != SurfGrass && tm != SurfSoil && tm != SurfSand) return false;
+        if (tm != SurfGrass && tm != SurfSoil && tm != SurfSand && tm != SurfPeat) return false;
         pos.Set(x, topY + 1, z);
         Block above = ba.GetBlock(pos);
         return above.Id == 0 || above.BlockMaterial == EnumBlockMaterial.Plant;
@@ -2363,6 +2414,9 @@ public class LandmassGeneratorModSystem : ModSystem
             int med = OreId("medium", mineral, rock);
             int rich = OreId("rich", mineral, rock);
             if (poor != 0 || med != 0 || rich != 0) return new[] { poor, med, rich };
+            // Ungraded minerals (coal, quartz, sulfur...) have a single block.
+            int u = sapi.World.GetBlock(new AssetLocation("game", $"ore-{mineral}-{rock}"))?.BlockId ?? 0;
+            if (u != 0) return new[] { u, u, u };
         }
         return null;
     }
@@ -2377,7 +2431,16 @@ public class LandmassGeneratorModSystem : ModSystem
     // columns are resent so already-built meshes re-tint without a relog.
     private int StampClimate(IslandJob job)
     {
-        if (!job.HasClimate) return 0;
+        // Region climates (a per-region climate= key) let one island carry
+        // several tints. Each climate pixel then asks the shape which region
+        // owns that ground and takes its target, falling back to the island
+        // -wide climate= (if any) for regions without one.
+        bool regionClimate = false;
+        if (job.Shape != null)
+            foreach (Region sr in job.Shape.Regions.Values)
+                if (sr.HasClimate) { regionClimate = true; break; }
+
+        if (!job.HasClimate && !regionClimate) return 0;
 
         int regionSize = sapi.WorldManager.RegionSize;
         double fade = Math.Max(48.0, job.ClimRadius * 0.35);
@@ -2413,11 +2476,29 @@ public class LandmassGeneratorModSystem : ModSystem
                         double w = 1.0 - Smooth((d - job.ClimRadius) / fade);
                         if (w <= 0) continue;
 
+                        // The target climate: this pixel's region's own, or the
+                        // island-wide one. Neither -> leave the pixel natural.
+                        int targetTemp = job.ClimTempRaw, targetRain = job.ClimRainRaw;
+                        bool has = job.HasClimate;
+                        if (regionClimate)
+                        {
+                            int xi = (int)wx, zi = (int)wz;
+                            if (xi >= job.MinX && xi < job.MinX + job.W && zi >= job.MinZ && zi < job.MinZ + job.H
+                                && ColumnSurface(job, xi, zi, job.SeaLevel, out _, out _, out _, out _, out _, out Region creg)
+                                && creg != null && creg.HasClimate)
+                            {
+                                targetTemp = creg.ClimTempRaw;
+                                targetRain = creg.ClimRainRaw;
+                                has = true;
+                            }
+                        }
+                        if (!has) continue;
+
                         int idx = pz * map.Size + px;
                         int old = map.Data[idx];
                         int temp = (old >> 16) & 0xff, rain = (old >> 8) & 0xff;
-                        temp = (int)Math.Round(temp + (job.ClimTempRaw - temp) * w);
-                        rain = (int)Math.Round(rain + (job.ClimRainRaw - rain) * w);
+                        temp = (int)Math.Round(temp + (targetTemp - temp) * w);
+                        rain = (int)Math.Round(rain + (targetRain - rain) * w);
                         map.Data[idx] = (old & ~0xffff00) | (temp << 16) | (rain << 8);
                         touched = true;
                     }
@@ -2633,7 +2714,9 @@ public class LandmassGeneratorModSystem : ModSystem
         if (job.Shape == null || reg == null) return false;
         if (!GridPos(job, x, z, out double gx, out double gz, out int cx, out int cz)) return false;
 
-        bool grass = topMat == SurfGrass, sand = topMat == SurfSand, rock = topMat == SurfRock;
+        // Peat counts as grass-like ground: vanilla peat grows tallgrass and
+        // sits beside clay and reeds, so bog flora places the same way.
+        bool grass = topMat == SurfGrass || topMat == SurfPeat, sand = topMat == SurfSand, rock = topMat == SurfRock;
         bool dirt = topMat == SurfSoil; // surface=barren: exposed soil
 
         // Clay ground: on a clay= region the whole soil column becomes a clay

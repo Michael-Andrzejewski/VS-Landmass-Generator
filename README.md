@@ -103,7 +103,7 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `rock2` | A second rock, noise-blended into the first underground (e.g. `rock=slate rock2=peridotite`). |
 | `sand` | Explicit beach block, so a slate island can still have a white `sand-chalk` beach. |
 | `fertility` | Soil richness for grass areas: `verylow`, `low`, `medium`, `high`, `terrapreta`. |
-| `surface` | `grass`, `sand`, `rock`, `rocksand` (rocky outcrops speckled with sand), or `barren` (worn ground: soil with only patchy sparse grass). |
+| `surface` | `grass`, `sand`, `rock`, `rocksand` (rocky outcrops speckled with sand), `barren` (worn ground: soil with only patchy sparse grass), or `peat` (a bog floor: real minable peat a few blocks deep, part-covered in sparse grass). |
 | `sandy` | Wind-blown sand drifts: contiguous noise blobs of the region's sand across grass or barren ground, e.g. `sandy=0.15`. |
 | `pumpkins` | Chance per column of a wild pumpkin patch centre: a mother plant surrounded by real pumpkin vines in mixed stages (adopted by the mother so they survive), fruits beside them, rusty debris between them. Typical 0.01-0.03 on a small patch region. |
 | `height` | Fraction of the island's peak `height` this area rises to. |
@@ -124,7 +124,8 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `shells` | Chance per sand column of a seashell (random type and color). |
 | `boulders` | Chance per rock-surface column of a loose boulder in the region's rock. Boulders never appear on grass. |
 | `clay` | On a pond region: chance a rim column becomes a blue clay deposit. On a normal region: chance per column that the soil becomes clay down to the rock, capped with sparse-grass clay so the deposit hides in the meadow. |
-| `ores`, `forest`, `trees` | As above, but per region. |
+| `climate` | This region's own plant-tint climate, same values as the command's `climate=` option. Lets one island carry several tints (a lush valley under arid crags). Regions without one keep the command's island-wide climate, or the natural climate if none was given. Climate pixels are ~30 blocks wide, so bands narrower than that blur together. |
+| `ores`, `forest`, `trees` | As above, but per region. `ores=` also accepts the ungraded minerals (`coal`, `quartz`, `sulfur`, `olivine`, `lapislazuli`, ...): they place their single ungraded block at every richness roll. |
 | `tree <char> <type> <size>` | A landmark tree at that spot on the map. |
 | `cave <char> [key=value ...]` | A cave system entering at that spot on the map. See below. |
 
