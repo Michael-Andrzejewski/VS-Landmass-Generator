@@ -9,6 +9,7 @@ using Vintagestory.API.Datastructures;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
+using Vintagestory.GameContent;
 
 namespace LandmassGenerator;
 
@@ -103,6 +104,47 @@ public class LandmassGeneratorModSystem : ModSystem
     {
         capi = api;
         api.Event.MapRegionLoaded += OnClientMapRegionLoaded;
+
+        // Vanilla's map scroll wheel refuses to zoom below 0.25 (about 6400
+        // blocks across on a fullscreen map), too tight for a 12k-block world.
+        // The clamp lives only in GuiElementMap.ZoomAdd; the ZoomLevel field
+        // itself is public, so we can set it directly and rebuild the view.
+        api.ChatCommands.Create("mapzoom")
+            .WithDescription("Set the world map zoom level. Values below the vanilla minimum of 0.25 zoom out further, e.g. .mapzoom 0.1 to see a whole 12k world. Run with no value to reset to 1.")
+            .WithArgs(api.ChatCommands.Parsers.OptionalFloat("level", 1f))
+            .HandleWith(OnMapZoom);
+    }
+
+    private TextCommandResult OnMapZoom(TextCommandCallingArgs args)
+    {
+        float level = args.Parsers[0].IsMissing ? 1f : (float)args[0];
+        if (level <= 0f) level = 1f;
+        level = GameMath.Clamp(level, 0.02f, 6f);
+
+        var dlg = capi.ModLoader.GetModSystem<WorldMapManager>()?.worldMapDlg;
+        if (dlg == null || !dlg.IsOpened())
+        {
+            return TextCommandResult.Error("Open the map first (M key or the minimap), then run .mapzoom again.");
+        }
+        if (dlg.SingleComposer?.GetElement("mapElem") is not GuiElementMap mapElem)
+        {
+            return TextCommandResult.Error("Could not find the map element; a game update may have moved it.");
+        }
+
+        // Keep the view centered where it is, just widen/narrow it.
+        var view = mapElem.CurrentBlockViewBounds;
+        double centerX = (view.X1 + view.X2) / 2.0;
+        double centerZ = (view.Z1 + view.Z2) / 2.0;
+        mapElem.ZoomLevel = level;
+        double halfW = mapElem.Bounds.InnerWidth / 2.0 / level;
+        double halfH = mapElem.Bounds.InnerHeight / 2.0 / level;
+        view.X1 = centerX - halfW;
+        view.X2 = centerX + halfW;
+        view.Z1 = centerZ - halfH;
+        view.Z2 = centerZ + halfH;
+        mapElem.EnsureMapFullyLoaded();
+
+        return TextCommandResult.Success($"Map zoom set to {level:0.###}. The scroll wheel still works from here, but on its own it stops at 0.25.");
     }
 
     private void OnClientMapRegionLoaded(Vec2i coord, IMapRegion region)
