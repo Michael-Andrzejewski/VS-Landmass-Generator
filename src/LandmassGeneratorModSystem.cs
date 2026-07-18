@@ -233,6 +233,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public double Clay;               // pond region: chance a rim column becomes a clay deposit
         public double Sandy;              // fraction-ish of grass columns turned to sand, in noise blobs
         public double Pumpkins;           // chance per column of a wild pumpkin patch centre
+        public int Flood;                 // region sits this many blocks under the sea: shallow flats
         public bool HasClimate;           // this region stamps its own plant-tint climate
         public int ClimTempRaw, ClimRainRaw;
         public List<BushSpec> Bushes = new();
@@ -251,6 +252,7 @@ public class LandmassGeneratorModSystem : ModSystem
         public int[] ShellIds = Array.Empty<int>();
         public int LooseStoneId, LooseStoneId2, LooseStickId, LilyId, BoulderId, ClayId, ClaySparseId;
         public int PeatId, PeatSparseId;                         // surface=peat: bare + verysparse-grass peat
+        public int WaterCattailId;                               // reeds growing IN 1-deep water (flood= flats)
         public int SparseGrassId, SparseGrassId2;                // surface=barren: verysparse + sparse grass soil
         public int[] MotherIds = Array.Empty<int>();             // pumpkins=: crop-pumpkin mother plants
         public int[] VineIds = Array.Empty<int>();
@@ -365,6 +367,11 @@ public class LandmassGeneratorModSystem : ModSystem
         public bool HasClimate;
         public int ClimTempRaw, ClimRainRaw;
         public double ClimRadius;
+
+        // Chunk preload gate: all columns under the island must be loaded
+        // before the first block write, or writes are silently dropped.
+        public bool ChunksRequested, ChunksLoaded;
+        public int WaitTicks;
 
         // deposits natural / deposits=natural: after terrain, run the game's own
         // GenDeposits over the island's chunk columns, so the stone carries the
@@ -853,6 +860,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 case "clay": r.Clay = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "sandy": r.Sandy = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "pumpkins": r.Pumpkins = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "flood": r.Flood = (int)Math.Clamp(ParseD(v, 1), 1, 3); break; // shallow sea over the region
                 case "climate": climateStr = v; break;   // this region's own plant tint
             }
         }
@@ -944,6 +952,9 @@ public class LandmassGeneratorModSystem : ModSystem
         if (r.Cattails > 0)
         {
             r.CattailId = sapi.World.GetBlock(new AssetLocation("game", "tallplant-coopersreed-land-normal-free"))?.BlockId ?? 0;
+            // The water variant grows IN 1-deep water (maxWaterDepth 1), for
+            // flooded flats and the shallow rim just off a reedy shore.
+            r.WaterCattailId = sapi.World.GetBlock(new AssetLocation("game", "tallplant-coopersreed-water-normal-free"))?.BlockId ?? 0;
             if (r.CattailId == 0) { r.Cattails = 0; problems.Add($"region {r.Key}: no cattail block, cattails off"); }
         }
 
@@ -1302,6 +1313,43 @@ public class LandmassGeneratorModSystem : ModSystem
         IslandJob job = _islandJob;
         if (job == null) return;
 
+        // Before writing a single block, force-load every chunk column under
+        // the island. Bulk writes into unloaded chunks are silently lost (the
+        // missing-slice bug on big islands), and the finish passes then trip
+        // over null heightmaps and unloaded map regions. 40ms ticks: cap the
+        // wait at ~30s and proceed with a warning rather than hang forever.
+        if (job.Dim == 0 && !job.ChunksLoaded)
+        {
+            int cs = GlobalConstants.ChunkSize;
+            int px1 = FloorDiv(job.MinX, cs) - 1, px2 = FloorDiv(job.MinX + job.W - 1, cs) + 1;
+            int pz1 = FloorDiv(job.MinZ, cs) - 1, pz2 = FloorDiv(job.MinZ + job.H - 1, cs) + 1;
+            if (!job.ChunksRequested)
+            {
+                job.ChunksRequested = true;
+                sapi.WorldManager.LoadChunkColumnPriority(px1, pz1, px2, pz2,
+                    new ChunkLoadOptions { KeepLoaded = true });
+            }
+            int missing = 0;
+            for (int cx = px1; cx <= px2; cx++)
+                for (int cz = pz1; cz <= pz2; cz++)
+                    if (sapi.WorldManager.GetChunk(cx, 0, cz) == null) missing++;
+            if (missing == 0)
+            {
+                job.ChunksLoaded = true;
+            }
+            else if (job.WaitTicks++ < 750)
+            {
+                if (job.WaitTicks == 1)
+                    ReportIsland(job, $"Loading {missing} chunk column(s) under the island before building...");
+                return;
+            }
+            else
+            {
+                job.ChunksLoaded = true;
+                ReportIsland(job, $"WARNING: {missing} chunk column(s) still not loaded after 30s; parts of the island may be missing. Stand closer to the target area and regenerate.");
+            }
+        }
+
         var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
         var pos = new BlockPos(0, 0, 0, job.Dim);
 
@@ -1329,26 +1377,39 @@ public class LandmassGeneratorModSystem : ModSystem
         sapi.Event.UnregisterGameTickListener(_islandListenerId);
         _islandListenerId = 0;
         _islandJob = null;
-        string extra = PlaceLandmarkTrees(job);
-        int oreBits = StampOreBitClusters(job);
-        int devPatches = StampDevastation(job);
-        int pumpkinPatches = StampPumpkinPatches(job);
-        string caveNote = CarveCaves(job);
-        int climRegions = StampClimate(job);
-        string depositNote = SyncHeightmapsAndDeposits(job);
-        _islandBusy = false;
+        try
+        {
+            string extra = PlaceLandmarkTrees(job);
+            int oreBits = StampOreBitClusters(job);
+            int devPatches = StampDevastation(job);
+            int pumpkinPatches = StampPumpkinPatches(job);
+            string caveNote = CarveCaves(job);
+            int climRegions = StampClimate(job);
+            string depositNote = SyncHeightmapsAndDeposits(job);
 
-        string done = $"Island complete: {job.Placed} column(s)";
-        if (job.Trees > 0) done += $", {job.Trees} tree(s)";
-        if (job.Plants > 0) done += $", {job.Plants} plant(s)";
-        if (oreBits > 0) done += $", {oreBits} surface ore bit(s) in {job.OreBitCenters.Count} cluster(s)";
-        if (devPatches > 0) done += $", {devPatches} devastated patch(es)";
-        if (pumpkinPatches > 0) done += $", {pumpkinPatches} pumpkin patch(es)";
-        done += caveNote;
-        done += depositNote;
-        if (climRegions > 0) done += $", climate retinted across {climRegions} map region(s)";
-        else if (job.HasClimate) done += ". WARNING: climate= touched no loaded map regions";
-        ReportIsland(job, done + ". " + extra);
+            string done = $"Island complete: {job.Placed} column(s)";
+            if (job.Trees > 0) done += $", {job.Trees} tree(s)";
+            if (job.Plants > 0) done += $", {job.Plants} plant(s)";
+            if (oreBits > 0) done += $", {oreBits} surface ore bit(s) in {job.OreBitCenters.Count} cluster(s)";
+            if (devPatches > 0) done += $", {devPatches} devastated patch(es)";
+            if (pumpkinPatches > 0) done += $", {pumpkinPatches} pumpkin patch(es)";
+            done += caveNote;
+            done += depositNote;
+            if (climRegions > 0) done += $", climate retinted across {climRegions} map region(s)";
+            else if (job.HasClimate) done += ". WARNING: climate= touched no loaded map regions";
+            ReportIsland(job, done + ". " + extra);
+        }
+        catch (Exception e)
+        {
+            // A finish pass failing must never eat the whole island silently:
+            // tell the player what broke instead of dying in the tick handler.
+            sapi.Logger.Error(e);
+            ReportIsland(job, "Island FAILED in a finish pass: " + e.Message + ". See server-main.log; the terrain itself is placed.");
+        }
+        finally
+        {
+            _islandBusy = false;
+        }
     }
 
     private static bool HasForest(IslandJob job)
@@ -1511,6 +1572,17 @@ public class LandmassGeneratorModSystem : ModSystem
                 Region pondN = NeighbourPond(s, cx, cz);
                 topY = pondN != null ? PondRim(job, pondN) - 1 : landY;
                 topMat = SurfaceMat(job, r, x, z);
+
+                // flood=: the region's ground is capped below sea level, and
+                // the sea flows over it: marsh flats, mangrove shallows,
+                // lurking reefs. Shallow enough to wade, too shallow to raft.
+                if (r.Flood > 0 && topY > job.SeaLevel - 1 - r.Flood)
+                    topY = job.SeaLevel - 1 - r.Flood;
+                if (topY < job.SeaLevel - 1)
+                {
+                    underwater = true;
+                    waterTopY = job.SeaLevel - 1;
+                }
             }
             return true;
         }
@@ -1690,6 +1762,25 @@ public class LandmassGeneratorModSystem : ModSystem
                     ba.SetBlock(reg.LilyId, pos);
                     job.Plants++;
                 }
+            }
+            return;
+        }
+
+        // Flooded flats (flood=): the region still owns this shallow water.
+        // Swamp trees rise straight out of it, and reeds grow IN it where the
+        // water is exactly one deep (the game's water coopersreed's limit),
+        // in the same clumps the dry-shore reeds use.
+        if (underwater && reg != null && reg.Flood > 0 && waterTopY >= topY)
+        {
+            job.Rand.InitPositionSeed(x, z);
+            if (TryPlantTree(job, ba, pos, x, z, topY, reg)) { job.Trees++; return; }
+            if (reg.Cattails > 0 && reg.WaterCattailId != 0 && waterTopY - topY == 1
+                && job.SurfNoise.Noise(x * 0.045, z * 0.045) > 0.58
+                && job.Rand.NextDouble() < Math.Min(1.0, reg.Cattails * 2.2))
+            {
+                pos.Set(x, topY + 1, z);
+                ba.SetBlock(reg.WaterCattailId, pos);
+                job.Plants++;
             }
             return;
         }
@@ -2592,7 +2683,9 @@ public class LandmassGeneratorModSystem : ModSystem
             for (int cz = cz1; cz <= cz2; cz++)
             {
                 IMapChunk mapChunk = sapi.WorldManager.GetMapChunk(cx, cz);
-                if (mapChunk == null) continue;
+                // A map chunk can exist with null heightmaps if its terrain
+                // never generated; writing would NRE and kill the whole pass.
+                if (mapChunk?.WorldGenTerrainHeightMap == null || mapChunk.RainHeightMap == null) continue;
                 bool touched = false;
                 for (int lz = 0; lz < cs; lz++)
                     for (int lx = 0; lx < cs; lx++)
@@ -2747,8 +2840,14 @@ public class LandmassGeneratorModSystem : ModSystem
 
         if (reg.Pond == 0 && reg.Cattails > 0 && reg.CattailId != 0)
         {
+            // Reeds grow in CLUMPS, not as an even hem along the whole shore:
+            // a low-frequency noise gates reed beds (20-40 block patches),
+            // dense inside, bare between. Boosted inside the clump so the
+            // total stays close to the asked-for chance.
             double dCoast = Bilinear(job.Shape.DistToOcean, job.Shape.W, job.Shape.H, gx, gz) * job.WorldPerCell;
-            if (dCoast <= 3.0 && job.Rand.NextDouble() < reg.Cattails)
+            if (dCoast <= 3.0
+                && job.SurfNoise.Noise(x * 0.045, z * 0.045) > 0.58
+                && job.Rand.NextDouble() < Math.Min(1.0, reg.Cattails * 2.2))
             {
                 pos.Set(x, topY + 1, z);
                 ba.SetBlock(reg.CattailId, pos);

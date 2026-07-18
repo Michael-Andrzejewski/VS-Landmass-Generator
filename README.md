@@ -110,7 +110,8 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `shore` | Blocks from the coast to full height. Small is a sheer cliff, large is a gentle beach. |
 | `rough` | Surface roughness, for outcrops and broken ground. |
 | `pond` | Makes the region a pond this many blocks deep: a level water bowl contained by a flat grass rim. |
-| `cattails` | On a pond region: chance per rim column of a cattail, so reeds ring the water. On a shore region: chance per column within 3 blocks of the sea. |
+| `flood` | The region's ground sits this many blocks (1-3) BELOW sea level and the sea flows over it: marsh flats, mangrove shallows, lurking reefs. Too shallow to raft, wadeable on foot. The region's trees rise straight out of the water, and its `cattails` grow IN the water where it is exactly one deep (the game's water reed). |
+| `cattails` | On a pond region: chance per rim column of a cattail, so reeds ring the water. On a shore region: chance per column within 3 blocks of the sea, gathered into clumped reed beds (20-40 block patches, dense inside, bare between) rather than an even hem. |
 | `flax` | Chance per grass column of a wild flax plant (mixed maturity). |
 | `orebits` | Surface ore clusters, e.g. `orebits=tin:0.002,copper:0.001`: the chance per grass or rock column that a cluster starts there, reproducing the game's own surface deposits: a shallow poor/medium ore disc in the stone under the soil, with loose ore bits over about a third of it. Digging under any bit finds the ore. Friendly ore names resolve like `ores=`. Typical values 0.001-0.003 (each cluster is ~10-20 bits). `copperbits=x` is a legacy alias for `orebits=copper:x`. |
 | `devastation` | Chance per column that a devastated-ground patch starts there: a ragged disc of unmineable devastated soil, heaviest crust at the centre, drock pushed into the ground, devastation growths sprouting from it. |

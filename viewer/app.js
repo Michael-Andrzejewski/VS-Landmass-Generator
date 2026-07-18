@@ -53,7 +53,7 @@ function parseShape(text) {
     if (/^region$/i.test(tok[0]) && tok.length >= 2) {
       const r = {
         key: tok[1][0], rock: 'granite', sand: null, fert: 'medium', surface: 'grass',
-        height: 1.0, shore: 8, rough: 0.3, pond: 0, forest: 0, sandy: 0,
+        height: 1.0, shore: 8, rough: 0.3, pond: 0, forest: 0, sandy: 0, flood: 0,
       };
       for (let i = 2; i < tok.length; i++) {
         const eq = tok[i].indexOf('='); if (eq <= 0) continue;
@@ -68,6 +68,7 @@ function parseShape(text) {
         else if (k === 'pond') r.pond = Math.max(1, Math.min(40, parseFloat(v) || 3));
         else if (k === 'forest') r.forest = parseFloat(v) || 0;
         else if (k === 'sandy') r.sandy = parseFloat(v) || 0;
+        else if (k === 'flood') r.flood = Math.max(1, Math.min(3, Math.trunc(parseFloat(v) || 1)));
       }
       s.regions[r.key] = r;
     } else if (/^tree$/i.test(tok[0]) && tok.length >= 3) {
@@ -280,12 +281,14 @@ function buildIsland(shape, diameter, domeHeight) {
         return { topY: Math.max(-2, rimY - depth), waterTop: rimY - 1, mat: 'pond', reg, cell };
       }
       const pondN = neighbourPond(cx, cz);
-      const topY = pondN ? pondRim(pondN) - 1 : landY;
+      let topY = pondN ? pondRim(pondN) - 1 : landY;
       let mat = reg.surface;
       if (mat === 'rocksand') mat = fbm(x * 0.9 / 40, z * 0.9 / 40, 4004) > 0.5 ? 'rock' : 'sand';
       if (reg.sandy > 0 && (mat === 'grass' || mat === 'barren')
         && fbm(x * 0.23 / 4, z * 0.23 / 4, 5005) > 1 - reg.sandy * 0.62) mat = 'sand';
-      return { topY, waterTop: -1000, mat, reg, cell };
+      // flood=: ground capped under the sea, water flows over (mirrors the mod).
+      if (reg.flood > 0 && topY > -1 - reg.flood) topY = -1 - reg.flood;
+      return { topY, waterTop: topY < -1 ? -1 : -1000, mat, reg, cell };
     }
 
     // Ocean ring.
