@@ -227,3 +227,14 @@ numbers.
   refresh()). Regenerate shapes from bash, or pass -Encoding utf8 explicitly;
   if the viewer shows 0 columns, check the file's first bytes before
   debugging the parser.
+- **The browser pane can lose its WebGL context, and stats survive while
+  renders lie.** After two `computer` screenshot calls timed out, the pane's
+  GPU process died: every capture came back blank (same byte count each
+  time is the tell), page reloads then failed at renderer CREATION
+  ("Error creating WebGL context"), which kills app.js top-level mid-run so
+  even parseShape-then-rebuild throws a confusing TDZ error ("Cannot access
+  'group' before initialization"). The fix is a NEW tab (tabs_create), not
+  more reloads of the dead one. Crucially, rebuild() stats computed on the
+  dead tab are still trustworthy (the cave walk and wet guard are pure CPU);
+  only the pixels were wrong. Check `renderer.getContext().isContextLost()`
+  before trusting any capture.

@@ -82,7 +82,41 @@ in [papercuts.md](papercuts.md).
   seed sweep fixes it (the wet run sits in the LEVEL entry, so `dip` does
   nothing either). `mouth=6` lifts the adit clear. The previewer's "wet on
   the main tunnel, worst run N" line is the tell: a run above 2 on the main
-  tunnel means a sealed mine, wet branch tips just truncate.
+  tunnel means a sealed mine, wet branch tips just truncate. Salt Teeth
+  extended the lesson: even against a steep waterline CLIFF, scale 1.4
+  clipped the sea on every seed at `mouth=2`; `mouth=5` cleared it, and a
+  cave door partway up a cliff face looks right anyway. Sweep-diagnose
+  first: EVERY seed wet at the mouth = structural, raise the mouth; only
+  SOME seeds wet with long runs = the path crossing shallow water, pick a
+  dry seed or steepen `dip`.
+- **A spiral (or any curve) is still the spine trick.** Serpent's Coil is
+  "distance to an Archimedean spiral < half-thickness(s)", with the curve
+  densely sampled into ~900 points and nearest-point distance per cell
+  (fast enough in Python at 140x140). The same code path draws S-curves,
+  hooks, rings. Details that made it read as a creature from above: taper
+  the half-thickness from a thick head to a thin tail tip, run a 1-2 cell
+  band of dark-canopy forest along the crest (a dorsal fin line), fringe
+  every shore with the rock's own sand, and end the tail in a low landing
+  spit. For an eye lagoon inside the coil, the spiral's inner terminus
+  radius must exceed head half-thickness + pool radius or the head eats
+  the pool.
+- **Tint can vary WITHIN an island (v0.26+).** Regions accept their own
+  `climate=` (same presets as the command option): a lush dell under arid
+  crags, or a whole test island of strips. Climate pixels are ~30 blocks
+  wide and the client interpolates between them, so make each climate zone
+  at least ~60 blocks across or bands blur together. `climate_isle` is the
+  reference/test shape (8 identical strips, one per climate).
+- **Bogs are surface=peat (v0.26+).** Real minable peat a few blocks deep,
+  part-covered in sparse grass; flora treats peat as grass-like ground, so
+  cattails, berry bushes, mushrooms and tallgrass sit on it naturally.
+  Pair with `rock=shale rock2=claystone` and `ores=coal:0.02` for honest
+  coal country (`coal`, `quartz`, `sulfur` and the other ungraded minerals
+  work in `ores=` and cave `ores=` since v0.26: one block, all grades).
+- **Salt is a ROCK, not an ore.** Vanilla halite comes as solid `rock-halite`
+  domes inside sedimentary rock (claystone/sandstone/shale/chalk/limestone/
+  chert/conglomerate). For a salt island, give the dome region
+  `rock=chalk rock2=halite`: the underground blend becomes a proper
+  minable salt body, and a cave through it exposes the salt in the walls.
 - **Mood comes from climate tint as much as blocks.** `climate=arid` rewrites
   the worldgen climate map over the island so grass and leaves render rusty
   desert-yellow; `lush` goes deep green. Pair `climate=arid` with verylow
