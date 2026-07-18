@@ -264,3 +264,16 @@ All verified against 1.22.3 assets. When in doubt, grep
   effects) plus broadcasts the new location to clients. Default range covers
   landformRadius + 32; everything in that square is DELETED and regenerates
   as you fly around.
+- `/genworldsetup` (0.31.0+) is the fresh-world one-shot: plan file
+  worldplan.txt (pureocean / clearspawn / storyloc lines, defaults = the
+  Rustfall coordinates). Verified mechanics: NoiseOcean rolls each ~1km cell
+  against landcover, so ANY landcover above 0 yields kilometer-scale
+  continents and exactly 0 yields none; upheavals (upheavelCommonness,
+  default 0.3) create big raised landmasses independently, so pure ocean
+  needs BOTH at 0. GenMaps.initWorldGen() is public and re-running it
+  mid-session is the restart-equivalent (rebuilds oceanGen from current
+  config, clears forced-land lists); GenStoryStructures.SetupForceLandform
+  (private, reflection) re-adds forcing for saved locations. The vanilla
+  spawn land patch is hardcoded (ForceRandomLandArea, radius 128 at map
+  center) and must be cleared from GenMaps.requireLandAt plus delr'd to
+  make 0,0 open ocean.

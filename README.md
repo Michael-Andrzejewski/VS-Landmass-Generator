@@ -192,6 +192,30 @@ guard SKIPS those, so a dark section means that part of the cave will not
 exist. The info panel counts them; pick a different `seed=` on the cave line
 until the layout stays clean.
 
+## Story world commands
+
+For custom worlds that place the vanilla story locations deliberately
+(details and workflow in tips.md):
+
+    /genstoryloc <code> [chunkRange]
+
+Pins a story location (resonancearchive, lazaret, village, devastationarea,
+tobiascave, treasurehunter) at your position mid-session and regenerates the
+area so it appears now, no restart. For the devastation it also re-points the
+layer painter, timeswitch and effects, which vanilla only reads at world load.
+Everything in the regen square is deleted.
+
+    /genworldsetup [plan]
+
+One-shot setup for a fresh world from a plan file
+(`%APPDATA%\VintagestoryData\LandmassGenerator\worldplan.txt`, created with
+defaults on first run). Plan directives: `pureocean` (landcover and upheavel
+to 0, applied immediately; land then only exists where forced), `clearspawn N`
+(wipe the vanilla spawn land patch at map center), and
+`storyloc <code> <mapX> <mapZ>` lines. Pins all locations, rebuilds the
+worldgen maps (dropping the auto-rolled story spots), then pregenerates each
+story area one by one with progress in chat.
+
 ## Notes and current limits
 
 Early standalone build, kept separate from Building Commands until it proves stable.

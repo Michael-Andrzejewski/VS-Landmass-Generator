@@ -159,6 +159,13 @@ public class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.Word("code"), p.OptionalInt("range"))
                 .HandleWith(OnGenStoryLoc));
 
+        RegisterCmd(api, "genworldsetup", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Set up a whole story world from a plan file in one go: optional pure ocean, pin every story location at planned coordinates, and pregenerate their areas with chat progress. Runs the default plan file worldplan.txt from the LandmassGenerator folder, or pass another plan name. A missing plan file is created with the Rustfall defaults and applied.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.OptionalWord("plan"))
+                .HandleWith(OnGenWorldSetup));
+
         api.Logger.Notification($"[landmassgenerator] Ready. Shape files go in: {shapeFolder}");
     }
 
@@ -306,6 +313,221 @@ public class LandmassGeneratorModSystem : ModSystem
             Radius = loc.GenerationRadius
         });
         return null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  /genworldsetup: one command to set up a fresh story world
+    //
+    //  Reads a plan file (created with the Rustfall defaults if missing)
+    //  and applies it in one pass on a brand-new world:
+    //
+    //    pureocean            landcover and upheavel to 0 in the world
+    //                         config, then rebuild the worldgen maps so it
+    //                         applies NOW, not after a restart. Land then
+    //                         only exists where something forces it.
+    //    clearspawn <chunks>  wipe the vanilla forced land patch at map
+    //                         center (chunks + map regions) so 0,0 is open
+    //                         ocean for a hand-built starter island.
+    //    storyloc <code> <x> <z>  pin a story location at map coordinates
+    //                         (same numbers the coordinate HUD shows).
+    //
+    //  After pinning, GenMaps.initWorldGen() is re-run. That is the
+    //  restart-equivalent: it rebuilds the ocean generator from the new
+    //  config and drops the forced-land entries of the auto-rolled story
+    //  locations, and SetupForceLandform re-adds forcing for the saved
+    //  (now ours) locations. Finally each story area is pregenerated one
+    //  by one with progress reported to chat.
+    // ─────────────────────────────────────────────────────────────────────
+
+    private const string DefaultWorldPlan =
+@"# World setup plan for /genworldsetup. Lines:
+#   pureocean                 no natural land at all (landcover 0, upheavel 0)
+#   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
+#   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
+# Codes: resonancearchive, lazaret, village, devastationarea, tobiascave, treasurehunter
+pureocean
+clearspawn 10
+storyloc treasurehunter 2400 -250
+storyloc lazaret -1400 -2500
+storyloc tobiascave 1500 -8450
+storyloc resonancearchive 5550 -3200
+storyloc village -6250 -5550
+storyloc devastationarea -2550 -8750
+";
+
+    private TextCommandResult OnGenWorldSetup(TextCommandCallingArgs args)
+    {
+        string planName = args.Parsers[0].IsMissing ? "worldplan" : (string)args[0];
+        string planPath = Path.Combine(shapeFolder, planName + ".txt");
+        bool freshPlan = false;
+        if (!File.Exists(planPath))
+        {
+            File.WriteAllText(planPath, DefaultWorldPlan);
+            freshPlan = true;
+        }
+
+        string lore = sapi.World.Config.GetAsString("loreContent", "true") ?? "true";
+        if (lore.Equals("false", StringComparison.OrdinalIgnoreCase) || lore == "0")
+        {
+            return TextCommandResult.Error("This world was created with lore content disabled, so story structures cannot generate at all.");
+        }
+        var genStory = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
+        var genMaps = sapi.ModLoader.GetModSystem<Vintagestory.ServerMods.GenMaps>();
+        if (genStory == null || genMaps == null)
+        {
+            return TextCommandResult.Error("GenStoryStructures or GenMaps mod system not found; is the survival mod loaded?");
+        }
+
+        // Parse the plan.
+        bool pureOcean = false;
+        int clearSpawnRange = 0;
+        var sites = new List<(string Code, int MapX, int MapZ)>();
+        int lineNo = 0;
+        foreach (string raw in File.ReadAllLines(planPath))
+        {
+            lineNo++;
+            string line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith("#")) continue;
+            string[] parts = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            switch (parts[0].ToLowerInvariant())
+            {
+                case "pureocean":
+                    pureOcean = true;
+                    break;
+                case "clearspawn":
+                    clearSpawnRange = parts.Length > 1 && int.TryParse(parts[1], out int csr) ? GameMath.Clamp(csr, 1, 50) : 10;
+                    break;
+                case "storyloc":
+                    if (parts.Length < 4 || !int.TryParse(parts[2], out int mx) || !int.TryParse(parts[3], out int mz))
+                    {
+                        return TextCommandResult.Error($"Plan line {lineNo} is not 'storyloc code x z': {line}");
+                    }
+                    sites.Add((parts[1].ToLowerInvariant(), mx, mz));
+                    break;
+                default:
+                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, storyloc.");
+            }
+        }
+        if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0)
+        {
+            return TextCommandResult.Error($"Plan file {planPath} contains no directives.");
+        }
+
+        var notes = new List<string>();
+        if (freshPlan) notes.Add($"no plan file existed, wrote and applied the default at {planPath}");
+
+        // 1. Pure ocean: from here on, land only exists where forced.
+        if (pureOcean)
+        {
+            var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
+            wc.SetString("landcover", "0");
+            wc.SetString("upheavelCommonness", "0");
+            notes.Add("pure ocean on (landcover 0, upheavel 0)");
+        }
+
+        // 2. Pin every story location via vanilla setpos (absolute coords).
+        int midX = (int)sapi.World.DefaultSpawnPosition.X;
+        int midZ = (int)sapi.World.DefaultSpawnPosition.Z;
+        foreach (var site in sites)
+        {
+            TextCommandResult sub = null;
+            sapi.ChatCommands.ExecuteUnparsed(
+                $"/wgen story setpos {site.Code} ={midX + site.MapX} =1 ={midZ + site.MapZ} true",
+                new TextCommandCallingArgs { Caller = args.Caller },
+                r => sub = r);
+            if (sub == null || sub.Status != EnumCommandStatus.Success)
+            {
+                return TextCommandResult.Error($"setpos for {site.Code} failed: {sub?.StatusMessage ?? "no response"}. Locations pinned so far are kept.");
+            }
+        }
+
+        // 3. Restart-equivalent rebuild: new ocean config takes effect and
+        //    the auto-rolled locations' forced-land entries are dropped.
+        genMaps.initWorldGen();
+        if (pureOcean)
+        {
+            var landListField = genMaps.GetType().GetField("requireLandAt", BindingFlags.NonPublic | BindingFlags.Instance);
+            var landList = landListField?.GetValue(genMaps) as System.Collections.IList;
+            if (landList != null) landList.Clear();
+            else notes.Add("WARNING: could not remove the vanilla spawn land patch (GenMaps internals changed); expect a small vanilla island at map center");
+        }
+        var setupForce = genStory.GetType().GetMethod("SetupForceLandform", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (setupForce == null)
+        {
+            return TextCommandResult.Error("GenStoryStructures.SetupForceLandform not found (game update changed internals). Locations are pinned; restart the world instead, then fly to each site.");
+        }
+        setupForce.Invoke(genStory, null);
+
+        // 4. Devastation systems snapshot their location at load; re-point.
+        if (sites.Exists(s => s.Code == "devastationarea"))
+        {
+            var loc = genStory.Structures.Get("devastationarea");
+            string failed = loc == null ? "location missing after setpos" : RepointDevastationSystems(genStory, loc);
+            if (failed != null) notes.Add($"WARNING: devastation systems not re-pointed ({failed}); restart the world before generating that area");
+        }
+
+        // 5. Wipe the vanilla spawn land patch so 0,0 regenerates as ocean.
+        if (clearSpawnRange > 0)
+        {
+            int ccx = sapi.WorldManager.MapSizeX / 2 / 32;
+            int ccz = sapi.WorldManager.MapSizeZ / 2 / 32;
+            for (int cx = ccx - clearSpawnRange; cx <= ccx + clearSpawnRange; cx++)
+            {
+                for (int cz = ccz - clearSpawnRange; cz <= ccz + clearSpawnRange; cz++)
+                {
+                    sapi.WorldManager.DeleteChunkColumn(cx, cz);
+                }
+            }
+            int regionChunks = sapi.WorldManager.RegionSize / 32;
+            for (int rx = (ccx - clearSpawnRange) / regionChunks; rx <= (ccx + clearSpawnRange) / regionChunks; rx++)
+            {
+                for (int rz = (ccz - clearSpawnRange) / regionChunks; rz <= (ccz + clearSpawnRange) / regionChunks; rz++)
+                {
+                    sapi.WorldManager.DeleteMapRegion(rx, rz);
+                }
+            }
+            notes.Add($"spawn area wiped {clearSpawnRange * 32} blocks around map center; it regenerates as open ocean while you stand there");
+        }
+
+        // 6. Pregenerate each story area, one at a time, smallest first is
+        //    however the plan orders them. Progress goes to chat.
+        var queue = new List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)>();
+        foreach (var site in sites)
+        {
+            var loc = genStory.Structures.Get(site.Code);
+            if (loc == null) continue;
+            int radius = Math.Max(loc.LandformRadius, loc.GenerationRadius) + 64;
+            queue.Add((site.Code,
+                (loc.CenterPos.X - radius) / 32, (loc.CenterPos.Z - radius) / 32,
+                (loc.CenterPos.X + radius) / 32, (loc.CenterPos.Z + radius) / 32));
+        }
+        if (queue.Count > 0) PregenNextStoryArea(queue, 0);
+
+        string summary = $"World setup started: {sites.Count} story location(s) pinned"
+            + (notes.Count > 0 ? "; " + string.Join("; ", notes) : "")
+            + (queue.Count > 0 ? ". Pregenerating each area now, progress follows in chat; the devastation takes the longest." : ".");
+        return TextCommandResult.Success(summary);
+    }
+
+    private void PregenNextStoryArea(List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> queue, int idx)
+    {
+        if (idx >= queue.Count)
+        {
+            sapi.BroadcastMessageToAllGroups("[genworldsetup] All story areas are generated. Teleport with /wgen story tp code, e.g. /wgen story tp devastationarea.", EnumChatType.Notification);
+            return;
+        }
+        var s = queue[idx];
+        int cols = (s.Cx2 - s.Cx1 + 1) * (s.Cz2 - s.Cz1 + 1);
+        sapi.BroadcastMessageToAllGroups($"[genworldsetup] Generating {s.Code} area ({idx + 1} of {queue.Count}, {cols} chunk columns)...", EnumChatType.Notification);
+        sapi.WorldManager.LoadChunkColumnPriority(s.Cx1, s.Cz1, s.Cx2, s.Cz2, new ChunkLoadOptions
+        {
+            KeepLoaded = false,
+            OnLoaded = () =>
+            {
+                sapi.BroadcastMessageToAllGroups($"[genworldsetup] {s.Code} area generated.", EnumChatType.Notification);
+                PregenNextStoryArea(queue, idx + 1);
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────
