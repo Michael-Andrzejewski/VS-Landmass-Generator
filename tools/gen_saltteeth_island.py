@@ -172,7 +172,7 @@ def main():
     print("# beacon cairn on the outermost tooth.")
     print()
     clim = "climate=dry"
-    print(f"region K rock=chalk rock2=limestone fertility=low surface=grass ores=copper:0.010,lead:0.006,iron:0.006 forest=0.008 trees=scotspine,dwarfbirch bushes=birch:0.006 scatter=edelweiss:0.008,westerngorse:0.008,wilddaisy:0.005,mugwort:0.004 wildgrass=0.15 stones=0.02 height=0.55 shore=10 rough=0.10 {clim}")
+    print(f"region K rock=chalk rock2=limestone fertility=low surface=grass ores=copper:0.010,lead:0.006,iron:0.0015 forest=0.008 trees=scotspine,dwarfbirch bushes=birch:0.006 scatter=edelweiss:0.008,westerngorse:0.008,wilddaisy:0.005,mugwort:0.004 wildgrass=0.15 stones=0.02 height=0.55 shore=10 rough=0.10 {clim}")
     print(f"region S rock=chalk rock2=limestone surface=rocksand ores=quartz:0.05,zinc:0.008,copper:0.008 boulders=0.014 stones=0.03 height=0.92 shore=6 rough=0.24 {clim}")
     print(f"region P rock=chalk rock2=limestone surface=rock ores=quartz:0.05,silver:0.006 boulders=0.010 height=1.28 shore=5 rough=0.35 {clim}")
     print(f"region Q rock=halite surface=rock height=0.95 shore=3 rough=0.18 {clim}")
