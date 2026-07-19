@@ -526,6 +526,7 @@ public class LandmassGeneratorModSystem : ModSystem
 pureocean
 clearspawn 16
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
+island 265 0 shape=cattail_isles diameter=210 height=4 water=34
 storyloc treasurehunter 2400 -250
 storyloc lazaret -1400 -2500
 storyloc tobiascave 1500 -8450
@@ -890,12 +891,33 @@ storyloc devastationarea -2550 -8750
     // does not matter that it pokes past the blocking-loaded spawn area.
     private void GetDecorationChunkRect(IslandJob job, out int cx1, out int cz1, out int cx2, out int cz2)
     {
-        double half = job.Shape != null
-            ? Math.Max(job.Shape.W, job.Shape.H) * job.WorldPerCell * 0.5 + 24
-            : job.R * 1.12 + 24;
         int cs = GlobalConstants.ChunkSize;
-        cx1 = FloorDiv(job.Cx - (int)half, cs); cx2 = FloorDiv(job.Cx + (int)half, cs);
-        cz1 = FloorDiv(job.Cz - (int)half, cs); cz2 = FloorDiv(job.Cz + (int)half, cs);
+        if (job.Shape == null)
+        {
+            double half = job.R * 1.12 + 24;
+            cx1 = FloorDiv(job.Cx - (int)half, cs); cx2 = FloorDiv(job.Cx + (int)half, cs);
+            cz1 = FloorDiv(job.Cz - (int)half, cs); cz2 = FloorDiv(job.Cz + (int)half, cs);
+            return;
+        }
+
+        // The land's real bounding box, not the whole grid: a narrow chain
+        // drawn across a wide grid would otherwise demand spawn chunk
+        // pregeneration far beyond anything it decorates. The four corners
+        // go through the same rotation the markers use.
+        var s = job.Shape;
+        double minX = double.MaxValue, minZ = double.MaxValue, maxX = double.MinValue, maxZ = double.MinValue;
+        foreach ((int gx, int gz) in new[] { (s.LandGx1, s.LandGz1), (s.LandGx2, s.LandGz1), (s.LandGx1, s.LandGz2), (s.LandGx2, s.LandGz2) })
+        {
+            double lx = (gx + 0.5 - s.W / 2.0) * job.WorldPerCell;
+            double lz = (gz + 0.5 - s.H / 2.0) * job.WorldPerCell;
+            double wx = job.Cx + lx * job.RotCos - lz * job.RotSin;
+            double wz = job.Cz + lx * job.RotSin + lz * job.RotCos;
+            minX = Math.Min(minX, wx); maxX = Math.Max(maxX, wx);
+            minZ = Math.Min(minZ, wz); maxZ = Math.Max(maxZ, wz);
+        }
+        const int margin = 24; // tree crowns + shore taper
+        cx1 = FloorDiv((int)(minX - margin), cs); cx2 = FloorDiv((int)(maxX + margin), cs);
+        cz1 = FloorDiv((int)(minZ - margin), cs); cz2 = FloorDiv((int)(maxZ + margin), cs);
     }
 
     private bool DecorationChunksLoaded(IslandJob job)
@@ -934,6 +956,7 @@ storyloc devastationarea -2550 -8750
                 ba.Commit();
             }
             string extra = PlaceLandmarkTrees(job);
+            extra += PlaceMarkerBlocks(job);
             StampOreBitClusters(job);
             StampDevastation(job);
             StampPumpkinPatches(job);
@@ -1120,6 +1143,17 @@ storyloc devastationarea -2550 -8750
         public float Size;
     }
 
+    // A `block <char> <blockcode>` marker: one block placed resting on the
+    // actual ground at that map cell, on the sea floor when the cell is
+    // underwater. Meant for spawners and props from other mods, so the code
+    // is resolved at placement time and a missing block is a note, not an
+    // error (the mod supplying it may not be installed).
+    private class BlockMarker
+    {
+        public int Gx, Gz;
+        public string Code;
+    }
+
     // One cave design: where it enters the island and how it descends.
     // Declared in a shape file as `cave <char> key=value...`; each map cell
     // holding that char becomes an entrance carved with these parameters.
@@ -1173,8 +1207,13 @@ storyloc devastationarea -2550 -8750
         public float[,] ShoreField;   // per-cell shore width, smoothed across region borders
         public Dictionary<char, Region> Regions = new();
         public List<TreeMarker> Markers = new();
+        public List<BlockMarker> BlockMarkers = new();
         public List<CaveMarker> Caves = new();
         public bool NaturalDeposits;  // `deposits natural`: run the game's own ore pass
+        // Bounding box of the actual land cells (plus block markers), in
+        // cells. A narrow chain drawn across a wide grid touches far fewer
+        // chunks than the grid square suggests.
+        public int LandGx1, LandGz1, LandGx2, LandGz2;
     }
 
     private class IslandJob
@@ -1491,6 +1530,7 @@ storyloc devastationarea -2550 -8750
         var shape = new ShapeDef();
         var markerDefs = new Dictionary<char, (ITreeGenerator gen, float size)>();
         var caveDefs = new Dictionary<char, CaveDef>();
+        var blockDefs = new Dictionary<char, string>();
         var rows = new List<string>();
         bool inMap = false;
         int oreIdx = 0;
@@ -1528,6 +1568,10 @@ storyloc devastationarea -2550 -8750
             {
                 caveDefs[tok[1][0]] = ParseCave(tok, problems);
             }
+            else if (tok[0].Equals("block", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
+            {
+                blockDefs[tok[1][0]] = tok[2];
+            }
             else if (tok[0].Equals("deposits", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
             {
                 if (tok[1].Equals("natural", StringComparison.OrdinalIgnoreCase)) shape.NaturalDeposits = true;
@@ -1556,14 +1600,29 @@ storyloc devastationarea -2550 -8750
                     shape.Caves.Add(new CaveMarker { Gx = x, Gz = z, Def = caveDefs[c] });
                     c = '?';
                 }
+                else if (blockDefs.ContainsKey(c))
+                {
+                    shape.BlockMarkers.Add(new BlockMarker { Gx = x, Gz = z, Code = blockDefs[c] });
+                    // Unlike tree/cave markers, a block marker may stand in
+                    // open ocean (a spawner on the sea floor). Ocean around
+                    // it means ocean; NeighbourRegion would instead grow a
+                    // one-cell islet from land up to 4 cells away.
+                    c = '!';
+                }
                 shape.Cells[x, z] = c;
             }
 
         // A marker cell still needs terrain, so adopt a neighbouring region.
+        // '!' (block marker) cells go to ocean unless a direct neighbour is
+        // land, so a sea-floor marker does not sprout a one-cell islet.
         for (int z = 0; z < shape.H; z++)
             for (int x = 0; x < shape.W; x++)
+            {
                 if (shape.Cells[x, z] == '?')
                     shape.Cells[x, z] = NeighbourRegion(shape, x, z);
+                else if (shape.Cells[x, z] == '!')
+                    shape.Cells[x, z] = AdjacentRegion(shape, x, z);
+            }
 
         foreach (char c in shape.Cells)
             if (c != '.' && !shape.Regions.ContainsKey(c))
@@ -1571,6 +1630,29 @@ storyloc devastationarea -2550 -8750
                 err = $"Shape '{file}' uses '{c}' in the map with no matching region line.";
                 return null;
             }
+
+        // The land's bounding box in cells, block markers included (a
+        // sea-floor marker still needs its chunk).
+        shape.LandGx1 = shape.W; shape.LandGz1 = shape.H; shape.LandGx2 = -1; shape.LandGz2 = -1;
+        for (int z = 0; z < shape.H; z++)
+            for (int x = 0; x < shape.W; x++)
+                if (shape.Cells[x, z] != '.')
+                {
+                    if (x < shape.LandGx1) shape.LandGx1 = x;
+                    if (x > shape.LandGx2) shape.LandGx2 = x;
+                    if (z < shape.LandGz1) shape.LandGz1 = z;
+                    if (z > shape.LandGz2) shape.LandGz2 = z;
+                }
+        foreach (var bm in shape.BlockMarkers)
+        {
+            shape.LandGx1 = Math.Min(shape.LandGx1, bm.Gx); shape.LandGx2 = Math.Max(shape.LandGx2, bm.Gx);
+            shape.LandGz1 = Math.Min(shape.LandGz1, bm.Gz); shape.LandGz2 = Math.Max(shape.LandGz2, bm.Gz);
+        }
+        if (shape.LandGx2 < 0)
+        {
+            shape.LandGx1 = 0; shape.LandGz1 = 0;
+            shape.LandGx2 = shape.W - 1; shape.LandGz2 = shape.H - 1;
+        }
 
         // Distance fields: how far each land cell is from water, and each water
         // cell from land. These give the island its height and its sea floor.
@@ -1655,6 +1737,21 @@ storyloc devastationarea -2550 -8750
         return cur;
     }
 
+    // Block-marker cells: only a DIRECTLY adjacent region is adopted; open
+    // water stays open water.
+    private static char AdjacentRegion(ShapeDef shape, int x, int z)
+    {
+        for (int dz = -1; dz <= 1; dz++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int nx = x + dx, nz = z + dz;
+                if (nx < 0 || nz < 0 || nx >= shape.W || nz >= shape.H) continue;
+                char c = shape.Cells[nx, nz];
+                if (c != '.' && c != '?' && c != '!') return c;
+            }
+        return '.';
+    }
+
     private static char NeighbourRegion(ShapeDef shape, int x, int z)
     {
         for (int r = 1; r <= 4; r++)
@@ -1664,7 +1761,7 @@ storyloc devastationarea -2550 -8750
                     int nx = x + dx, nz = z + dz;
                     if (nx < 0 || nz < 0 || nx >= shape.W || nz >= shape.H) continue;
                     char c = shape.Cells[nx, nz];
-                    if (c != '.' && c != '?') return c;
+                    if (c != '.' && c != '?' && c != '!') return c;
                 }
         return '.';
     }
@@ -2305,6 +2402,7 @@ storyloc devastationarea -2550 -8750
         try
         {
             string extra = PlaceLandmarkTrees(job);
+            extra += PlaceMarkerBlocks(job);
             int oreBits = StampOreBitClusters(job);
             int devPatches = StampDevastation(job);
             int pumpkinPatches = StampPumpkinPatches(job);
@@ -2960,7 +3058,7 @@ storyloc devastationarea -2550 -8750
         const int clearing = 28;
         foreach (var m in job.Shape?.Markers ?? new List<TreeMarker>())
         {
-            MarkerWorld(job, m, out int mx, out int mz);
+            MarkerWorld(job, m.Gx, m.Gz, out int mx, out int mz);
             double ddx = x - mx, ddz = z - mz;
             if (ddx * ddx + ddz * ddz < clearing * clearing) return false;
         }
@@ -4147,11 +4245,11 @@ storyloc devastationarea -2550 -8750
         return placed;
     }
 
-    private static void MarkerWorld(IslandJob job, TreeMarker m, out int x, out int z)
+    private static void MarkerWorld(IslandJob job, int gx, int gz, out int x, out int z)
     {
         // Forward rotation: map space to world, the inverse of GridPos.
-        double lx = (m.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
-        double lz = (m.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
+        double lx = (gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
+        double lz = (gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
         x = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
         z = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
     }
@@ -4166,7 +4264,7 @@ storyloc devastationarea -2550 -8750
         {
             foreach (var m in job.Shape.Markers)
             {
-                MarkerWorld(job, m, out int x, out int z);
+                MarkerWorld(job, m.Gx, m.Gz, out int x, out int z);
                 if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out _) || uw) continue;
                 var rnd = new LCGRandom(job.Seed);
                 rnd.InitPositionSeed(x, z);
@@ -4187,6 +4285,47 @@ storyloc devastationarea -2550 -8750
 
         ba.Commit();
         return planted > 0 ? $"Planted {planted} landmark tree(s)." : "No landmark tree placed.";
+    }
+
+    // Shape `block` markers: each block rests on the actual ground at its
+    // cell, on the sea floor when the cell is underwater. Runs after terrain
+    // is placed, so it probes real blocks instead of the design math; plant
+    // blocks are stepped through so a marker on a meadow does not sit on a
+    // grass tuft. A code the game does not know (its mod not installed) is
+    // reported, never fatal.
+    private string PlaceMarkerBlocks(IslandJob job)
+    {
+        if (job.Shape == null || job.Shape.BlockMarkers.Count == 0) return "";
+
+        var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+        int placed = 0;
+        var missing = new List<string>();
+
+        foreach (var m in job.Shape.BlockMarkers)
+        {
+            Block block = sapi.World.GetBlock(new AssetLocation(m.Code));
+            if (block == null) { if (!missing.Contains(m.Code)) missing.Add(m.Code); continue; }
+
+            MarkerWorld(job, m.Gx, m.Gz, out int x, out int z);
+            var pos = new BlockPos(x, 0, z, job.Dim);
+            int floor = Math.Max(1, job.SeaLevel - job.MaxDepth);
+            for (int y = job.SeaLevel + job.DomeHeight + 8; y >= floor; y--)
+            {
+                pos.Y = y;
+                Block b = ba.GetBlock(pos, BlockLayersAccess.SolidBlocks);
+                if (b == null || b.Id == 0) continue;
+                if (b.BlockMaterial == EnumBlockMaterial.Plant || b.BlockMaterial == EnumBlockMaterial.Leaves) continue;
+                pos.Y = y + 1;
+                ba.SetBlock(block.BlockId, pos);
+                placed++;
+                break;
+            }
+        }
+
+        ba.Commit();
+        string note = placed > 0 ? $" Placed {placed} marker block(s)." : "";
+        if (missing.Count > 0) note += $" Marker block(s) not in this game: {string.Join(", ", missing)}. Is their mod installed?";
+        return note;
     }
 
     private static TreeGenParams LandmarkParams(float size) => new()

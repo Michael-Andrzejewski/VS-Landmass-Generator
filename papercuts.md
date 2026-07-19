@@ -355,3 +355,22 @@ tripped, neither logged why (fixed: deferrals now log their reason):
   though it is still on the loading screen. Dropped the guard; on the
   auto first-run the tick loop has not started, so blocking is safe by
   construction.
+
+## Previewer screenshots when the Browser pane screenshot tool times out
+The in-app browser's screenshot action can time out repeatedly on the
+WebGL previewer even while the page itself is healthy (JS still responds,
+console clean). Workaround that works every time: run a 10-line Node HTTP
+sink on another localhost port that base64-decodes POST bodies into PNG
+files, then from the previewer page run
+`fetch('http://localhost:5199/name', {method:'POST', body: canvas.toDataURL('image/png')})`
+via the JS tool and Read the saved file as an image. Give the page ~1-2s
+after changing the shape dropdown before grabbing the canvas.
+
+## Decoration rect: grid square vs land bounding box (0.39.0)
+GetDecorationChunkRect originally used the whole shape GRID
+(max(W,H) * worldPerCell / 2 + 24). A narrow chain drawn across a wide
+150-cell grid (cattail_isles) inflated the rect so far past the actual
+land that the SpawnChunksWidth cap could not cover it, and its pre-open
+decoration would always defer. The rect now uses the LAND cells' bounding
+box (block markers included, corners carried through rotate=), so only
+chunks the island can actually touch are demanded.

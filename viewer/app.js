@@ -32,9 +32,9 @@ function fbm(x, z, seed) { // 3 octaves, 0..1
 
 // ── shape file parsing ────────────────────────────────────────────────────
 function parseShape(text) {
-  const s = { regions: {}, markers: [], caves: [], rows: [], suggested: {} };
+  const s = { regions: {}, markers: [], blocks: [], caves: [], rows: [], suggested: {} };
   let inMap = false;
-  const caveDefs = {}, treeChars = {};
+  const caveDefs = {}, treeChars = {}, blockChars = {};
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/\s+$/, '');
     if (inMap) { if (line.trim().length) s.rows.push(line); continue; }
@@ -99,6 +99,8 @@ function parseShape(text) {
         else if (k === 'ores') { const p = v.split(':'); d.oreName = p[0]; d.oreChance = parseFloat(p[1]) || 0.04; }
       }
       caveDefs[tok[1][0]] = d;
+    } else if (/^block$/i.test(tok[0]) && tok.length >= 3) {
+      blockChars[tok[1][0]] = tok[2];
     }
   }
 
@@ -112,15 +114,31 @@ function parseShape(text) {
       let c = x < s.rows[z].length ? s.rows[z][x] : '.';
       if (treeChars[c]) { s.markers.push({ gx: x, gz: z, size: treeChars[c].size }); c = '?'; }
       else if (caveDefs[c]) { s.caves.push({ gx: x, gz: z, def: caveDefs[c] }); c = '?'; }
+      else if (blockChars[c]) { s.blocks.push({ gx: x, gz: z, code: blockChars[c] }); c = '!'; }
       row.push(c);
     }
     s.cells.push(row);
   }
-  // Marker cells adopt a neighbouring region, like the mod does.
+  // Marker cells adopt a neighbouring region, like the mod does. '!' (block
+  // marker) cells only adopt a DIRECT neighbour, so a sea-floor marker in
+  // open water stays open water.
   for (let z = 0; z < s.H; z++)
-    for (let x = 0; x < w; x++)
+    for (let x = 0; x < w; x++) {
       if (s.cells[z][x] === '?') s.cells[z][x] = neighbourRegion(s, x, z);
+      else if (s.cells[z][x] === '!') s.cells[z][x] = adjacentRegion(s, x, z);
+    }
   return s;
+}
+
+function adjacentRegion(s, x, z) {
+  for (let dz = -1; dz <= 1; dz++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, nz = z + dz;
+      if (nx < 0 || nz < 0 || nx >= s.W || nz >= s.H) continue;
+      const c = s.cells[nz][nx];
+      if (c !== '.' && c !== '?' && c !== '!') return c;
+    }
+  return '.';
 }
 
 function neighbourRegion(s, x, z) {
@@ -130,7 +148,7 @@ function neighbourRegion(s, x, z) {
         const nx = x + dx, nz = z + dz;
         if (nx < 0 || nz < 0 || nx >= s.W || nz >= s.H) continue;
         const c = s.cells[nz][nx];
-        if (c !== '.' && c !== '?') return c;
+        if (c !== '.' && c !== '?' && c !== '!') return c;
       }
   return '.';
 }
@@ -600,6 +618,18 @@ function rebuild(shape, dia, hgt) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(3.2 * m.size, h, 8), markCol);
     cone.position.set(mx, col.topY + 1 + h / 2, mz);
     group.add(cone);
+  }
+  // Block markers (spawners, props): a bright box resting on the ground or
+  // sea floor at the marked cell, so a `block` line's spot is visible.
+  const blockCol = new THREE.MeshLambertMaterial({ color: 0xff2f8f });
+  for (const bm of shape.blocks) {
+    const bx = Math.round((bm.gx + 0.5 - shape.W / 2) * island.wpc);
+    const bz = Math.round((bm.gz + 0.5 - shape.H / 2) * island.wpc);
+    const col = island.columnSurface(bx, bz);
+    const by = col ? col.topY : -8;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), blockCol);
+    box.position.set(bx, by + 1.5, bz);
+    group.add(box);
   }
   if (forestTrees.length) {
     const ft = new THREE.InstancedMesh(boxGeo, new THREE.MeshLambertMaterial({ color: 0x3a7a33 }), forestTrees.length);

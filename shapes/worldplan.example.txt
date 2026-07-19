@@ -9,6 +9,7 @@
 pureocean
 clearspawn 16
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
+island 265 0 shape=cattail_isles diameter=210 height=4 water=34
 storyloc treasurehunter 2400 -250
 storyloc lazaret -1400 -2500
 storyloc tobiascave 1500 -8450

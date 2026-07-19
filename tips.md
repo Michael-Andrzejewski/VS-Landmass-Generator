@@ -333,6 +333,26 @@ All verified against 1.22.3 assets. When in doubt, grep
   agree on every block. The auto clearspawn keeps chunks that touch a
   worldgen island rect: they were born correct, deleting them would make
   the island vanish and rebuild in view.
+- Island CHAINS are one shape file, not many islands (0.39.0, cattail_isles):
+  draw each islet as an ellipse strung along a spine curve, alternating
+  small across-spine offsets so they read scattered, not threaded. Two
+  numbers decide whether the chain reads as separate spires or one drowned
+  bank: the ocean carve hits full `water=` depth about OceanRing*0.45
+  (~0.1 * diameter) blocks from the nearest LAND, and flood= skirts COUNT
+  as land for that distance. So keep skirts thin (~2 blocks) and give
+  islets 20+ block edge gaps or the sea floor between them stays shallow.
+  In-game the columns root on the real sea floor when it is deeper than
+  the carve, so the previewer's flat -8 ring is the WORST case. For the
+  reed look: cattails on the dry islets (waterline beds), cattails on the
+  flood=1 skirts (the game's water reed standing IN the 1-deep water),
+  kelp only on the deeper flood heads.
+- `block <char> <blockcode>` (0.39.0) places one block resting on the real
+  ground at that map cell, sea floor included: made for OTHER MODS' spawners
+  and props (block X underwaterhorrors:serpentspawner). Resolved at
+  placement time, so a missing mod is a chat note, not an error, and the
+  marker may stand in open ocean (it only joins a region that directly
+  touches it). It counts toward the decoration chunk rect, so a far-out
+  marker still gets its chunk preloaded for the pre-open pass.
 - Decoration can beat the loading screen too (0.38.2+): ServerMain launch
   order is TriggerWorldgenStartup (worldgen init + BLOCKING spawn chunk
   generation, 7x7 chunks = 224 blocks around map middle) then the RunGame
