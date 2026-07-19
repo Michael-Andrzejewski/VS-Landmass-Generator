@@ -333,3 +333,16 @@ All verified against 1.22.3 assets. When in doubt, grep
   agree on every block. The auto clearspawn keeps chunks that touch a
   worldgen island rect: they were born correct, deleting them would make
   the island vanish and rebuild in view.
+- Decoration can beat the loading screen too (0.38.2+): ServerMain launch
+  order is TriggerWorldgenStartup (worldgen init + BLOCKING spawn chunk
+  generation, 7x7 chunks = 224 blocks around map middle) then the RunGame
+  phase event (synchronous, main thread) and only then thread start / tick
+  loop / join processing. So the auto Rustfall setup now runs the whole
+  world setup synchronously inside its RunGame handler, and decorates
+  worldgen-rendered islands in one blocking burst (plant loop + finish
+  passes) while the player is still loading: the world opens with trees,
+  flora, ore bits and caves in place. Guards: only with zero connected
+  players, and only if the island's land chunks (+24 block tree margin)
+  are all loaded, else it falls back to the paced live pass. The offshore
+  ring may poke past the spawn area; it needs no decoration, so the check
+  ignores it.

@@ -328,21 +328,21 @@ public class LandmassGeneratorModSystem : ModSystem
         if (sapi.WorldManager.SaveGame.GetData<bool>("lgRustfallSetupDone", false)) return;
         sapi.WorldManager.SaveGame.StoreData("lgRustfallSetupDone", true);
 
-        // Give startup a moment to settle, then run the default plan with a
-        // console-privileged caller (the wgen subcommands require
-        // controlserver, which a fresh player may not have yet).
-        sapi.Event.RegisterCallback(_ =>
+        // Run synchronously, right here. On a fresh world this fires during
+        // the RunGame phase transition: the tick loop has not started and no
+        // player can join until this returns, so the story pinning AND the
+        // blocking island decoration all happen behind the loading screen.
+        // Console-privileged caller: the wgen subcommands need controlserver.
+        sapi.Logger.Notification("[genworldsetup] Rustfall world detected, running first-time setup...");
+        var caller = new Caller
         {
-            sapi.BroadcastMessageToAllGroups("[genworldsetup] Rustfall world detected, running first-time setup...", EnumChatType.Notification);
-            var caller = new Caller
-            {
-                Type = EnumCallerType.Console,
-                CallerPrivileges = new[] { "*" },
-                FromChatGroupId = GlobalConstants.GeneralChatGroup
-            };
-            TextCommandResult result = RunWorldSetup(caller, "worldplan", auto: true);
-            sapi.BroadcastMessageToAllGroups("[genworldsetup] " + (result.StatusMessage ?? "done"), EnumChatType.Notification);
-        }, 3000);
+            Type = EnumCallerType.Console,
+            CallerPrivileges = new[] { "*" },
+            FromChatGroupId = GlobalConstants.GeneralChatGroup
+        };
+        TextCommandResult result = RunWorldSetup(caller, "worldplan", auto: true);
+        sapi.Logger.Notification("[genworldsetup] " + (result.StatusMessage ?? "done"));
+        sapi.BroadcastMessageToAllGroups("[genworldsetup] " + (result.StatusMessage ?? "done"), EnumChatType.Notification);
     }
 
     private void RegisterCmd(ICoreServerAPI api, string name, Action<string> build)
@@ -713,6 +713,43 @@ storyloc devastationarea -2550 -8750
                 (loc.CenterPos.X - radius) / 32, (loc.CenterPos.Z - radius) / 32,
                 (loc.CenterPos.X + radius) / 32, (loc.CenterPos.Z + radius) / 32));
         }
+        // On the automatic first-run setup we are still inside the RunGame
+        // phase transition: no tick loop, no connected players, and the
+        // spawn chunks are blocking-loaded. Decorate the worldgen-rendered
+        // islands RIGHT NOW, synchronously, so the world opens with trees,
+        // flora, ores and caves already in place. Islands whose chunks are
+        // not loaded (or any run with players online) fall back to the
+        // paced live pass below.
+        if (auto && _wgIslandJobs != null)
+        {
+            var deferred = new List<(int MapX, int MapZ, string Options)>();
+            foreach (var isl in islands)
+            {
+                IslandJob job = null;
+                if (sapi.World.AllOnlinePlayers.Length == 0)
+                {
+                    var opt = ParseIslandOptions(isl.Options);
+                    if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(isl.MapX, isl.MapZ).ToString();
+                    int iox = sapi.WorldManager.MapSizeX / 2 + isl.MapX;
+                    int ioz = sapi.WorldManager.MapSizeZ / 2 + isl.MapZ;
+                    job = BuildIslandJob(opt, iox, ioz, 0, new List<string>(), out _);
+                }
+                if (job != null && DecorationChunksLoaded(job))
+                {
+                    RunIslandDecorationBlocking(job, isl.MapX, isl.MapZ);
+                }
+                else
+                {
+                    deferred.Add(isl);
+                }
+            }
+            if (deferred.Count < islands.Count)
+            {
+                notes.Add($"{islands.Count - deferred.Count} island(s) decorated before world open");
+            }
+            islands = deferred;
+        }
+
         // Let the spawn-area churn settle, then: regenerate the wiped spawn
         // ocean (pushing fresh chunks to clients), build the plan's islands
         // (starter island first, so the player has ground fast), then
@@ -840,6 +877,70 @@ storyloc devastationarea -2550 -8750
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {islands[idx].MapX}, {islands[idx].MapZ} finished.", EnumChatType.Notification);
             sapi.Event.RegisterCallback(__ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto, then), 2000);
         }, 2000);
+    }
+
+    // The chunks decoration actually touches: the island's land plus a
+    // margin for tree crowns. The offshore ring needs no decoration, so it
+    // does not matter that it pokes past the blocking-loaded spawn area.
+    private bool DecorationChunksLoaded(IslandJob job)
+    {
+        double half = job.Shape != null
+            ? Math.Max(job.Shape.W, job.Shape.H) * job.WorldPerCell * 0.5 + 24
+            : job.R * 1.12 + 24;
+        int cs = GlobalConstants.ChunkSize;
+        int cx1 = FloorDiv(job.Cx - (int)half, cs), cx2 = FloorDiv(job.Cx + (int)half, cs);
+        int cz1 = FloorDiv(job.Cz - (int)half, cs), cz2 = FloorDiv(job.Cz + (int)half, cs);
+        for (int cx = cx1; cx <= cx2; cx++)
+        {
+            for (int cz = cz1; cz <= cz2; cz++)
+            {
+                if (sapi.WorldManager.GetChunk(cx, 0, cz) == null) return false;
+            }
+        }
+        return true;
+    }
+
+    // The live decorator's plant loop and finish passes in one synchronous
+    // burst, for terrain the worldgen renderer already made. This blocks
+    // the server main thread for a few seconds, so it is only used during
+    // the RunGame phase transition, with no players connected: the player
+    // is still on the loading screen and the world opens fully dressed.
+    private void RunIslandDecorationBlocking(IslandJob job, int mapX, int mapZ)
+    {
+        _islandBusy = true;
+        try
+        {
+            if (HasForest(job) || HasFlora(job))
+            {
+                var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+                var pos = new BlockPos(0, 0, 0, job.Dim);
+                for (long i = 0; i < job.Total; i++)
+                {
+                    int x = job.MinX + (int)(i % job.W);
+                    int z = job.MinZ + (int)(i / job.W);
+                    PlantColumn(job, ba, pos, x, z);
+                }
+                ba.Commit();
+            }
+            string extra = PlaceLandmarkTrees(job);
+            StampOreBitClusters(job);
+            StampDevastation(job);
+            StampPumpkinPatches(job);
+            string caveNote = CarveCaves(job);
+            StampClimate(job);
+            string depositNote = SyncHeightmapsAndDeposits(job);
+            sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
+                mapX, mapZ, job.Trees, job.Plants, caveNote, depositNote, extra);
+        }
+        catch (Exception e)
+        {
+            sapi.Logger.Error("[genworldsetup] Blocking decoration for the island at {0}, {1} failed; its terrain stands, decoration may be partial:", mapX, mapZ);
+            sapi.Logger.Error(e);
+        }
+        finally
+        {
+            _islandBusy = false;
+        }
     }
 
     // The server's chunk request fifo holds 2000 entries
