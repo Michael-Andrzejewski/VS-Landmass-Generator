@@ -3039,11 +3039,55 @@ storyloc devastationarea -2550 -8750
             return;
         }
 
+        // The sea's own one-deep hem: the first ring of carved floor just
+        // outside a coast sits exactly one block under the surface, and the
+        // game's water reed can stand in it. Ocean columns own no region,
+        // so borrow the nearest reed-bearing land region's cattails= within
+        // a few cells, clumped by the same noise the shore beds use, so the
+        // beds run from the meadow straight out into the water.
+        if (underwater && job.Shape != null && waterTopY - topY == 1 && (reg == null || reg.Flood == 0))
+        {
+            Region reedN = (reg != null && reg.Cattails > 0 && reg.WaterCattailId != 0) ? reg : NeighbourCattails(job, x, z);
+            if (reedN != null && job.SurfNoise.Noise(x * 0.045, z * 0.045) > 0.58)
+            {
+                job.Rand.InitPositionSeed(x, z);
+                if (job.Rand.NextDouble() < Math.Min(1.0, reedN.Cattails * 2.2))
+                {
+                    pos.Set(x, topY + 1, z);
+                    ba.SetBlock(reedN.WaterCattailId, pos);
+                    job.Plants++;
+                }
+            }
+            return;
+        }
+
         if (underwater || (topMat != SurfGrass && topMat != SurfSand && topMat != SurfRock && topMat != SurfSoil && topMat != SurfPeat)) return;
 
         job.Rand.InitPositionSeed(x, z);
         if ((topMat == SurfGrass || topMat == SurfPeat) && TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
         else if (TryPlantFlora(job, ba, pos, x, z, topY, topMat, reg)) job.Plants++;
+    }
+
+    // The nearest land region within 3 cells that grows reeds, for sea
+    // columns that want the in-water hem. Pond regions keep their reeds on
+    // the rim, so they do not spill into the sea.
+    private static Region NeighbourCattails(IslandJob job, int x, int z)
+    {
+        if (!GridPos(job, x, z, out _, out _, out int ccx, out int ccz)) return null;
+        var shape = job.Shape;
+        for (int r = 1; r <= 3; r++)
+            for (int dz = -r; dz <= r; dz++)
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dz)) != r) continue;
+                    int nx = ccx + dx, nz = ccz + dz;
+                    if (nx < 0 || nz < 0 || nx >= shape.W || nz >= shape.H) continue;
+                    char c = shape.Cells[nx, nz];
+                    if (c == '.') continue;
+                    if (shape.Regions.TryGetValue(c, out Region reg)
+                        && reg.Cattails > 0 && reg.Pond == 0 && reg.WaterCattailId != 0) return reg;
+                }
+        return null;
     }
 
     private bool TryPlantTree(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z, int topY, Region reg)

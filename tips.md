@@ -345,7 +345,10 @@ All verified against 1.22.3 assets. When in doubt, grep
   the carve, so the previewer's flat -8 ring is the WORST case. For the
   reed look: cattails on the dry islets (waterline beds), cattails on the
   flood=1 skirts (the game's water reed standing IN the 1-deep water),
-  kelp only on the deeper flood heads.
+  kelp only on the deeper flood heads. Since 0.39.1 every cattails= shore
+  also hems itself in the SEA: wherever the water just off that coast is
+  exactly one deep, water reeds continue the same clumped beds, so no
+  skirt region is needed just to get reeds into the water.
 - `block <char> <blockcode>` (0.39.0) places one block resting on the real
   ground at that map cell, sea floor included: made for OTHER MODS' spawners
   and props (block X underwaterhorrors:serpentspawner). Resolved at
