@@ -315,3 +315,21 @@ All verified against 1.22.3 assets. When in doubt, grep
   starts at ServerRunPhase.RunGame, before the singleplayer client finishes
   joining, and the spawn clear zone is 640 blocks of flattened landform in
   BOTH natural-island modes, so spawn is always open ocean past the starter.
+- Islands can render DURING chunk generation (0.38.0+): on Rustfall /
+  pure-ocean plan worlds a ChunkColumnGeneration pass (Vegetation, after
+  vanilla vegetation 0.5, before GenLightSurvival 0.95 so sunlight is
+  computed with the island in place) writes each plan island's terrain
+  into chunks as they are born, updating WorldGenTerrainHeightMap +
+  RainHeightMap per column. Vanilla holds a joining player at "Loading
+  spawn chunk..." until the spawn chunk column is generated, and spawn Y
+  is WorldGenTerrainHeightMap+1 at map middle, so the player materializes
+  STANDING on the starter island on frame one of a brand-new world. Three
+  things make it deterministic: spawnRadius forced to 0 at SaveGameLoaded
+  (vanilla default scatters first spawns ~50 blocks, here into ocean),
+  GenMaps' private requireLandAt list cleared at InitWorldGenerator so no
+  vanilla spawn continent is ever born, and per-island seeds derived from
+  world seed + plan coordinates (PlanIslandSeed) so the worldgen renderer
+  and the live decorator (/genisland skipterrain=1 on the auto setup)
+  agree on every block. The auto clearspawn keeps chunks that touch a
+  worldgen island rect: they were born correct, deleting them would make
+  the island vanish and rebuild in view.

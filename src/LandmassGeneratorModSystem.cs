@@ -45,6 +45,16 @@ public class LandmassGeneratorModSystem : ModSystem
     private long _islandListenerId;
     private bool _islandBusy;
 
+    // Plan islands rendered during chunk generation (Rustfall / pure-ocean
+    // plan worlds). Built once at worldgen init, read by the chunk-gen pass.
+    private List<IslandJob> _wgIslandJobs;
+
+    // Late enough that every registration lands AFTER the vanilla worldgen
+    // systems': the map-region flatten needs GenMaps' maps to exist, and the
+    // worldgen island pass must run after vanilla vegetation (0.5) but
+    // before worldgen lighting (GenLightSurvival, 0.95) computes sunlight.
+    public override double ExecuteOrder() => 0.93;
+
     // Graded ore minerals the game ships (worldproperties/block/ore-graded).
     private static readonly string[] OreMinerals =
     {
@@ -187,7 +197,21 @@ public class LandmassGeneratorModSystem : ModSystem
             wc.SetString("landcover", "0");
             wc.SetString("upheavelCommonness", "0");
             wc.SetBool("lgPureOcean", true);
+            // New players must land exactly on the starter island at map
+            // center. The vanilla default scatters first spawns up to
+            // spawnRadius blocks around it, which here is open ocean.
+            wc.SetString("spawnRadius", "0");
         };
+
+        // Rustfall / pure-ocean plan worlds: also render the plan's islands
+        // DURING chunk generation, so the starter island's terrain exists
+        // the moment its chunks are born. Vanilla holds a joining player at
+        // the loading screen until the spawn chunk column is generated, so
+        // on a brand-new world the player materializes standing on the
+        // island, never swimming while it builds. The live tick builder
+        // then only adds decoration, with the same deterministic seed.
+        api.Event.InitWorldGenerator(InitWorldgenIslandJobs, "standard");
+        api.Event.ChunkColumnGeneration(OnChunkColumnGenIslands, EnumWorldGenPass.Vegetation, "standard");
 
         // Pure ocean, part 2. landcover 0 stops the continent roll and
         // upheavelCommonness 0 stops raised seafloors, but GenTerra only
@@ -316,7 +340,7 @@ public class LandmassGeneratorModSystem : ModSystem
                 CallerPrivileges = new[] { "*" },
                 FromChatGroupId = GlobalConstants.GeneralChatGroup
             };
-            TextCommandResult result = RunWorldSetup(caller, "worldplan");
+            TextCommandResult result = RunWorldSetup(caller, "worldplan", auto: true);
             sapi.BroadcastMessageToAllGroups("[genworldsetup] " + (result.StatusMessage ?? "done"), EnumChatType.Notification);
         }, 3000);
     }
@@ -515,7 +539,7 @@ storyloc devastationarea -2550 -8750
         return RunWorldSetup(args.Caller, args.Parsers[0].IsMissing ? "worldplan" : (string)args[0]);
     }
 
-    private TextCommandResult RunWorldSetup(Caller caller, string planName)
+    private TextCommandResult RunWorldSetup(Caller caller, string planName, bool auto = false)
     {
         string planPath = Path.Combine(shapeFolder, planName + ".txt");
         bool freshPlan = false;
@@ -582,6 +606,10 @@ storyloc devastationarea -2550 -8750
 
         var notes = new List<string>();
         if (freshPlan) notes.Add($"no plan file existed, wrote and applied the default at {planPath}");
+
+        // Remember which plan this world uses, so the worldgen island
+        // renderer reads the same plan after every restart.
+        sapi.WorldManager.SaveGame.StoreData("lgWorldPlanName", planName);
 
         // 1. Pure ocean: from here on, land only exists where forced.
         if (pureOcean)
@@ -654,6 +682,12 @@ storyloc devastationarea -2550 -8750
                     // (96 blocks) so a 150-wide starter island built at 0,0
                     // fully covers it.
                     if (Math.Abs(cx - ccx) <= 1 && Math.Abs(cz - ccz) <= 1) continue;
+                    // On the automatic first-run setup every chunk was born
+                    // AFTER the ocean config applied, and island chunks were
+                    // born WITH their island terrain (worldgen renderer);
+                    // deleting those would only make the island vanish and
+                    // rebuild in front of the player.
+                    if (auto && ChunkTouchesWorldgenIsland(cx, cz)) continue;
                     sapi.WorldManager.DeleteChunkColumn(cx, cz);
                 }
             }
@@ -690,11 +724,11 @@ storyloc devastationarea -2550 -8750
         {
             int rccx = sapi.WorldManager.MapSizeX / 2 / 32;
             int rccz = sapi.WorldManager.MapSizeZ / 2 / 32;
-            sapi.Event.RegisterCallback(_ => RegenSpawnBand(rccx, rccz, clearSpawnRange, rccz - clearSpawnRange, islands, queue, caller), 4000);
+            sapi.Event.RegisterCallback(_ => RegenSpawnBand(rccx, rccz, clearSpawnRange, rccz - clearSpawnRange, islands, queue, caller, auto), 4000);
         }
         else if (islands.Count > 0 || queue.Count > 0)
         {
-            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, queue, caller), 4000);
+            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, queue, caller, auto), 4000);
         }
 
         string summary = $"World setup started: {sites.Count} story location(s) pinned"
@@ -709,12 +743,12 @@ storyloc devastationarea -2550 -8750
     // deleted columns lazily, and clients keep rendering the stale terrain
     // they downloaded before the wipe, which reads as chunks refusing to
     // generate until a relog.
-    private void RegenSpawnBand(int ccx, int ccz, int range, int bandCz1, List<(int MapX, int MapZ, string Options)> islands, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller)
+    private void RegenSpawnBand(int ccx, int ccz, int range, int bandCz1, List<(int MapX, int MapZ, string Options)> islands, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller, bool auto = false)
     {
         if (bandCz1 > ccz + range)
         {
             sapi.BroadcastMessageToAllGroups("[genworldsetup] Spawn ocean regenerated.", EnumChatType.Notification);
-            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, pregenQueue, caller), 2000);
+            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, pregenQueue, caller, auto), 2000);
             return;
         }
         int width = 2 * range + 1;
@@ -736,18 +770,18 @@ storyloc devastationarea -2550 -8750
                             sapi.WorldManager.ResendMapChunk(cx, cz, onlyIfInRange: true);
                         }
                     }
-                    sapi.Event.RegisterCallback(_ => RegenSpawnBand(ccx, ccz, range, bandCz2 + 1, islands, pregenQueue, caller), 750);
+                    sapi.Event.RegisterCallback(_ => RegenSpawnBand(ccx, ccz, range, bandCz2 + 1, islands, pregenQueue, caller, auto), 750);
                 }
             });
         }
         catch (Exception e)
         {
             sapi.Logger.Error("[genworldsetup] Spawn regen band {0}-{1} failed: {2}", bandCz1, bandCz2, e);
-            sapi.Event.RegisterCallback(_ => RegenSpawnBand(ccx, ccz, range, bandCz1, islands, pregenQueue, caller), 5000);
+            sapi.Event.RegisterCallback(_ => RegenSpawnBand(ccx, ccz, range, bandCz1, islands, pregenQueue, caller, auto), 5000);
         }
     }
 
-    private void RunNextPlanIsland(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller)
+    private void RunNextPlanIsland(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller, bool auto = false)
     {
         if (idx >= islands.Count)
         {
@@ -756,30 +790,40 @@ storyloc devastationarea -2550 -8750
             return;
         }
         var isl = islands[idx];
+        string opts = isl.Options;
+        // Deterministic seed: the exact one the worldgen renderer derived,
+        // so the live pass lands on identical terrain instead of reshaping
+        // the island under the player.
+        if (opts.IndexOf("seed=", StringComparison.OrdinalIgnoreCase) < 0)
+            opts += " seed=" + PlanIslandSeed(isl.MapX, isl.MapZ);
+        // Worldgen already rendered the terrain on the automatic first-run
+        // setup; the live pass only decorates (trees, flora, ores, caves).
+        if (auto && _wgIslandJobs != null && opts.IndexOf("skipterrain", StringComparison.OrdinalIgnoreCase) < 0)
+            opts += " skipterrain=1";
         sapi.BroadcastMessageToAllGroups($"[genworldsetup] Building island {idx + 1} of {islands.Count} at {isl.MapX}, {isl.MapZ}...", EnumChatType.Notification);
         TextCommandResult sub = null;
-        sapi.ChatCommands.ExecuteUnparsed($"/genisland {isl.Options} x={isl.MapX} z={isl.MapZ}",
+        sapi.ChatCommands.ExecuteUnparsed($"/genisland {opts} x={isl.MapX} z={isl.MapZ}",
             new TextCommandCallingArgs { Caller = caller }, r => sub = r);
         if (sub == null || sub.Status != EnumCommandStatus.Success)
         {
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {isl.MapX}, {isl.MapZ} failed to start ({sub?.StatusMessage ?? "no response"}); skipping it.", EnumChatType.Notification);
-            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller), 2000);
+            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto), 2000);
             return;
         }
-        WaitForIslandThenContinue(islands, idx, pregenQueue, caller);
+        WaitForIslandThenContinue(islands, idx, pregenQueue, caller, auto);
     }
 
-    private void WaitForIslandThenContinue(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller)
+    private void WaitForIslandThenContinue(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller, bool auto)
     {
         sapi.Event.RegisterCallback(_ =>
         {
             if (_islandBusy)
             {
-                WaitForIslandThenContinue(islands, idx, pregenQueue, caller);
+                WaitForIslandThenContinue(islands, idx, pregenQueue, caller, auto);
                 return;
             }
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {islands[idx].MapX}, {islands[idx].MapZ} finished.", EnumChatType.Notification);
-            sapi.Event.RegisterCallback(__ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller), 2000);
+            sapi.Event.RegisterCallback(__ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto), 2000);
         }, 2000);
     }
 
@@ -1012,6 +1056,10 @@ storyloc devastationarea -2550 -8750
         public int DomeHeight, Water, MaxDepth;
         public double OceanRing;
         public long Seed;
+        public int Diameter;
+        // The worldgen renderer already placed this island's terrain during
+        // chunk generation; the live pass only decorates.
+        public bool SkipTerrain;
 
         // Radial mode
         public double R, Rmax;
@@ -1066,21 +1114,14 @@ storyloc devastationarea -2550 -8750
     private TextCommandResult OnGenIsland(TextCommandCallingArgs args)
     {
         string all = args.Parsers[0].GetValue() as string ?? "";
-        string[] toks = all.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
 
-        if (toks.Length == 1 && toks[0].Equals("shapes", StringComparison.OrdinalIgnoreCase))
+        if (all.Trim().Equals("shapes", StringComparison.OrdinalIgnoreCase))
             return ListShapes();
 
         if (_islandBusy)
             return TextCommandResult.Error("An island is still generating. Wait for it to finish before starting another.");
 
-        var opt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < toks.Length; i++)
-        {
-            int eq = toks[i].IndexOf('=');
-            if (eq > 0) opt[toks[i].Substring(0, eq)] = toks[i].Substring(eq + 1);
-            else if (i == 0 && int.TryParse(toks[i], out _)) opt["diameter"] = toks[i];
-        }
+        var opt = ParseIslandOptions(all);
 
         // x=/z= (map coordinates, the numbers the HUD shows) centre the
         // island at an explicit position instead of the caller, which also
@@ -1101,6 +1142,51 @@ storyloc devastationarea -2550 -8750
                 return TextCommandResult.Error("Run /genisland in game so it centres on where you stand, or pass x= and z= map coordinates.");
             GetOrigin(args.Caller, out ox, out int _, out oz, out dim);
         }
+
+        var problems = new List<string>();
+        IslandJob job = BuildIslandJob(opt, ox, oz, dim, problems, out string err);
+        if (job == null) return TextCommandResult.Error(err);
+        job.Player = args.Caller?.Player as IServerPlayer;
+
+        int cs = GlobalConstants.ChunkSize;
+        int cx1 = FloorDiv(job.MinX, cs), cx2 = FloorDiv(job.MinX + job.W - 1, cs);
+        int cz1 = FloorDiv(job.MinZ, cs), cz2 = FloorDiv(job.MinZ + job.H - 1, cs);
+
+        _islandBusy = true;
+        sapi.WorldManager.LoadChunkColumnPriority(cx1, cz1, cx2, cz2,
+            new ChunkLoadOptions { KeepLoaded = false, OnLoaded = () => StartIslandJob(job) });
+
+        string shapeName = OptStr(opt, "shape", null);
+        string msg = shapeName != null
+            ? $"Building '{shapeName}' at {job.Diameter} blocks across (sea level {job.SeaLevel}, seed {job.Seed}), {job.Shape.Regions.Count} region(s)."
+            : $"Generating a {job.Diameter}-block island (sea level {job.SeaLevel}, seed {job.Seed}).";
+        msg += " It builds over a few seconds without freezing the server.";
+        if (problems.Count > 0) msg += " Notes: " + string.Join("; ", problems) + ".";
+        return TextCommandResult.Success(msg);
+    }
+
+    // The option tokens of /genisland (and of a plan file's island line):
+    // key=value pairs, with a bare leading number as diameter shorthand.
+    private static Dictionary<string, string> ParseIslandOptions(string all)
+    {
+        string[] toks = all.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+        var opt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < toks.Length; i++)
+        {
+            int eq = toks[i].IndexOf('=');
+            if (eq > 0) opt[toks[i].Substring(0, eq)] = toks[i].Substring(eq + 1);
+            else if (i == 0 && int.TryParse(toks[i], out _)) opt["diameter"] = toks[i];
+        }
+        return opt;
+    }
+
+    // Everything between the option map and a ready-to-run job: palette,
+    // noises, shape or radial fields, climate, bounds. Shared by the chat
+    // command and the worldgen renderer, so an island is defined ONCE and
+    // both paths produce the identical result from the same seed.
+    private IslandJob BuildIslandJob(Dictionary<string, string> opt, int ox, int oz, int dim, List<string> problems, out string err)
+    {
+        err = null;
 
         int diameter = OptInt(opt, "diameter", 120, 8, 1024);
         int height = OptInt(opt, "height", 40, 3, 220);
@@ -1123,14 +1209,12 @@ storyloc devastationarea -2550 -8750
         // so the ring we fill around the island must be salt to match the biome.
         // Ponds stay freshwater. `oceanwater=water-still-7` forces fresh (lake set).
         Block oceanBlock = ResolveBlock(OptStr(opt, "oceanwater", "saltwater-still-7"), out string oce);
-        if (stone == null) return TextCommandResult.Error("stone: " + se);
-        if (soil == null) return TextCommandResult.Error("soil: " + oe);
-        if (grass == null) return TextCommandResult.Error("grass: " + ge);
-        if (sand == null) return TextCommandResult.Error("sand: " + ae);
-        if (waterBlock == null) return TextCommandResult.Error("water: " + we);
-        if (oceanBlock == null) return TextCommandResult.Error("oceanwater: " + oce);
-
-        var problems = new List<string>();
+        if (stone == null) { err = "stone: " + se; return null; }
+        if (soil == null) { err = "soil: " + oe; return null; }
+        if (grass == null) { err = "grass: " + ge; return null; }
+        if (sand == null) { err = "sand: " + ae; return null; }
+        if (waterBlock == null) { err = "water: " + we; return null; }
+        if (oceanBlock == null) { err = "oceanwater: " + oce; return null; }
 
         var job = new IslandJob
         {
@@ -1146,9 +1230,13 @@ storyloc devastationarea -2550 -8750
             SandId = sand.BlockId, WaterId = waterBlock.BlockId, SaltWaterId = oceanBlock.BlockId,
             ColumnsPerTick = 400,
             Phase = 0,
-            Rand = new LCGRandom(seed),
-            Player = args.Caller?.Player as IServerPlayer
+            Rand = new LCGRandom(seed)
         };
+        job.Diameter = diameter;
+        // skipterrain=1 (used by the auto world setup): the worldgen pass
+        // already rendered this island's terrain during chunk generation,
+        // so the live pass skips straight to decoration.
+        job.SkipTerrain = opt.ContainsKey("skipterrain");
 
         // rotate=deg spins a drawn island clockwise on the map, so a shape's
         // harbour (or beach, or cliff) can be aimed at a neighbouring island.
@@ -1163,7 +1251,10 @@ storyloc devastationarea -2550 -8750
         if (opt.TryGetValue("climate", out string climStr) && !string.IsNullOrWhiteSpace(climStr))
         {
             if (!ParseClimate(climStr, out float climTempC, out float climRain, out string cerr))
-                return TextCommandResult.Error("climate: " + cerr);
+            {
+                err = "climate: " + cerr;
+                return null;
+            }
             job.HasClimate = true;
             job.ClimTempRaw = Math.Clamp(Climate.DescaleTemperature(climTempC), 0, 255);
             job.ClimRainRaw = (int)Math.Clamp(climRain * 255.0, 0, 255);
@@ -1177,8 +1268,8 @@ storyloc devastationarea -2550 -8750
 
         if (shapeName != null)
         {
-            ShapeDef shape = LoadShape(shapeName, job, seed, problems, out string err);
-            if (shape == null) return TextCommandResult.Error(err);
+            ShapeDef shape = LoadShape(shapeName, job, seed, problems, out err);
+            if (shape == null) return null;
 
             job.Shape = shape;
             job.NaturalDeposits = shape.NaturalDeposits;
@@ -1230,21 +1321,7 @@ storyloc devastationarea -2550 -8750
         job.MinX = ox - reach; job.MinZ = oz - reach;
         job.W = reach * 2 + 1; job.H = reach * 2 + 1;
         job.Total = (long)job.W * job.H;
-
-        int cs = GlobalConstants.ChunkSize;
-        int cx1 = FloorDiv(job.MinX, cs), cx2 = FloorDiv(job.MinX + job.W - 1, cs);
-        int cz1 = FloorDiv(job.MinZ, cs), cz2 = FloorDiv(job.MinZ + job.H - 1, cs);
-
-        _islandBusy = true;
-        sapi.WorldManager.LoadChunkColumnPriority(cx1, cz1, cx2, cz2,
-            new ChunkLoadOptions { KeepLoaded = false, OnLoaded = () => StartIslandJob(job) });
-
-        string msg = shapeName != null
-            ? $"Building '{shapeName}' at {diameter} blocks across (sea level {seaLevel}, seed {seed}), {job.Shape.Regions.Count} region(s)."
-            : $"Generating a {diameter}-block island (sea level {seaLevel}, seed {seed}).";
-        msg += " It builds over a few seconds without freezing the server.";
-        if (problems.Count > 0) msg += " Notes: " + string.Join("; ", problems) + ".";
-        return TextCommandResult.Success(msg);
+        return job;
     }
 
     private TextCommandResult ListShapes()
@@ -2013,6 +2090,13 @@ storyloc devastationarea -2550 -8750
     // ─────────────────────────────────────────────────────────────────────
     private void StartIslandJob(IslandJob job)
     {
+        // Terrain already rendered at worldgen: jump straight to the
+        // decoration phase, or to the finish passes if nothing plants.
+        if (job.SkipTerrain && job.Phase == 0)
+        {
+            job.Phase = 1;
+            if (!HasForest(job) && !HasFlora(job)) job.I = job.Total;
+        }
         _islandJob = job;
         _islandListenerId = sapi.Event.RegisterGameTickListener(OnIslandTick, 40);
     }
@@ -2158,12 +2242,7 @@ storyloc devastationarea -2550 -8750
         if (!ColumnSurface(job, x, z, naturalY, out int topY, out bool underwater, out int topMat, out bool nearIsland, out int waterTopY, out Region reg))
             return false;
 
-        int stoneId = reg?.StoneId ?? job.StoneId;
-        int stoneId2 = reg?.StoneId2 ?? 0;
-        int sandId = reg?.SandId ?? job.SandId;
-        int soilId = reg?.SoilId ?? job.SoilId;
-        int grassId = reg?.GrassId ?? job.GrassId;
-        List<OreSpec> ores = reg?.Ores ?? job.Ores;
+        ColumnPalette(job, reg, out int stoneId, out int stoneId2, out int sandId, out int soilId, out int grassId, out List<OreSpec> ores);
 
         // Root the column on whichever is lower: the existing sea floor or our
         // own surface. That fills the gap down to the seabed so nothing floats,
@@ -2171,27 +2250,10 @@ storyloc devastationarea -2550 -8750
         int fillFrom = Math.Min(naturalY, topY);
         fillFrom = Math.Max(fillFrom, Math.Max(1, job.SeaLevel - job.MaxDepth));
 
-        const int skin = 3;
         for (int y = fillFrom; y <= topY; y++)
         {
             pos.Set(x, y, z);
-            int id;
-            if (y == topY)
-                id = topMat == SurfGrass ? grassId
-                    // surface=barren land gets patchy sparse grass; pond beds
-                    // (the other SurfSoil source) stay bare mud.
-                    : topMat == SurfSoil ? (reg != null && reg.Pond == 0 && reg.SparseGrassId != 0
-                        ? (job.SurfNoise.Noise(x * 0.31, z * 0.31) > 0.5 ? reg.SparseGrassId2 : reg.SparseGrassId)
-                        : soilId)
-                    : topMat == SurfPeat ? (job.SurfNoise.Noise(x * 0.31, z * 0.31) > 0.45 ? reg.PeatSparseId : reg.PeatId)
-                    : topMat == SurfSand ? sandId : stoneId;
-            else if (y > topY - skin)
-                id = topMat == SurfGrass || topMat == SurfSoil ? soilId
-                    : topMat == SurfPeat ? reg.PeatId
-                    : topMat == SurfSand ? sandId : stoneId;
-            else
-                id = PickStone(job, ores, stoneId, stoneId2, x, y, z);
-            ba.SetBlock(id, pos);
+            ba.SetBlock(ColumnBlockAt(job, reg, ores, topMat, y, topY, stoneId, stoneId2, sandId, soilId, grassId, x, z), pos);
             if (y < job.SeaLevel) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
         }
 
@@ -2208,6 +2270,207 @@ storyloc devastationarea -2550 -8750
             ba.SetBlock(y <= waterTopY ? waterId : 0, pos, BlockLayersAccess.Fluid);
         }
         return true;
+    }
+
+    // The per-area palette: region overrides, else the island's global one.
+    private static void ColumnPalette(IslandJob job, Region reg, out int stoneId, out int stoneId2, out int sandId, out int soilId, out int grassId, out List<OreSpec> ores)
+    {
+        stoneId = reg?.StoneId ?? job.StoneId;
+        stoneId2 = reg?.StoneId2 ?? 0;
+        sandId = reg?.SandId ?? job.SandId;
+        soilId = reg?.SoilId ?? job.SoilId;
+        grassId = reg?.GrassId ?? job.GrassId;
+        ores = reg?.Ores ?? job.Ores;
+    }
+
+    // The block for one depth of a column: surface cap, the soil/sand skin
+    // beneath it, then ore-or-stone. Shared by the live builder and the
+    // worldgen renderer so both produce the identical island.
+    private int ColumnBlockAt(IslandJob job, Region reg, List<OreSpec> ores, int topMat, int y, int topY,
+        int stoneId, int stoneId2, int sandId, int soilId, int grassId, int x, int z)
+    {
+        const int skin = 3;
+        if (y == topY)
+            return topMat == SurfGrass ? grassId
+                // surface=barren land gets patchy sparse grass; pond beds
+                // (the other SurfSoil source) stay bare mud.
+                : topMat == SurfSoil ? (reg != null && reg.Pond == 0 && reg.SparseGrassId != 0
+                    ? (job.SurfNoise.Noise(x * 0.31, z * 0.31) > 0.5 ? reg.SparseGrassId2 : reg.SparseGrassId)
+                    : soilId)
+                : topMat == SurfPeat ? (job.SurfNoise.Noise(x * 0.31, z * 0.31) > 0.45 ? reg.PeatSparseId : reg.PeatId)
+                : topMat == SurfSand ? sandId : stoneId;
+        if (y > topY - skin)
+            return topMat == SurfGrass || topMat == SurfSoil ? soilId
+                : topMat == SurfPeat ? reg.PeatId
+                : topMat == SurfSand ? sandId : stoneId;
+        return PickStone(job, ores, stoneId, stoneId2, x, y, z);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Worldgen island rendering
+    //
+    //  On a Rustfall (or pure-ocean plan) world the plan's islands are ALSO
+    //  rendered during chunk generation, so their terrain exists the moment
+    //  a chunk is born. Vanilla refuses to release a joining player until
+    //  the spawn chunk column is generated, so a starter island at map
+    //  center is under the player's feet on the very first frame of a
+    //  brand-new world; there is no window where they swim over bare ocean
+    //  while the island builds. The live tick builder then only decorates
+    //  (trees, flora, ore bits, caves), sharing the same deterministic seed
+    //  so both stages agree on every block.
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void InitWorldgenIslandJobs()
+    {
+        _wgIslandJobs = null;
+        var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
+        if (!wc.GetBool("lgPureOcean", false) && !wc.GetBool("rustfallWorld", false)) return;
+
+        // Pure ocean from the very first chunk: drop the vanilla forced
+        // spawn land NOW, before any map region generates. Without this the
+        // spawn chunks are born as a continent the later setup must wipe.
+        var genMaps = sapi.ModLoader.GetModSystem<Vintagestory.ServerMods.GenMaps>();
+        var landListField = genMaps?.GetType().GetField("requireLandAt", BindingFlags.NonPublic | BindingFlags.Instance);
+        var landList = landListField?.GetValue(genMaps) as System.Collections.IList;
+        if (landList != null) landList.Clear();
+        else sapi.Logger.Warning("[landmassgenerator] Could not clear the vanilla forced spawn land (GenMaps internals changed); expect a vanilla landmass at map center.");
+
+        string planName = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) ?? "worldplan";
+        string planPath = Path.Combine(shapeFolder, planName + ".txt");
+        if (!File.Exists(planPath))
+        {
+            if (!wc.GetBool("rustfallWorld", false)) return;
+            try { File.WriteAllText(planPath, DefaultWorldPlan); }
+            catch (Exception e) { sapi.Logger.Error("[landmassgenerator] Could not write the default world plan: {0}", e.Message); return; }
+        }
+
+        var jobs = new List<IslandJob>();
+        try
+        {
+            foreach (string raw in File.ReadAllLines(planPath))
+            {
+                string line = raw.Trim();
+                if (line.Length == 0 || line.StartsWith("#")) continue;
+                string[] parts = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 4 || !parts[0].Equals("island", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!int.TryParse(parts[1], out int mapX) || !int.TryParse(parts[2], out int mapZ)) continue;
+
+                var opt = ParseIslandOptions(string.Join(" ", parts, 3, parts.Length - 3));
+                if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(mapX, mapZ).ToString();
+                int ox = (int)sapi.World.DefaultSpawnPosition.X + mapX;
+                int oz = (int)sapi.World.DefaultSpawnPosition.Z + mapZ;
+                var problems = new List<string>();
+                IslandJob job = BuildIslandJob(opt, ox, oz, 0, problems, out string err);
+                if (job == null)
+                {
+                    sapi.Logger.Warning("[landmassgenerator] Plan island at {0},{1} cannot render during worldgen: {2}", mapX, mapZ, err);
+                    continue;
+                }
+                jobs.Add(job);
+            }
+        }
+        catch (Exception e)
+        {
+            sapi.Logger.Error("[landmassgenerator] Reading the world plan for worldgen island rendering failed: {0}", e.Message);
+        }
+        if (jobs.Count > 0)
+        {
+            _wgIslandJobs = jobs;
+            sapi.Logger.Notification("[landmassgenerator] {0} plan island(s) will render during chunk generation.", jobs.Count);
+        }
+    }
+
+    // One island, one seed, forever: derived from the world seed and the
+    // island's plan coordinates, so the worldgen renderer and the live
+    // decorator build the exact same island, on any restart.
+    private long PlanIslandSeed(int mapX, int mapZ)
+    {
+        long seed = unchecked(sapi.World.Seed * 6364136223846793005L + mapX * 9007199254740881L + mapZ * 2862933555777941757L);
+        seed &= long.MaxValue;
+        return seed == 0 ? 987654321L : seed;
+    }
+
+    private bool ChunkTouchesWorldgenIsland(int cx, int cz)
+    {
+        var jobs = _wgIslandJobs;
+        if (jobs == null) return false;
+        int bx = cx * GlobalConstants.ChunkSize, bz = cz * GlobalConstants.ChunkSize;
+        for (int j = 0; j < jobs.Count; j++)
+        {
+            var job = jobs[j];
+            if (bx + GlobalConstants.ChunkSize - 1 >= job.MinX && bx <= job.MinX + job.W - 1
+                && bz + GlobalConstants.ChunkSize - 1 >= job.MinZ && bz <= job.MinZ + job.H - 1) return true;
+        }
+        return false;
+    }
+
+    private void OnChunkColumnGenIslands(IChunkColumnGenerateRequest request)
+    {
+        var jobs = _wgIslandJobs;
+        if (jobs == null) return;
+        int cs = GlobalConstants.ChunkSize;
+        int bx = request.ChunkX * cs;
+        int bz = request.ChunkZ * cs;
+        IMapChunk mapChunk = request.Chunks[0].MapChunk;
+        for (int j = 0; j < jobs.Count; j++)
+        {
+            IslandJob job = jobs[j];
+            if (bx + cs - 1 < job.MinX || bx > job.MinX + job.W - 1 || bz + cs - 1 < job.MinZ || bz > job.MinZ + job.H - 1) continue;
+            for (int lz = 0; lz < cs; lz++)
+            {
+                int z = bz + lz;
+                if (z < job.MinZ || z >= job.MinZ + job.H) continue;
+                for (int lx = 0; lx < cs; lx++)
+                {
+                    int x = bx + lx;
+                    if (x < job.MinX || x >= job.MinX + job.W) continue;
+                    FillColumnWorldgen(job, request.Chunks, mapChunk, lx, lz, x, z);
+                }
+            }
+        }
+    }
+
+    // FillColumn's twin for a chunk column that is still being generated:
+    // same surface math, same materials, but writes go straight into the
+    // chunk data and the worldgen heightmaps get updated, so the spawn
+    // resolver and the sunlight pass (which run later) see the island.
+    private void FillColumnWorldgen(IslandJob job, IServerChunk[] chunks, IMapChunk mapChunk, int lx, int lz, int x, int z)
+    {
+        int cs = GlobalConstants.ChunkSize;
+        int hidx = lz * cs + lx;
+        int naturalY = mapChunk.WorldGenTerrainHeightMap[hidx];
+
+        if (!ColumnSurface(job, x, z, naturalY, out int topY, out bool underwater, out int topMat, out bool nearIsland, out int waterTopY, out Region reg))
+            return;
+
+        ColumnPalette(job, reg, out int stoneId, out int stoneId2, out int sandId, out int soilId, out int grassId, out List<OreSpec> ores);
+
+        int maxY = sapi.WorldManager.MapSizeY - 2;
+        if (topY > maxY) topY = maxY;
+        int fillFrom = Math.Min(naturalY, topY);
+        fillFrom = Math.Max(fillFrom, Math.Max(1, job.SeaLevel - job.MaxDepth));
+
+        for (int y = fillFrom; y <= topY; y++)
+        {
+            int idx = (y % cs * cs + lz) * cs + lx;
+            IChunkBlocks data = chunks[y / cs].Data;
+            data.SetBlockUnsafe(idx, ColumnBlockAt(job, reg, ores, topMat, y, topY, stoneId, stoneId2, sandId, soilId, grassId, x, z));
+            if (y < job.SeaLevel) data.SetFluid(idx, 0);
+        }
+
+        int waterId = (reg != null && reg.Pond > 0) ? job.WaterId : job.SaltWaterId;
+        int clearTop = Math.Min(maxY, Math.Max(Math.Max(naturalY, waterTopY),
+            nearIsland ? job.SeaLevel + job.DomeHeight + 6 : job.SeaLevel));
+        for (int y = topY + 1; y <= clearTop; y++)
+        {
+            int idx = (y % cs * cs + lz) * cs + lx;
+            IChunkBlocks data = chunks[y / cs].Data;
+            data.SetBlockUnsafe(idx, 0);
+            data.SetFluid(idx, y <= waterTopY ? waterId : 0);
+        }
+
+        mapChunk.WorldGenTerrainHeightMap[hidx] = (ushort)topY;
+        mapChunk.RainHeightMap[hidx] = (ushort)Math.Max(topY, waterTopY);
     }
 
     // Stone for a below-surface block: an ore vein if one claims it, else the
