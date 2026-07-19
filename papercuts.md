@@ -317,3 +317,24 @@ numbers.
   thread). Mitigation in 0.34.0: never delete the chunks under the player,
   and separate every chunk request burst with RegisterCallback cooldowns
   (750ms between bands, 2s between sites, 4s after clearspawn).
+
+## Worldgen-init handlers run in a half-built server (0.38.0 bugs, fixed 0.38.1)
+Symptoms: 0.38.0's worldgen island rendering silently did nothing; the
+player spawned on a vanilla continent and the live pass built the starter
+island over it at runtime, leaving floating grass.
+Three separate traps, all at InitWorldGenerator time:
+- GenMaps.requireLandAt is a PUBLIC field in 1.22.3. Reflecting it with
+  BindingFlags.NonPublic returns null, silently. The 0.31+ runtime clear
+  had been failing this way all along, masked by clearspawn wiping the
+  vanilla spawn land afterward. Just access the field directly; the ocean
+  map generator keeps a reference to the same list, so Clear() sticks.
+- sapi.World.DefaultSpawnPosition THROWS (NRE) during InitWorldGenerator:
+  vanilla computes mapMiddleSpawnPos only AFTER worldgen init, inside
+  InitWorldgenAndSpawnChunks. Use MapSizeX/2, MapSizeZ/2 directly.
+- Log the full exception object, not e.Message: the 0.38.0 catch logged
+  "Object reference not set..." with no stack, which identified nothing.
+The payoff once fixed: InitWorldgenAndSpawnChunks triggers worldgen init
+and then BLOCKING-generates the spawn chunks during the launch screen, so
+a ChunkColumnGeneration pass genuinely runs before the world opens. That
+is the only reliable "content exists before the player ever lands" hook;
+everything tick-based races the client's loading screen.

@@ -645,10 +645,9 @@ storyloc devastationarea -2550 -8750
         genMaps.initWorldGen();
         if (pureOcean)
         {
-            var landListField = genMaps.GetType().GetField("requireLandAt", BindingFlags.NonPublic | BindingFlags.Instance);
-            var landList = landListField?.GetValue(genMaps) as System.Collections.IList;
-            if (landList != null) landList.Clear();
-            else notes.Add("WARNING: could not remove the vanilla spawn land patch (GenMaps internals changed); expect a small vanilla island at map center");
+            // Public field; the rebuilt ocean generator holds a reference to
+            // this same list, so clearing it drops the vanilla spawn land.
+            genMaps.requireLandAt.Clear();
         }
         var setupForce = genStory.GetType().GetMethod("SetupForceLandform", BindingFlags.NonPublic | BindingFlags.Instance);
         if (setupForce == null)
@@ -724,7 +723,22 @@ storyloc devastationarea -2550 -8750
         {
             int rccx = sapi.WorldManager.MapSizeX / 2 / 32;
             int rccz = sapi.WorldManager.MapSizeZ / 2 / 32;
-            sapi.Event.RegisterCallback(_ => RegenSpawnBand(rccx, rccz, clearSpawnRange, rccz - clearSpawnRange, islands, queue, caller, auto), 4000);
+            if (auto)
+            {
+                // Auto setup: the islands' terrain is already worldgen-made,
+                // so decorate them FIRST (fast, and usually finished while
+                // the client is still on the loading screen), then sweep the
+                // wiped ocean, then pregenerate the story areas.
+                sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, queue, caller, auto,
+                    then: () => RegenSpawnBand(rccx, rccz, clearSpawnRange, rccz - clearSpawnRange,
+                        new List<(int MapX, int MapZ, string Options)>(), queue, caller, auto)), 1500);
+            }
+            else
+            {
+                // Manual retrofit: islands do a full terrain build, so the
+                // wiped seabed regenerates before they root on it.
+                sapi.Event.RegisterCallback(_ => RegenSpawnBand(rccx, rccz, clearSpawnRange, rccz - clearSpawnRange, islands, queue, caller, auto), 4000);
+            }
         }
         else if (islands.Count > 0 || queue.Count > 0)
         {
@@ -781,10 +795,11 @@ storyloc devastationarea -2550 -8750
         }
     }
 
-    private void RunNextPlanIsland(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller, bool auto = false)
+    private void RunNextPlanIsland(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller, bool auto = false, Action then = null)
     {
         if (idx >= islands.Count)
         {
+            if (then != null) { then(); return; }
             if (pregenQueue.Count > 0) sapi.Event.RegisterCallback(_ => PregenNextStoryArea(pregenQueue, 0), 2000);
             else sapi.BroadcastMessageToAllGroups("[genworldsetup] World setup finished.", EnumChatType.Notification);
             return;
@@ -807,23 +822,23 @@ storyloc devastationarea -2550 -8750
         if (sub == null || sub.Status != EnumCommandStatus.Success)
         {
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {isl.MapX}, {isl.MapZ} failed to start ({sub?.StatusMessage ?? "no response"}); skipping it.", EnumChatType.Notification);
-            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto), 2000);
+            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto, then), 2000);
             return;
         }
-        WaitForIslandThenContinue(islands, idx, pregenQueue, caller, auto);
+        WaitForIslandThenContinue(islands, idx, pregenQueue, caller, auto, then);
     }
 
-    private void WaitForIslandThenContinue(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller, bool auto)
+    private void WaitForIslandThenContinue(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller, bool auto, Action then = null)
     {
         sapi.Event.RegisterCallback(_ =>
         {
             if (_islandBusy)
             {
-                WaitForIslandThenContinue(islands, idx, pregenQueue, caller, auto);
+                WaitForIslandThenContinue(islands, idx, pregenQueue, caller, auto, then);
                 return;
             }
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {islands[idx].MapX}, {islands[idx].MapZ} finished.", EnumChatType.Notification);
-            sapi.Event.RegisterCallback(__ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto), 2000);
+            sapi.Event.RegisterCallback(__ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto, then), 2000);
         }, 2000);
     }
 
@@ -2329,11 +2344,11 @@ storyloc devastationarea -2550 -8750
         // Pure ocean from the very first chunk: drop the vanilla forced
         // spawn land NOW, before any map region generates. Without this the
         // spawn chunks are born as a continent the later setup must wipe.
+        // requireLandAt is a public field (and the ocean map generator holds
+        // a reference to the same list, so clearing it here sticks).
         var genMaps = sapi.ModLoader.GetModSystem<Vintagestory.ServerMods.GenMaps>();
-        var landListField = genMaps?.GetType().GetField("requireLandAt", BindingFlags.NonPublic | BindingFlags.Instance);
-        var landList = landListField?.GetValue(genMaps) as System.Collections.IList;
-        if (landList != null) landList.Clear();
-        else sapi.Logger.Warning("[landmassgenerator] Could not clear the vanilla forced spawn land (GenMaps internals changed); expect a vanilla landmass at map center.");
+        if (genMaps != null) genMaps.requireLandAt.Clear();
+        else sapi.Logger.Warning("[landmassgenerator] GenMaps not found; the vanilla forced spawn land stays and a vanilla landmass will appear at map center.");
 
         string planName = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) ?? "worldplan";
         string planPath = Path.Combine(shapeFolder, planName + ".txt");
@@ -2357,8 +2372,11 @@ storyloc devastationarea -2550 -8750
 
                 var opt = ParseIslandOptions(string.Join(" ", parts, 3, parts.Length - 3));
                 if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(mapX, mapZ).ToString();
-                int ox = (int)sapi.World.DefaultSpawnPosition.X + mapX;
-                int oz = (int)sapi.World.DefaultSpawnPosition.Z + mapZ;
+                // NOT DefaultSpawnPosition: vanilla computes the map-middle
+                // spawn AFTER worldgen init (it needs the spawn chunks), so
+                // reading it here throws. Map middle IS the default spawn.
+                int ox = sapi.WorldManager.MapSizeX / 2 + mapX;
+                int oz = sapi.WorldManager.MapSizeZ / 2 + mapZ;
                 var problems = new List<string>();
                 IslandJob job = BuildIslandJob(opt, ox, oz, 0, problems, out string err);
                 if (job == null)
@@ -2371,7 +2389,8 @@ storyloc devastationarea -2550 -8750
         }
         catch (Exception e)
         {
-            sapi.Logger.Error("[landmassgenerator] Reading the world plan for worldgen island rendering failed: {0}", e.Message);
+            sapi.Logger.Error("[landmassgenerator] Reading the world plan for worldgen island rendering failed:");
+            sapi.Logger.Error(e);
         }
         if (jobs.Count > 0)
         {
@@ -4057,6 +4076,10 @@ storyloc devastationarea -2550 -8750
             "redwood" => "redwoodpine",
             _ => want
         };
+
+        // Can run at worldgen init (plan parsing), where tree generators may
+        // not be registered yet; a missing tree is a note, never a crash.
+        if (sapi.World.TreeGenerators == null) return null;
 
         ITreeGenerator fallback = null;
         foreach (var kv in sapi.World.TreeGenerators)
