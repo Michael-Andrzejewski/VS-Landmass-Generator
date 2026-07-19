@@ -338,3 +338,20 @@ and then BLOCKING-generates the spawn chunks during the launch screen, so
 a ChunkColumnGeneration pass genuinely runs before the world opens. That
 is the only reliable "content exists before the player ever lands" hook;
 everything tick-based races the client's loading screen.
+
+## Blocking decoration silently deferred (0.38.2, fixed 0.38.3)
+The 0.38.2 pre-open decoration never ran: the log showed "1 island(s) to
+build" and the live pass planting trees a minute after join. Two guards
+tripped, neither logged why (fixed: deferrals now log their reason):
+- Vanilla's startup blocking load covers MagicNum.SpawnChunksWidth = 7
+  chunks (224 blocks) around map middle, but a 150-wide starter island
+  plus the 24-block tree margin spans 8 chunk columns when map middle
+  falls on a chunk boundary. One column short = DecorationChunksLoaded
+  false = deferred. Fix: MagicNum.SpawnChunksWidth is a public static
+  read AFTER InitWorldGenerator handlers run, so init widens it to cover
+  the spawn island's decoration rect (capped at 21 chunks across).
+- The AllOnlinePlayers==0 guard: the singleplayer client is already
+  CONNECTED (in the client list) during the RunGame phase transition even
+  though it is still on the loading screen. Dropped the guard; on the
+  auto first-run the tick loop has not started, so blocking is safe by
+  construction.

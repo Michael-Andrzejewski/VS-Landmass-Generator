@@ -725,22 +725,28 @@ storyloc devastationarea -2550 -8750
             var deferred = new List<(int MapX, int MapZ, string Options)>();
             foreach (var isl in islands)
             {
-                IslandJob job = null;
-                if (sapi.World.AllOnlinePlayers.Length == 0)
+                // No online-players guard here: on the auto first-run the
+                // tick loop has not started, so even a technically
+                // connected singleplayer client is still on the loading
+                // screen. Blocking is exactly what we want.
+                var opt = ParseIslandOptions(isl.Options);
+                if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(isl.MapX, isl.MapZ).ToString();
+                int iox = sapi.WorldManager.MapSizeX / 2 + isl.MapX;
+                int ioz = sapi.WorldManager.MapSizeZ / 2 + isl.MapZ;
+                IslandJob job = BuildIslandJob(opt, iox, ioz, 0, new List<string>(), out string jerr);
+                if (job == null)
                 {
-                    var opt = ParseIslandOptions(isl.Options);
-                    if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(isl.MapX, isl.MapZ).ToString();
-                    int iox = sapi.WorldManager.MapSizeX / 2 + isl.MapX;
-                    int ioz = sapi.WorldManager.MapSizeZ / 2 + isl.MapZ;
-                    job = BuildIslandJob(opt, iox, ioz, 0, new List<string>(), out _);
+                    sapi.Logger.Warning("[genworldsetup] Island at {0}, {1}: {2}; decoration deferred to the live pass.", isl.MapX, isl.MapZ, jerr);
+                    deferred.Add(isl);
                 }
-                if (job != null && DecorationChunksLoaded(job))
+                else if (!DecorationChunksLoaded(job))
                 {
-                    RunIslandDecorationBlocking(job, isl.MapX, isl.MapZ);
+                    sapi.Logger.Notification("[genworldsetup] Island at {0}, {1}: chunks not pre-loaded, decoration deferred to the live pass.", isl.MapX, isl.MapZ);
+                    deferred.Add(isl);
                 }
                 else
                 {
-                    deferred.Add(isl);
+                    RunIslandDecorationBlocking(job, isl.MapX, isl.MapZ);
                 }
             }
             if (deferred.Count < islands.Count)
@@ -879,17 +885,22 @@ storyloc devastationarea -2550 -8750
         }, 2000);
     }
 
-    // The chunks decoration actually touches: the island's land plus a
+    // The chunk rect decoration actually touches: the island's land plus a
     // margin for tree crowns. The offshore ring needs no decoration, so it
     // does not matter that it pokes past the blocking-loaded spawn area.
-    private bool DecorationChunksLoaded(IslandJob job)
+    private void GetDecorationChunkRect(IslandJob job, out int cx1, out int cz1, out int cx2, out int cz2)
     {
         double half = job.Shape != null
             ? Math.Max(job.Shape.W, job.Shape.H) * job.WorldPerCell * 0.5 + 24
             : job.R * 1.12 + 24;
         int cs = GlobalConstants.ChunkSize;
-        int cx1 = FloorDiv(job.Cx - (int)half, cs), cx2 = FloorDiv(job.Cx + (int)half, cs);
-        int cz1 = FloorDiv(job.Cz - (int)half, cs), cz2 = FloorDiv(job.Cz + (int)half, cs);
+        cx1 = FloorDiv(job.Cx - (int)half, cs); cx2 = FloorDiv(job.Cx + (int)half, cs);
+        cz1 = FloorDiv(job.Cz - (int)half, cs); cz2 = FloorDiv(job.Cz + (int)half, cs);
+    }
+
+    private bool DecorationChunksLoaded(IslandJob job)
+    {
+        GetDecorationChunkRect(job, out int cx1, out int cz1, out int cx2, out int cz2);
         for (int cx = cx1; cx <= cx2; cx++)
         {
             for (int cz = cz1; cz <= cz2; cz++)
@@ -2497,6 +2508,30 @@ storyloc devastationarea -2550 -8750
         {
             _wgIslandJobs = jobs;
             sapi.Logger.Notification("[landmassgenerator] {0} plan island(s) will render during chunk generation.", jobs.Count);
+
+            // Right after this init returns, vanilla blocking-loads
+            // SpawnChunksWidth wide chunk columns around map middle, still
+            // behind the loading screen. Widen that so a spawn island's
+            // land and tree margin sit fully inside the pre-loaded square:
+            // that is what lets the setup decorate it before the world
+            // opens. Capped so a huge island cannot stall startup; past
+            // the cap decoration falls back to the paced live pass.
+            int cs = GlobalConstants.ChunkSize;
+            int midCx = sapi.WorldManager.MapSizeX / 2 / cs;
+            int midCz = sapi.WorldManager.MapSizeZ / 2 / cs;
+            int need = 0;
+            foreach (var job in jobs)
+            {
+                GetDecorationChunkRect(job, out int cx1, out int cz1, out int cx2, out int cz2);
+                if (cx2 < midCx - 10 || cx1 > midCx + 10 || cz2 < midCz - 10 || cz1 > midCz + 10) continue;
+                need = Math.Max(need, Math.Max(Math.Max(midCx - cx1, cx2 - midCx), Math.Max(midCz - cz1, cz2 - midCz)));
+            }
+            need = Math.Min(need, 10);
+            if (need > 0 && Vintagestory.Server.MagicNum.SpawnChunksWidth < need * 2)
+            {
+                Vintagestory.Server.MagicNum.SpawnChunksWidth = need * 2;
+                sapi.Logger.Notification("[landmassgenerator] Spawn chunk pregeneration widened to cover the spawn island ({0} chunks across), so it can be decorated before the world opens.", need * 2 + 1);
+            }
         }
     }
 
