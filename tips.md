@@ -393,6 +393,33 @@ All verified against 1.22.3 assets. When in doubt, grep
   behind it (two cliff regions on ironmine, chert C + granite N), and
   wobble straight province borders with two sines or the rock/forest
   boundary reads ruler-drawn from the map.
+- A crater ring is the annulus version of the spine trick (volcano_ring):
+  land iff lakeR(th) < ro <= outerR(th) with SEPARATE harmonic stacks on
+  each radius, and the key term is an independent sin(2th) on both: it
+  squashes coast and lake differently so ring width varies and the island
+  stops reading compass-drawn. Anchor everything that lives relative to a
+  wavy shore to the SHORE FUNCTIONS, not to fixed radii: lake isles at
+  lake_r(th) - r - gap, mid-band features (terra preta patches, landmark
+  trees) at the computed middle of the forest band, else a harmonic bulge
+  beaches an "island" or feeds a patch to the rim band. The enclosed lake
+  is just ocean cells: the carve deepens with distance from land, so a
+  400-wide crater gets a full water= deep center for free, and a
+  serpentspawner block marker with a big lift (clamped to 3 under the
+  surface) makes it lurk-ready. Landmark `tree Q redwoodpine 2.2` markers
+  drop cathedral giants that clear their own 28-block glade.
+- Tropical volcano kit (verified 1.22): obsidian, scoria and tuff are real
+  rock-* types; basalt hosts nativecopper to bountiful plus gold, silver,
+  bismuthinite, cassiterite, sphalerite, pentlandite and ungraded quartz
+  and cinnabar, but obsidian hosts NO ores at all, so keep ores= off
+  pure-obsidian regions and put obsidian in rock2. fertility=terrapreta
+  is a first-class region key (maps to the soil-high block). climate=lush
+  is the tropical preset (24C, 0.9 rain). scatter= accepts full block
+  codes, so wild warm-weather crops scatter directly: crop-pineapple-13,
+  crop-cassava-7, crop-peanut-7, crop-amaranth-7 (all verified stages),
+  plus flower-croton-medium-* and flower-rafflesia-red for jungle color.
+  scotspine's treegen carries resin logs, so a pine province IS a resin
+  supply. sand-basalt makes black beaches; loosestones/looseboulders have
+  no rock restrictions.
 - Decoration can beat the loading screen too (0.38.2+): ServerMain launch
   order is TriggerWorldgenStartup (worldgen init + BLOCKING spawn chunk
   generation, 7x7 chunks = 224 blocks around map middle) then the RunGame
