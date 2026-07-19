@@ -100,7 +100,7 @@ function parseShape(text) {
       }
       caveDefs[tok[1][0]] = d;
     } else if (/^block$/i.test(tok[0]) && tok.length >= 3) {
-      blockChars[tok[1][0]] = tok[2];
+      blockChars[tok[1][0]] = { code: tok[2], up: parseInt(tok[3], 10) || 0 };
     }
   }
 
@@ -114,7 +114,7 @@ function parseShape(text) {
       let c = x < s.rows[z].length ? s.rows[z][x] : '.';
       if (treeChars[c]) { s.markers.push({ gx: x, gz: z, size: treeChars[c].size }); c = '?'; }
       else if (caveDefs[c]) { s.caves.push({ gx: x, gz: z, def: caveDefs[c] }); c = '?'; }
-      else if (blockChars[c]) { s.blocks.push({ gx: x, gz: z, code: blockChars[c] }); c = '!'; }
+      else if (blockChars[c]) { s.blocks.push({ gx: x, gz: z, code: blockChars[c].code, up: blockChars[c].up }); c = '!'; }
       row.push(c);
     }
     s.cells.push(row);
@@ -626,9 +626,12 @@ function rebuild(shape, dia, hgt) {
     const bx = Math.round((bm.gx + 0.5 - shape.W / 2) * island.wpc);
     const bz = Math.round((bm.gz + 0.5 - shape.H / 2) * island.wpc);
     const col = island.columnSurface(bx, bz);
-    const by = col ? col.topY : -8;
+    const ground = col ? col.topY : -8;
+    // Mirror the mod: the lift never breaches the sea (cap 3 under surface).
+    let by = ground + 1 + (bm.up || 0);
+    if (ground < -1) by = Math.max(Math.min(by, -3), ground + 1);
     const box = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), blockCol);
-    box.position.set(bx, by + 1.5, bz);
+    box.position.set(bx, by + 0.5, bz);
     group.add(box);
   }
   if (forestTrees.length) {

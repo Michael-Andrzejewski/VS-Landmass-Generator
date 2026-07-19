@@ -1152,6 +1152,7 @@ storyloc devastationarea -2550 -8750
     {
         public int Gx, Gz;
         public string Code;
+        public int Up;   // blocks above the ground; underwater it never rises past SeaLevel - 3
     }
 
     // One cave design: where it enters the island and how it descends.
@@ -1530,7 +1531,7 @@ storyloc devastationarea -2550 -8750
         var shape = new ShapeDef();
         var markerDefs = new Dictionary<char, (ITreeGenerator gen, float size)>();
         var caveDefs = new Dictionary<char, CaveDef>();
-        var blockDefs = new Dictionary<char, string>();
+        var blockDefs = new Dictionary<char, (string code, int up)>();
         var rows = new List<string>();
         bool inMap = false;
         int oreIdx = 0;
@@ -1570,7 +1571,8 @@ storyloc devastationarea -2550 -8750
             }
             else if (tok[0].Equals("block", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
             {
-                blockDefs[tok[1][0]] = tok[2];
+                int up = tok.Length > 3 && int.TryParse(tok[3], out int u) ? Math.Clamp(u, 0, 60) : 0;
+                blockDefs[tok[1][0]] = (tok[2], up);
             }
             else if (tok[0].Equals("deposits", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
             {
@@ -1602,7 +1604,7 @@ storyloc devastationarea -2550 -8750
                 }
                 else if (blockDefs.ContainsKey(c))
                 {
-                    shape.BlockMarkers.Add(new BlockMarker { Gx = x, Gz = z, Code = blockDefs[c] });
+                    shape.BlockMarkers.Add(new BlockMarker { Gx = x, Gz = z, Code = blockDefs[c].code, Up = blockDefs[c].up });
                     // Unlike tree/cave markers, a block marker may stand in
                     // open ocean (a spawner on the sea floor). Ocean around
                     // it means ocean; NeighbourRegion would instead grow a
@@ -3029,8 +3031,7 @@ storyloc devastationarea -2550 -8750
                 return;
             }
             if (reg.Cattails > 0 && reg.WaterCattailId != 0 && depth == 1
-                && job.SurfNoise.Noise(x * 0.045, z * 0.045) > 0.58
-                && job.Rand.NextDouble() < Math.Min(1.0, reg.Cattails * 2.2))
+                && job.Rand.NextDouble() < ReedChance(job, x, z, reg.Cattails))
             {
                 pos.Set(x, topY + 1, z);
                 ba.SetBlock(reg.WaterCattailId, pos);
@@ -3048,10 +3049,10 @@ storyloc devastationarea -2550 -8750
         if (underwater && job.Shape != null && waterTopY - topY == 1 && (reg == null || reg.Flood == 0))
         {
             Region reedN = (reg != null && reg.Cattails > 0 && reg.WaterCattailId != 0) ? reg : NeighbourCattails(job, x, z);
-            if (reedN != null && job.SurfNoise.Noise(x * 0.045, z * 0.045) > 0.58)
+            if (reedN != null)
             {
                 job.Rand.InitPositionSeed(x, z);
-                if (job.Rand.NextDouble() < Math.Min(1.0, reedN.Cattails * 2.2))
+                if (job.Rand.NextDouble() < ReedChance(job, x, z, reedN.Cattails))
                 {
                     pos.Set(x, topY + 1, z);
                     ba.SetBlock(reedN.WaterCattailId, pos);
@@ -3067,6 +3068,18 @@ storyloc devastationarea -2550 -8750
         if ((topMat == SurfGrass || topMat == SurfPeat) && TryPlantTree(job, ba, pos, x, z, topY, reg)) job.Trees++;
         else if (TryPlantFlora(job, ba, pos, x, z, topY, topMat, reg)) job.Plants++;
     }
+
+    // The chance an eligible waterline or shallow-water column grows a reed.
+    // Reeds gather into dense beds where a clump noise runs high, but a
+    // thinner scatter grows near water EVERYWHERE, so no island can roll
+    // zero reeds. SurfNoise already carries its own 1/22 base frequency;
+    // the old gate scaled coordinates by another 0.045 on top of it, which
+    // made the "20-40 block" clumps actually ~500 blocks wide, and a whole
+    // island chain could sit inside one bare trough (zero cattails anywhere
+    // while every other plant placed). Coordinates scaled by 0.7 put the
+    // beds at the intended ~30 blocks.
+    private static double ReedChance(IslandJob job, int x, int z, double cattails)
+        => Math.Min(1.0, cattails * (job.SurfNoise.Noise(x * 0.7, z * 0.7) > 0.55 ? 2.2 : 0.6));
 
     // The nearest land region within 3 cells that grows reeds, for sea
     // columns that want the in-water hem. Pond regions keep their reeds on
@@ -4155,14 +4168,9 @@ storyloc devastationarea -2550 -8750
 
         if (reg.Pond == 0 && reg.Cattails > 0 && reg.CattailId != 0)
         {
-            // Reeds grow in CLUMPS, not as an even hem along the whole shore:
-            // a low-frequency noise gates reed beds (20-40 block patches),
-            // dense inside, bare between. Boosted inside the clump so the
-            // total stays close to the asked-for chance.
             double dCoast = Bilinear(job.Shape.DistToOcean, job.Shape.W, job.Shape.H, gx, gz) * job.WorldPerCell;
             if (dCoast <= 3.0
-                && job.SurfNoise.Noise(x * 0.045, z * 0.045) > 0.58
-                && job.Rand.NextDouble() < Math.Min(1.0, reg.Cattails * 2.2))
+                && job.Rand.NextDouble() < ReedChance(job, x, z, reg.Cattails))
             {
                 pos.Set(x, topY + 1, z);
                 ba.SetBlock(reg.CattailId, pos);
@@ -4359,7 +4367,12 @@ storyloc devastationarea -2550 -8750
                 Block b = ba.GetBlock(pos, BlockLayersAccess.SolidBlocks);
                 if (b == null || b.Id == 0) continue;
                 if (b.BlockMaterial == EnumBlockMaterial.Plant || b.BlockMaterial == EnumBlockMaterial.Leaves) continue;
-                pos.Y = y + 1;
+                // The optional lift raises the block off the ground (a
+                // spawner needs to sit within trigger range of swimmers at
+                // the surface), but underwater it never breaches the sea.
+                int py = y + 1 + m.Up;
+                if (y < job.SeaLevel - 1) py = Math.Min(py, job.SeaLevel - 3);
+                pos.Y = Math.Max(py, y + 1);
                 ba.SetBlock(block.BlockId, pos);
                 placed++;
                 break;

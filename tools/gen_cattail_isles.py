@@ -109,13 +109,16 @@ def main():
     print("# Regenerate: python tools/gen_cattail_isles.py > shapes/cattail_isles.txt")
     print("# Suggested: /genisland shape=cattail_isles diameter=210 height=4 water=34")
     print()
-    print("region D rock=granite fertility=low surface=grass cattails=0.45 wildgrass=0.25 scatter=wilddaisy:0.006 stones=0.02 shells=0.02 height=1.0 shore=3 rough=0.10")
-    print("region B rock=granite fertility=verylow surface=barren cattails=0.35 wildgrass=0 stones=0.03 height=0.85 shore=3 rough=0.14")
-    print("region S rock=granite surface=sand cattails=0.30 shells=0.04 height=0.55 shore=4 rough=0.06")
-    print("region F rock=granite surface=sand flood=1 cattails=0.25 shells=0.02 height=0.10 shore=2 rough=0.05")
-    print("region U rock=granite surface=sand flood=1 cattails=0.15 shells=0.02 height=0.30 shore=1 rough=0.15")
+    print("region D rock=granite fertility=low surface=grass cattails=0.20 wildgrass=0.25 scatter=wilddaisy:0.006 stones=0.02 shells=0.02 height=1.0 shore=3 rough=0.10")
+    print("region B rock=granite fertility=verylow surface=barren cattails=0.18 wildgrass=0 stones=0.03 height=0.85 shore=3 rough=0.14")
+    print("region S rock=granite surface=sand cattails=0.16 shells=0.04 height=0.55 shore=4 rough=0.06")
+    print("region F rock=granite surface=sand flood=1 cattails=0.10 shells=0.02 height=0.10 shore=2 rough=0.05")
+    print("region U rock=granite surface=sand flood=1 cattails=0.08 shells=0.02 height=0.30 shore=1 rough=0.15")
     print("region V rock=granite surface=sand flood=3 kelp=0.35 height=0.20 shore=1 rough=0.10")
-    print("block X underwaterhorrors:serpentspawner")
+    # Lifted 15 off the floor: the spawner triggers on players in water
+    # within 40 blocks in 3D, so on the deep floor (~30 down) a surface
+    # swimmer never armed it. At ~15 deep its reach covers the surface.
+    print("block X underwaterhorrors:serpentspawner 15")
     print()
     print("map")
     for row in grid:

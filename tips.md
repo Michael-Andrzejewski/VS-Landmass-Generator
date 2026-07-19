@@ -348,7 +348,11 @@ All verified against 1.22.3 assets. When in doubt, grep
   kelp only on the deeper flood heads. Since 0.39.1 every cattails= shore
   also hems itself in the SEA: wherever the water just off that coast is
   exactly one deep, water reeds continue the same clumped beds, so no
-  skirt region is needed just to get reeds into the water.
+  skirt region is needed just to get reeds into the water. Since 0.39.2
+  reeds are clumps PLUS a thin everywhere-scatter (ReedChance), so
+  cattails=0.2 on a small islet means roughly one reed per 3-5 waterline
+  columns, denser in beds, and never zero (see papercuts: the old gate's
+  noise was double-scaled and could zero a whole island).
 - `block <char> <blockcode>` (0.39.0) places one block resting on the real
   ground at that map cell, sea floor included: made for OTHER MODS' spawners
   and props (block X underwaterhorrors:serpentspawner). Resolved at

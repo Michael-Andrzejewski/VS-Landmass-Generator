@@ -130,7 +130,7 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `ores`, `forest`, `trees` | As above, but per region. `ores=` also accepts the ungraded minerals (`coal`, `quartz`, `sulfur`, `olivine`, `lapislazuli`, ...): they place their single ungraded block at every richness roll. |
 | `tree <char> <type> <size>` | A landmark tree at that spot on the map. |
 | `cave <char> [key=value ...]` | A cave system entering at that spot on the map. See below. |
-| `block <char> <blockcode>` | One block placed resting on the actual ground at that spot, on the sea floor when the spot is underwater. Meant for spawners and props from other mods (e.g. `block X underwaterhorrors:serpentspawner`), so the code is resolved at placement time: a block the game does not know is reported as a note, never an error. Unlike tree and cave markers, a block marker may stand in open ocean; it only joins a region if one directly touches it. |
+| `block <char> <blockcode> [lift]` | One block placed resting on the actual ground at that spot, on the sea floor when the spot is underwater. Meant for spawners and props from other mods (e.g. `block X underwaterhorrors:serpentspawner 15`), so the code is resolved at placement time: a block the game does not know is reported as a note, never an error. The optional lift raises it that many blocks off the ground (underwater it never rises past 3 below the surface), for spawners whose trigger range must reach swimmers at the surface. Unlike tree and cave markers, a block marker may stand in open ocean; it only joins a region if one directly touches it. |
 
 ### Caves (`cave <char> ...`)
 

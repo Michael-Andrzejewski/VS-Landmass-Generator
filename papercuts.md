@@ -374,3 +374,26 @@ land that the SpawnChunksWidth cap could not cover it, and its pre-open
 decoration would always defer. The rect now uses the LAND cells' bounding
 box (block markers included, corners carried through rotate=), so only
 chunks the island can actually touch are demanded.
+
+## Zero cattails anywhere: the clump noise was double-scaled (0.27.0, fixed 0.39.2)
+Michael's cattail chain generated with every other plant in place but not
+one reed, land or water. The clump gate did
+`SurfNoise.Noise(x * 0.045, ...) > 0.58`, but SurfNoise is built with its
+own 1/22 base frequency (FromDefaultOctaves(3, 1/22.0, ...)), so the extra
+0.045 made the "20-40 block reed beds" actually ~500-block noise cells:
+whole islands sat inside one bare trough and rolled zero, seed-dependent,
+while densities looked fine. Textbook silent-failure rule: it was the gate,
+not the tuning. Fix (ReedChance): coordinates scaled 0.7 for real ~30 block
+beds, PLUS a thin ungated base scatter (0.6x density) near water so no
+island can ever roll zero again. When a noise helper already carries a
+base frequency, extra coordinate scaling multiplies INTO it; check the
+constructor before adding a scale factor.
+
+## UH serpent spawner on the deep floor never triggers (0.39.2)
+The spawner block arms on players in WATER within SpawnerTriggerRange (40)
+blocks in 3D (verified in Underwater-Horrors source). On a sea floor 30+
+deep and 25 blocks off the swim line, a surface swimmer is 45-55 blocks
+away and it never fires. `block` markers take an optional lift
+(`block X underwaterhorrors:serpentspawner 15`), capped at 3 below the
+surface, so the trigger sphere reaches the surface. Note the spawner also
+skips creative/spectator players when /uh observer is ON.
