@@ -167,9 +167,13 @@ public class LandmassGeneratorModSystem : ModSystem
                 .HandleWith(OnGenWorldSetup));
 
         // The 'Rustfall world' checkbox on the world creation screen (see
-        // worldconfig.json at the mod root) lands in the world config; on the
-        // first player join of such a world, run the world setup once.
-        api.Event.PlayerJoin += OnPlayerJoinMaybeRustfallSetup;
+        // worldconfig.json at the mod root) lands in the world config; run
+        // the world setup once, as early as possible. RunGame fires while
+        // the singleplayer client is still connecting, so the setup is
+        // already underway before the player is fully in the world.
+        // PlayerJoin stays as a fallback for worlds loaded before this.
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, TryAutoRustfallSetup);
+        api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
 
         // For checkbox worlds, force the ocean config BEFORE worldgen ever
         // reads it (SaveGameLoaded fires ahead of InitWorldGenerator). The
@@ -206,9 +210,21 @@ public class LandmassGeneratorModSystem : ModSystem
         var worldConfig = sapi.WorldManager.SaveGame.WorldConfiguration;
         if (!worldConfig.GetBool("lgPureOcean", false)) return;
         // 'Natural world-gen islands' checkbox (default on): let underwater
-        // landforms occasionally breach as small natural islands. Only when
-        // the player unchecks it do we flatten the sea floor.
-        if (worldConfig.GetBool("rustfallNaturalIslands", true)) return;
+        // landforms occasionally breach as small natural islands. When on,
+        // only the spawn clear zone is flattened, so the starter island is
+        // always surrounded by open ocean; when off, everything is.
+        bool naturalIslands = worldConfig.GetBool("rustfallNaturalIslands", true);
+        int spawnMidX = sapi.WorldManager.MapSizeX / 2;
+        int spawnMidZ = sapi.WorldManager.MapSizeZ / 2;
+        const long SpawnClearRadiusSq = 640L * 640L;
+        if (naturalIslands)
+        {
+            // Skip regions entirely outside the spawn clear zone.
+            int regionSizeBlocks = sapi.WorldManager.RegionSize;
+            long rdx = Math.Max(0, Math.Abs((regionX * regionSizeBlocks) + regionSizeBlocks / 2 - spawnMidX) - regionSizeBlocks / 2);
+            long rdz = Math.Max(0, Math.Abs((regionZ * regionSizeBlocks) + regionSizeBlocks / 2 - spawnMidZ) - regionSizeBlocks / 2);
+            if (rdx * rdx + rdz * rdz > SpawnClearRadiusSq) return;
+        }
         var lfMap = mapRegion.LandformMap;
         if (lfMap?.Data == null || lfMap.Data.Length == 0) return;
 
@@ -253,6 +269,11 @@ public class LandmassGeneratorModSystem : ModSystem
             {
                 int wx = (regionX * inner + ix - pad) * cellSize;
                 int wz = (regionZ * inner + iz - pad) * cellSize;
+                if (naturalIslands)
+                {
+                    long sdx = wx - spawnMidX, sdz = wz - spawnMidZ;
+                    if (sdx * sdx + sdz * sdz > SpawnClearRadiusSq) continue;
+                }
                 bool keep = false;
                 for (int k = 0; k < keeps.Count; k++)
                 {
@@ -265,21 +286,25 @@ public class LandmassGeneratorModSystem : ModSystem
 
         // No raised seafloor anywhere either, regardless of what the world
         // creation slider said. Vanilla already zeroes it around story
-        // locations; their forced land does not come from upheaval.
-        var upheavelMap = mapRegion.UpheavelMap;
-        if (upheavelMap?.Data != null && upheavelMap.Data.Length > 0)
+        // locations; their forced land does not come from upheaval. With
+        // natural islands on, upheavelCommonness 0 already keeps it flat.
+        if (!naturalIslands)
         {
-            Array.Clear(upheavelMap.Data, 0, upheavelMap.Data.Length);
+            var upheavelMap = mapRegion.UpheavelMap;
+            if (upheavelMap?.Data != null && upheavelMap.Data.Length > 0)
+            {
+                Array.Clear(upheavelMap.Data, 0, upheavelMap.Data.Length);
+            }
         }
     }
 
-    private void OnPlayerJoinMaybeRustfallSetup(IServerPlayer byPlayer)
+    private void TryAutoRustfallSetup()
     {
         if (!sapi.World.Config.GetBool("rustfallWorld", false)) return;
         if (sapi.WorldManager.SaveGame.GetData<bool>("lgRustfallSetupDone", false)) return;
         sapi.WorldManager.SaveGame.StoreData("lgRustfallSetupDone", true);
 
-        // Give the join a moment to settle, then run the default plan with a
+        // Give startup a moment to settle, then run the default plan with a
         // console-privileged caller (the wgen subcommands require
         // controlserver, which a fresh player may not have yet).
         sapi.Event.RegisterCallback(_ =>
@@ -475,7 +500,7 @@ public class LandmassGeneratorModSystem : ModSystem
 #       before the story pregeneration; shape file must be installed)
 # Codes: resonancearchive, lazaret, village, devastationarea, tobiascave, treasurehunter
 pureocean
-clearspawn 10
+clearspawn 16
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
 storyloc treasurehunter 2400 -250
 storyloc lazaret -1400 -2500
@@ -655,12 +680,19 @@ storyloc devastationarea -2550 -8750
                 (loc.CenterPos.X - radius) / 32, (loc.CenterPos.Z - radius) / 32,
                 (loc.CenterPos.X + radius) / 32, (loc.CenterPos.Z + radius) / 32));
         }
-        // Let the spawn-area churn settle, then build the plan's islands
+        // Let the spawn-area churn settle, then: regenerate the wiped spawn
+        // ocean (pushing fresh chunks to clients), build the plan's islands
         // (starter island first, so the player has ground fast), then
         // pregenerate the story areas. Everything spaced out; simultaneous
         // request and retire bursts on the chunk queue can trip a fatal
         // race inside the vanilla request index.
-        if (islands.Count > 0 || queue.Count > 0)
+        if (clearSpawnRange > 0)
+        {
+            int rccx = sapi.WorldManager.MapSizeX / 2 / 32;
+            int rccz = sapi.WorldManager.MapSizeZ / 2 / 32;
+            sapi.Event.RegisterCallback(_ => RegenSpawnBand(rccx, rccz, clearSpawnRange, rccz - clearSpawnRange, islands, queue, caller), 4000);
+        }
+        else if (islands.Count > 0 || queue.Count > 0)
         {
             sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, queue, caller), 4000);
         }
@@ -670,6 +702,49 @@ storyloc devastationarea -2550 -8750
             + (islands.Count > 0 ? $"; {islands.Count} island(s) to build" : "")
             + (queue.Count > 0 ? ". Progress follows in chat; the devastation takes the longest." : ".");
         return TextCommandResult.Success(summary);
+    }
+
+    // After clearspawn's deletions, actively regenerate the wiped square and
+    // push the fresh chunks to connected clients. Vanilla only regenerates
+    // deleted columns lazily, and clients keep rendering the stale terrain
+    // they downloaded before the wipe, which reads as chunks refusing to
+    // generate until a relog.
+    private void RegenSpawnBand(int ccx, int ccz, int range, int bandCz1, List<(int MapX, int MapZ, string Options)> islands, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller)
+    {
+        if (bandCz1 > ccz + range)
+        {
+            sapi.BroadcastMessageToAllGroups("[genworldsetup] Spawn ocean regenerated.", EnumChatType.Notification);
+            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, pregenQueue, caller), 2000);
+            return;
+        }
+        int width = 2 * range + 1;
+        int rowsPerBand = Math.Max(1, PregenBatchColumns / width);
+        int bandCz2 = Math.Min(ccz + range, bandCz1 + rowsPerBand - 1);
+        int chunksY = sapi.WorldManager.MapSizeY / 32;
+        try
+        {
+            sapi.WorldManager.LoadChunkColumnPriority(ccx - range, bandCz1, ccx + range, bandCz2, new ChunkLoadOptions
+            {
+                KeepLoaded = false,
+                OnLoaded = () =>
+                {
+                    for (int cx = ccx - range; cx <= ccx + range; cx++)
+                    {
+                        for (int cz = bandCz1; cz <= bandCz2; cz++)
+                        {
+                            for (int cy = 0; cy < chunksY; cy++) sapi.WorldManager.BroadcastChunk(cx, cy, cz, onlyIfInRange: true);
+                            sapi.WorldManager.ResendMapChunk(cx, cz, onlyIfInRange: true);
+                        }
+                    }
+                    sapi.Event.RegisterCallback(_ => RegenSpawnBand(ccx, ccz, range, bandCz2 + 1, islands, pregenQueue, caller), 750);
+                }
+            });
+        }
+        catch (Exception e)
+        {
+            sapi.Logger.Error("[genworldsetup] Spawn regen band {0}-{1} failed: {2}", bandCz1, bandCz2, e);
+            sapi.Event.RegisterCallback(_ => RegenSpawnBand(ccx, ccz, range, bandCz1, islands, pregenQueue, caller), 5000);
+        }
     }
 
     private void RunNextPlanIsland(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller)

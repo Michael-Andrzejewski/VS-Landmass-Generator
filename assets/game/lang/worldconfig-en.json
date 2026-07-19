@@ -3,5 +3,5 @@
     "worldattribute-rustfallWorld": "Rustfall world",
     "worldattribute-rustfallWorld-desc": "Automatically sets up the Rustfall story world on first join: pure ocean, all six story locations pinned at their planned coordinates, spawn cleared for the hand-built starter island, and every story area pregenerated. Progress is reported in chat. Uses the worldplan.txt plan file from the LandmassGenerator folder.",
     "worldattribute-rustfallNaturalIslands": "Natural world-gen islands",
-    "worldattribute-rustfallNaturalIslands-desc": "Allow vanilla underwater terrain to occasionally break the surface as small natural islands, adding seabed variety and reasons to explore beyond the planned map. Unchecked, the sea floor is flattened and the only land in the world is the story locations and hand-built islands."
+    "worldattribute-rustfallNaturalIslands-desc": "Allow vanilla underwater terrain to occasionally break the surface as small natural islands, adding seabed variety and reasons to explore beyond the planned map. Unchecked, the sea floor is flattened and the only land in the world is the story locations and hand-built islands. Either way, the 500 blocks around spawn stay open ocean."
 }

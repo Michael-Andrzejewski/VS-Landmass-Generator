@@ -307,3 +307,11 @@ All verified against 1.22.3 assets. When in doubt, grep
   3x3 chunks so a 150-wide starter fully covers it. Islands run one at a
   time (_islandBusy polled every 2s); the shape file must already be in
   the LandmassGenerator data folder.
+- Deleted chunks do NOT regenerate on their own and clients keep rendering
+  stale terrain they already downloaded: after clearspawn the wiped square
+  looked like "chunks not generating" until relog. 0.37.0 regenerates the
+  wiped square in paced bands right after deletion and pushes every chunk
+  (BroadcastChunk + ResendMapChunk) to connected clients. Setup also now
+  starts at ServerRunPhase.RunGame, before the singleplayer client finishes
+  joining, and the spawn clear zone is 640 blocks of flattened landform in
+  BOTH natural-island modes, so spawn is always open ocean past the starter.

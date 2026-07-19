@@ -1,0 +1,17 @@
+# World setup plan for /genworldsetup. Lines:
+#   pureocean                 no natural land at all (landcover 0, upheavel 0)
+#   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
+#       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
+#   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
+#   island <mapX> <mapZ> <genisland options>   build a drawn island (runs
+#       before the story pregeneration; shape file must be installed)
+# Codes: resonancearchive, lazaret, village, devastationarea, tobiascave, treasurehunter
+pureocean
+clearspawn 16
+island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
+storyloc treasurehunter 2400 -250
+storyloc lazaret -1400 -2500
+storyloc tobiascave 1500 -8450
+storyloc resonancearchive 5550 -3200
+storyloc village -6250 -5550
+storyloc devastationarea -2550 -8750
