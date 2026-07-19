@@ -151,6 +151,16 @@ def main():
         raise SystemExit(f"cave marker at {MOUTH_C},{MOUTH_R} is not on land")
     grid[MOUTH_R][MOUTH_C] = 'K'
 
+    # Two small surface caves, disconnected from the vast mine: a shallow
+    # hematite dig in the north granite cliffs and a limonite dig in the
+    # south pine coast. Both bottom out ~30 blocks under their mouths, far
+    # above the mantle galleries. Since 0.43.0 every cave line has its own
+    # step budget, so the vast mine no longer starves them.
+    for (ch, cc, cr) in [('c', 150, 26), ('d', 148, 205)]:
+        if grid[cr][cc] == '.':
+            raise SystemExit(f"small cave marker {ch} at {cc},{cr} is not on land")
+        grid[cr][cc] = ch
+
     print("# ironmine_island - a 560-wide iron island from Michael's sketch:")
     print("# steep cliffs ringed by deep water, a mountainous granite north that")
     print("# is hard to walk, a scots pine south on red-grey chert/shale, a torn")
@@ -182,6 +192,8 @@ def main():
     # long narrow twisting galleries off one vast artery, with room events
     # still blowing out the occasional large cavern at any depth.
     print("cave K heading=270 dip=24 length=430 radius=5.5 squash=0.8 weave=0.6 scale=2.4 branches=5 branchdepth=3 branchlen=0.6 branchradius=0.45 pinch=0.6 depth=115 mouth=14 entry=16 ores=iron:0.06 seed=1")
+    print("cave c heading=180 dip=24 length=140 radius=2.4 squash=0.75 weave=0.5 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=34 mouth=8 entry=10 ores=iron:0.05 seed=1")
+    print("cave d heading=0 dip=20 length=130 radius=2.2 squash=0.75 weave=0.55 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=30 mouth=6 entry=10 ores=iron:0.05 seed=1")
     print("deposits natural")
     print()
     print("map")

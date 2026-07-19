@@ -85,6 +85,19 @@ GIANT_BEARINGS = [332.0, 356.0, 18.0, 48.0, 78.0]
 # Serpent spawners on the deep lake floor.
 SPAWNERS = [(0.0, 10.0), (140.0, 16.0)]
 
+# Small mines around the ring. Six bore in from the outer coast (marker a
+# few cells inside the coastline, heading inland); three open partway up
+# the caldera wall, overlooking the lake, and dive under the rim (marker on
+# the inner cliff band, heading outward). Each cave line has its own step
+# budget since 0.43.0.
+OUTER_CAVES = [('a', 10.0), ('b', 55.0), ('c', 135.0),
+               ('d', 205.0), ('e', 250.0), ('f', 295.0)]
+WALL_CAVES = [('h', 80.0), ('i', 170.0), ('j', 315.0)]
+
+# Flooded diving caves: mouths on the deep lake floor near the center,
+# tunnels full of water (flooded=1), for serpent country spelunking.
+FLOODED_CAVES = [('x', 30.0, 12.0), ('y', 160.0, 20.0), ('z', 270.0, 16.0)]
+
 
 def polar(bearing_deg, dist):
     b = math.radians(bearing_deg)
@@ -206,6 +219,29 @@ def main():
             raise SystemExit(f"serpent spawner at bearing {sb} is not in open water")
         grid[sr][sc] = 'S'
 
+    for (ch, cb) in OUTER_CAVES:
+        th = bearing_th(cb)
+        cx, cz = polar(cb, outer_r(th) - 3.0)
+        cc, cr = int(cx), int(cz)
+        if grid[cr][cc] in '.kw g':
+            raise SystemExit(f"outer cave {ch} at bearing {cb} landed on '{grid[cr][cc]}'")
+        grid[cr][cc] = ch
+
+    for (ch, cb) in WALL_CAVES:
+        th = bearing_th(cb)
+        cx, cz = polar(cb, lake_r(th) + 2.5)
+        cc, cr = int(cx), int(cz)
+        if grid[cr][cc] not in 'IV':
+            raise SystemExit(f"wall cave {ch} at bearing {cb} landed on '{grid[cr][cc]}', not the caldera wall")
+        grid[cr][cc] = ch
+
+    for (ch, cb, cd) in FLOODED_CAVES:
+        cx, cz = polar(cb, cd)
+        cc, cr = int(cx), int(cz)
+        if grid[cr][cc] != '.':
+            raise SystemExit(f"flooded cave {ch} at bearing {cb} is not in open water")
+        grid[cr][cc] = ch
+
     print("# volcano_ring - the remnant rim of an exploded volcano, 700 wide, from")
     print("# Michael's sketch: a wavy basalt ring around a 400-wide crater lake.")
     print("# Huge redwoods across the north (five landmark giants in their own")
@@ -231,6 +267,21 @@ def main():
     print("region k rock=basalt sand=sand-basalt surface=sand flood=2 kelp=0.35 height=0.10 shore=4 rough=0.05")
     print("tree Q redwoodpine 2.2")
     print("block S underwaterhorrors:serpentspawner 60")
+    # Six outer-coast digs, varied dips and sizes; heading runs inland
+    # (bearing + 180), so the mouth opens in the coastal cliffs.
+    for (ch, cb, dip, ln, rad, br, mo) in [
+            ('a', 10.0, 18, 120, 2.4, 2, 6), ('b', 55.0, 30, 140, 2.2, 1, 8),
+            ('c', 135.0, 14, 100, 2.7, 2, 5), ('d', 205.0, 26, 130, 2.0, 1, 7),
+            ('e', 250.0, 22, 110, 2.5, 2, 6), ('f', 295.0, 34, 140, 2.3, 1, 9)]:
+        hd = (cb + 180.0) % 360.0
+        print(f"cave {ch} heading={hd:.0f} dip={dip} length={ln} radius={rad} squash=0.75 weave=0.5 scale=1 branches={br} branchdepth=1 branchlen=0.5 depth=40 mouth={mo} entry=10 ores=copper:0.05 seed=1")
+    # Three caldera-wall mines: a door partway up the inner cliff over the
+    # lake, diving deep under the rim.
+    for (ch, cb, dip, ln, mo) in [('h', 80.0, 24, 150, 16), ('i', 170.0, 30, 160, 18), ('j', 315.0, 22, 140, 14)]:
+        print(f"cave {ch} heading={cb:.0f} dip={dip} length={ln} radius=2.6 squash=0.75 weave=0.5 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=70 mouth={mo} entry=8 ores=copper:0.05 seed=1")
+    # Three flooded diving caves from the deep lake floor.
+    for (ch, cb, dip, ln, dp) in [('x', 30.0, 34, 110, 60), ('y', 160.0, 38, 120, 70), ('z', 270.0, 30, 100, 55)]:
+        print(f"cave {ch} heading={cb:.0f} dip={dip} length={ln} radius=2.8 squash=0.8 weave=0.4 scale=1 branches=1 branchdepth=1 branchlen=0.5 depth={dp} entry=4 flooded=1 ores=copper:0.05 seed=1")
     print("deposits natural")
     print()
     print("map")
