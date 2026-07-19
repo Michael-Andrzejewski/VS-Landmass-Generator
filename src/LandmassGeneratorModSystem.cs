@@ -471,9 +471,12 @@ public class LandmassGeneratorModSystem : ModSystem
 #   pureocean                 no natural land at all (landcover 0, upheavel 0)
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
+#   island <mapX> <mapZ> <genisland options>   build a drawn island (runs
+#       before the story pregeneration; shape file must be installed)
 # Codes: resonancearchive, lazaret, village, devastationarea, tobiascave, treasurehunter
 pureocean
 clearspawn 10
+island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
 storyloc treasurehunter 2400 -250
 storyloc lazaret -1400 -2500
 storyloc tobiascave 1500 -8450
@@ -513,6 +516,7 @@ storyloc devastationarea -2550 -8750
         bool pureOcean = false;
         int clearSpawnRange = 0;
         var sites = new List<(string Code, int MapX, int MapZ)>();
+        var islands = new List<(int MapX, int MapZ, string Options)>();
         int lineNo = 0;
         foreach (string raw in File.ReadAllLines(planPath))
         {
@@ -535,11 +539,18 @@ storyloc devastationarea -2550 -8750
                     }
                     sites.Add((parts[1].ToLowerInvariant(), mx, mz));
                     break;
+                case "island":
+                    if (parts.Length < 4 || !int.TryParse(parts[1], out int imx) || !int.TryParse(parts[2], out int imz))
+                    {
+                        return TextCommandResult.Error($"Plan line {lineNo} is not 'island x z options...': {line}");
+                    }
+                    islands.Add((imx, imz, string.Join(" ", parts, 3, parts.Length - 3)));
+                    break;
                 default:
-                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, storyloc.");
+                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, storyloc, island.");
             }
         }
-        if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0)
+        if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0 && islands.Count == 0)
         {
             return TextCommandResult.Error($"Plan file {planPath} contains no directives.");
         }
@@ -614,9 +625,10 @@ storyloc devastationarea -2550 -8750
                     // they stand on makes their client re-request those
                     // columns every tick while worldgen retires them in
                     // bursts, which is the perfect storm for a (vanilla)
-                    // request/retire race that kills the server. The starter
-                    // island overwrites this core anyway.
-                    if (Math.Abs(cx - ccx) <= 2 && Math.Abs(cz - ccz) <= 2) continue;
+                    // request/retire race that kills the server. 3x3 chunks
+                    // (96 blocks) so a 150-wide starter island built at 0,0
+                    // fully covers it.
+                    if (Math.Abs(cx - ccx) <= 1 && Math.Abs(cz - ccz) <= 1) continue;
                     sapi.WorldManager.DeleteChunkColumn(cx, cz);
                 }
             }
@@ -643,15 +655,57 @@ storyloc devastationarea -2550 -8750
                 (loc.CenterPos.X - radius) / 32, (loc.CenterPos.Z - radius) / 32,
                 (loc.CenterPos.X + radius) / 32, (loc.CenterPos.Z + radius) / 32));
         }
-        // Let the spawn-area churn settle before the pregen storm starts;
-        // simultaneous request and retire bursts on the chunk queue can
-        // trip a fatal race inside the vanilla request index.
-        if (queue.Count > 0) sapi.Event.RegisterCallback(_ => PregenNextStoryArea(queue, 0), 4000);
+        // Let the spawn-area churn settle, then build the plan's islands
+        // (starter island first, so the player has ground fast), then
+        // pregenerate the story areas. Everything spaced out; simultaneous
+        // request and retire bursts on the chunk queue can trip a fatal
+        // race inside the vanilla request index.
+        if (islands.Count > 0 || queue.Count > 0)
+        {
+            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, 0, queue, caller), 4000);
+        }
 
         string summary = $"World setup started: {sites.Count} story location(s) pinned"
             + (notes.Count > 0 ? "; " + string.Join("; ", notes) : "")
-            + (queue.Count > 0 ? ". Pregenerating each area now, progress follows in chat; the devastation takes the longest." : ".");
+            + (islands.Count > 0 ? $"; {islands.Count} island(s) to build" : "")
+            + (queue.Count > 0 ? ". Progress follows in chat; the devastation takes the longest." : ".");
         return TextCommandResult.Success(summary);
+    }
+
+    private void RunNextPlanIsland(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller)
+    {
+        if (idx >= islands.Count)
+        {
+            if (pregenQueue.Count > 0) sapi.Event.RegisterCallback(_ => PregenNextStoryArea(pregenQueue, 0), 2000);
+            else sapi.BroadcastMessageToAllGroups("[genworldsetup] World setup finished.", EnumChatType.Notification);
+            return;
+        }
+        var isl = islands[idx];
+        sapi.BroadcastMessageToAllGroups($"[genworldsetup] Building island {idx + 1} of {islands.Count} at {isl.MapX}, {isl.MapZ}...", EnumChatType.Notification);
+        TextCommandResult sub = null;
+        sapi.ChatCommands.ExecuteUnparsed($"/genisland {isl.Options} x={isl.MapX} z={isl.MapZ}",
+            new TextCommandCallingArgs { Caller = caller }, r => sub = r);
+        if (sub == null || sub.Status != EnumCommandStatus.Success)
+        {
+            sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {isl.MapX}, {isl.MapZ} failed to start ({sub?.StatusMessage ?? "no response"}); skipping it.", EnumChatType.Notification);
+            sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller), 2000);
+            return;
+        }
+        WaitForIslandThenContinue(islands, idx, pregenQueue, caller);
+    }
+
+    private void WaitForIslandThenContinue(List<(int MapX, int MapZ, string Options)> islands, int idx, List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)> pregenQueue, Caller caller)
+    {
+        sapi.Event.RegisterCallback(_ =>
+        {
+            if (_islandBusy)
+            {
+                WaitForIslandThenContinue(islands, idx, pregenQueue, caller);
+                return;
+            }
+            sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {islands[idx].MapX}, {islands[idx].MapZ} finished.", EnumChatType.Notification);
+            sapi.Event.RegisterCallback(__ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller), 2000);
+        }, 2000);
     }
 
     // The server's chunk request fifo holds 2000 entries
@@ -944,8 +998,6 @@ storyloc devastationarea -2550 -8750
 
         if (_islandBusy)
             return TextCommandResult.Error("An island is still generating. Wait for it to finish before starting another.");
-        if (args.Caller?.Entity == null)
-            return TextCommandResult.Error("Run /genisland in game so it centres on where you stand.");
 
         var opt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < toks.Length; i++)
@@ -955,7 +1007,25 @@ storyloc devastationarea -2550 -8750
             else if (i == 0 && int.TryParse(toks[i], out _)) opt["diameter"] = toks[i];
         }
 
-        GetOrigin(args.Caller, out int ox, out int _, out int oz, out int dim);
+        // x=/z= (map coordinates, the numbers the HUD shows) centre the
+        // island at an explicit position instead of the caller, which also
+        // lets the world-setup plan build islands with no player involved.
+        bool hasXZ = opt.TryGetValue("x", out string xStr) & opt.TryGetValue("z", out string zStr);
+        int ox, oz, dim;
+        if (hasXZ)
+        {
+            if (!int.TryParse(xStr, out int mapX) || !int.TryParse(zStr, out int mapZ))
+                return TextCommandResult.Error("x= and z= must be whole map coordinates.");
+            ox = (int)sapi.World.DefaultSpawnPosition.X + mapX;
+            oz = (int)sapi.World.DefaultSpawnPosition.Z + mapZ;
+            dim = 0;
+        }
+        else
+        {
+            if (args.Caller?.Entity == null)
+                return TextCommandResult.Error("Run /genisland in game so it centres on where you stand, or pass x= and z= map coordinates.");
+            GetOrigin(args.Caller, out ox, out int _, out oz, out dim);
+        }
 
         int diameter = OptInt(opt, "diameter", 120, 8, 1024);
         int height = OptInt(opt, "height", 40, 3, 220);

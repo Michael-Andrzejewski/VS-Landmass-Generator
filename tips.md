@@ -299,3 +299,11 @@ All verified against 1.22.3 assets. When in doubt, grep
   first chunk generates; InitWorldGenerator reads it after that. Existing
   seams: stand nearby and /wgen delr 8 (also deletes map regions, so the
   regen is consistent).
+- Plan files can BUILD islands (0.36.0+): `island <mapX> <mapZ> <genisland
+  options>` lines run right after clearspawn and before the story pregen,
+  via /genisland's new x=/z= map-coordinate options (no player needed).
+  Default plan builds starter_island at 0,0, so a fresh Rustfall world puts
+  ground under the player within the first minute; the kept spawn core is
+  3x3 chunks so a 150-wide starter fully covers it. Islands run one at a
+  time (_islandBusy polled every 2s); the shape file must already be in
+  the LandmassGenerator data folder.
