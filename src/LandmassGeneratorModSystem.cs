@@ -3157,7 +3157,12 @@ storyloc devastationarea -2550 -8750
             size = (float)(0.8 + job.Rand.NextDouble() * 0.5),
             vinesGrowthChance = 0,
             mossGrowthChance = 0,
-            otherBlockChance = 0,
+            // Vanilla's default. The engine multiplies this into the treegen's
+            // own otherLogChance, so pines get their 1-in-100 leaking resin
+            // logs; species without an otherLog block are unaffected. 0 here
+            // silently turned all wild resin off (saplings pass 0 on purpose:
+            // farmed trees never leak).
+            otherBlockChance = 1f,
             hemisphere = EnumHemisphere.North,
             treesInChunkGenerated = 0
         };
@@ -4430,7 +4435,7 @@ storyloc devastationarea -2550 -8750
         size = size,
         vinesGrowthChance = 0,
         mossGrowthChance = 0,
-        otherBlockChance = 0,
+        otherBlockChance = 1f, // vanilla default: a landmark pine may leak resin too
         hemisphere = EnumHemisphere.North,
         treesInChunkGenerated = 0
     };

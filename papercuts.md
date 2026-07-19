@@ -109,6 +109,19 @@ numbers.
   keep that pattern for anything new, and treat any problem line in chat as a
   bug to fix, not a warning to ignore.
 
+- **`TreeGenParams.otherBlockChance = 0` silently deletes wild pine resin.**
+  The engine rolls resin logs as `otherBlockChance * treegen otherLogChance`
+  (TreeGen.TriggerRandomOtherBlock), and the API default is 1.0: vanilla
+  worldgen never sets the field, only player-grown saplings zero it so
+  farmed trees never leak. Our GrowTree calls copied the sapling shape and
+  passed 0, so every pine on every island came out resin-free while
+  scotspine/fir/mountainpine/bristlecone all declare log-resin-pine-ud at
+  otherLogChance 0.01 (acacia: log-resin-acacia-ud at 0.005), and no other
+  treegen has an otherLog at all. Fixed in 0.42.0 by passing 1f (vanilla
+  parity, roughly 1 leaking log per 100, rolled only on segments thick
+  enough to be logs). Same silent-failure family as the rest of this file:
+  the feature was structurally off, no density would have fixed it.
+
 ## Terrain-shaping lessons
 
 - **A vanilla-style cave walk FORGETS its heading.** GenCaves' turn logic is
