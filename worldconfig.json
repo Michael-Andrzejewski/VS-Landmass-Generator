@@ -8,6 +8,13 @@
             "default": "false",
             "onCustomizeScreen": true,
             "onlyDuringWorldCreate": true
+        },
+        {
+            "dataType": "Bool",
+            "category": "rustfall",
+            "code": "rustfallNaturalIslands",
+            "default": "true",
+            "onCustomizeScreen": true
         }
     ]
 }

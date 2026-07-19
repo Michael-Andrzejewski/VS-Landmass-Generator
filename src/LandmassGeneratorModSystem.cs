@@ -171,6 +171,20 @@ public class LandmassGeneratorModSystem : ModSystem
         // first player join of such a world, run the world setup once.
         api.Event.PlayerJoin += OnPlayerJoinMaybeRustfallSetup;
 
+        // For checkbox worlds, force the ocean config BEFORE worldgen ever
+        // reads it (SaveGameLoaded fires ahead of InitWorldGenerator). The
+        // first spawn chunks then already generate as pure ocean, instead
+        // of a continent that the later setup only partially wipes, which
+        // left square seams between old-settings and new-settings chunks.
+        api.Event.SaveGameLoaded += () =>
+        {
+            var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
+            if (!wc.GetBool("rustfallWorld", false)) return;
+            wc.SetString("landcover", "0");
+            wc.SetString("upheavelCommonness", "0");
+            wc.SetBool("lgPureOcean", true);
+        };
+
         // Pure ocean, part 2. landcover 0 stops the continent roll and
         // upheavelCommonness 0 stops raised seafloors, but GenTerra only
         // SHIFTS the landform terrain down by oceanicity (~85 blocks at
@@ -189,7 +203,12 @@ public class LandmassGeneratorModSystem : ModSystem
 
     private void OnMapRegionGenPureOcean(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
     {
-        if (!sapi.WorldManager.SaveGame.WorldConfiguration.GetBool("lgPureOcean", false)) return;
+        var worldConfig = sapi.WorldManager.SaveGame.WorldConfiguration;
+        if (!worldConfig.GetBool("lgPureOcean", false)) return;
+        // 'Natural world-gen islands' checkbox (default on): let underwater
+        // landforms occasionally breach as small natural islands. Only when
+        // the player unchecks it do we flatten the sea floor.
+        if (worldConfig.GetBool("rustfallNaturalIslands", true)) return;
         var lfMap = mapRegion.LandformMap;
         if (lfMap?.Data == null || lfMap.Data.Length == 0) return;
 

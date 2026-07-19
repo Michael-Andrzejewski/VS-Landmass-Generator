@@ -289,3 +289,13 @@ All verified against 1.22.3 assets. When in doubt, grep
   (MapRegionGeneration handler, runs after GenMaps by mod load order).
   Regions generated BEFORE the flag was set keep their islands; delr
   them or make the world fresh.
+- Natural islands are a Rustfall-tab OPTION (0.35.0+): the
+  rustfallNaturalIslands checkbox (default on) gates the pure-ocean landform
+  flattening; unchecked = only story + hand-built land exists. Square island
+  artifacts come from mixed-settings seams: chunks generated before the
+  ocean config changed sitting next to chunks generated after (clearspawn
+  square edges, old-vs-new map regions). 0.35.0 prevents the class for
+  checkbox worlds by forcing the ocean config at SaveGameLoaded, BEFORE the
+  first chunk generates; InitWorldGenerator reads it after that. Existing
+  seams: stand nearby and /wgen delr 8 (also deletes map regions, so the
+  regen is consistent).
