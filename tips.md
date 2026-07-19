@@ -377,7 +377,24 @@ All verified against 1.22.3 assets. When in doubt, grep
   from a real cliff face. Deep galleries may run far under the SEA floor:
   legal and great, the fluid guard already proves them dry, and in-game
   the guard reads real blocks so a natural-seabed mismatch only costs a
-  skipped step, never a breach.
+  skipped step, never a breach. Michael's verdict on the first cut: keep
+  the vast main passage and some large caverns, but MOST of a mine should
+  be narrow twisting passages. That is `branchradius=` (0.40.0): branch
+  carve radius as a fraction of the parent per level, default the old
+  0.85. ironmine runs 0.45, so the 13.2-radius artery forks into ~6
+  (half) and ~2.7 (quarter, near the 1.5 carve floor) passages, while
+  chamber events still swell with scale= and blow the narrow runs into
+  occasional halls. Changing branches= or branchradius= rerolls nothing
+  on the main path (same seed, same artery) but branch layouts shift, so
+  recheck wet steps in the previewer after any cave-line edit.
+- "Lots of little mountains" is TWO layers, not one knob (ironmine M/W):
+  crank rough= well past the old 0.3 comfort zone (rough is +-4*rough
+  blocks of the island's 22-block SurfNoise, so rough=0.8 is +-3 blocks
+  of rolling crag on the granite) AND scatter small peak-knot regions
+  (T tors at height 1.35, V crags at 1.05, radius 3-6 cells, shore about
+  their half-width so they rise as cones). The knots only overwrite
+  their own province's cells, so they clip clean at borders; the
+  5-cell height smoothing rounds them into summits rather than towers.
 - Iron country is three rock provinces, not one rock (verified 1.22
   allowedVariants): limonite lives in chert/shale/basalt, hematite in
   granite/peridotite/limestone/sandstone/phyllite, magnetite in

@@ -1170,6 +1170,7 @@ storyloc devastationarea -2550 -8750
         public int Branches = 2;                // side tunnels forking off the main run
         public int BranchDepth = 2;             // branches may branch again this many levels
         public double BranchLen = 0.5;          // branch length as a fraction of the parent (its midpoint; each branch varies +-30%)
+        public double BranchRadius = 0.85;      // branch carve radius as a fraction of the parent's, per level: 0.45 turns a vast main bore into narrow side passages
         public double Depth = 60;               // level out this many blocks below the mouth
         public int Mouth = 2;                   // mouth floor this many blocks above sea level
         public int Entry = 10;                  // blocks of dead-level adit before the dive starts
@@ -2152,8 +2153,8 @@ storyloc devastationarea -2550 -8750
     }
 
     // cave <char> heading=auto|<deg> dip=12 length=80 radius=2.6 squash=0.72
-    //             weave=0.5 branches=2 branchdepth=2 depth=60 mouth=2
-    //             ores=copper:0.05 seed=<n>
+    //             weave=0.5 branches=2 branchdepth=2 branchradius=0.85
+    //             depth=60 mouth=2 ores=copper:0.05 seed=<n>
     // heading is in MAP degrees (0 = up on the map, 90 = right), so a shape
     // stays valid under rotate=; auto aims the tunnel at the island's centre.
     private static CaveDef ParseCave(string[] tok, List<string> problems)
@@ -2179,6 +2180,7 @@ storyloc devastationarea -2550 -8750
                 case "branches": d.Branches = (int)Math.Clamp(ParseD(v, 2), 0, 8); break;
                 case "branchdepth": d.BranchDepth = (int)Math.Clamp(ParseD(v, 2), 0, 4); break;
                 case "branchlen": d.BranchLen = Math.Clamp(ParseD(v, 0.5), 0.2, 1.2); break;
+                case "branchradius": d.BranchRadius = Math.Clamp(ParseD(v, 0.85), 0.3, 1.2); break;
                 case "depth": d.Depth = Math.Clamp(ParseD(v, 60), 4, 200); break;
                 case "mouth": d.Mouth = (int)Math.Clamp(ParseD(v, 2), 0, 30); break;
                 case "entry": d.Entry = (int)Math.Clamp(ParseD(v, 10), 0, 60); break;
@@ -3649,7 +3651,7 @@ storyloc devastationarea -2550 -8750
 
             var p = path[Math.Clamp((int)(f * path.Count), 0, path.Count - 1)];
             CarveTunnel(w, def, p.X, p.Y, p.Z, p.Hor + angOff, dip * 0.75,
-                (int)(length * lenFrac), radius * 0.85, floorY,
+                (int)(length * lenFrac), radius * def.BranchRadius, floorY,
                 Math.Max(1, branches - 1), branchDepth - 1, new CaveRand(childSeed), 0);
         }
     }

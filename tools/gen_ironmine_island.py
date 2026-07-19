@@ -147,6 +147,43 @@ def main():
                 continue
             grid[r][c] = p
 
+    # Little mountains: scatter peak knots over the rocky provinces. Each
+    # knot is a small higher region (T granite tor, V slate crag) that only
+    # overwrites its own province's cells, so knots clip naturally at the
+    # borders. Deterministic golden-angle sampling, no RNG.
+    def scatter_knots(target, knot, count, rmin, rmax):
+        placed = 0
+        i = 0
+        while placed < count and i < 4000:
+            i += 1
+            ang = i * 2.399963229728653
+            rad = (i * 97.0) % 118.0
+            c = int(120 + rad * math.cos(ang))
+            r = int(118 + rad * math.sin(ang))
+            if not (0 <= c < W and 0 <= r < H) or grid[r][c] != target:
+                continue
+            kr = rmin + (i * 37 % 100) / 100.0 * (rmax - rmin)
+            # Keep knots apart: skip if another knot char is already close.
+            clear = True
+            s = int(kr) + 6
+            for rr in range(max(0, r - s), min(H, r + s + 1)):
+                for cc in range(max(0, c - s), min(W, c + s + 1)):
+                    if grid[rr][cc] == knot:
+                        clear = False
+                        break
+                if not clear:
+                    break
+            if not clear:
+                continue
+            for rr in range(max(0, r - int(kr) - 1), min(H, r + int(kr) + 2)):
+                for cc in range(max(0, c - int(kr) - 1), min(W, c + int(kr) + 2)):
+                    if grid[rr][cc] == target and math.hypot(cc - c, rr - r) <= kr:
+                        grid[rr][cc] = knot
+            placed += 1
+
+    scatter_knots('M', 'T', 16, 3.0, 6.0)
+    scatter_knots('W', 'V', 10, 2.5, 4.5)
+
     if grid[MOUTH_R][MOUTH_C] == '.':
         raise SystemExit(f"cave marker at {MOUTH_C},{MOUTH_R} is not on land")
     grid[MOUTH_R][MOUTH_C] = 'K'
@@ -163,21 +200,27 @@ def main():
     print("# Regenerate: python tools/gen_ironmine_island.py > shapes/ironmine_island.txt")
     print("# Suggested: /genisland shape=ironmine_island diameter=560 height=30 water=45")
     print()
-    print("region M rock=granite surface=rock ores=hematite:0.034,quartz:0.018,copper:0.012,tin:0.005,bismuth:0.004 orebits=iron:0.002 boulders=0.020 stones=0.035 height=1.0 shore=12 rough=0.28")
+    print("region M rock=granite surface=rock ores=hematite:0.034,quartz:0.018,copper:0.012,tin:0.005,bismuth:0.004 orebits=iron:0.002 boulders=0.020 stones=0.035 height=1.0 shore=12 rough=0.80")
+    print("region T rock=granite surface=rock ores=hematite:0.034,quartz:0.018,copper:0.012 boulders=0.020 stones=0.03 height=1.35 shore=8 rough=0.50")
+    print("region V rock=slate surface=rock ores=magnetite:0.032,quartz:0.014 boulders=0.015 stones=0.03 height=1.05 shore=7 rough=0.45")
     print("region m rock=granite fertility=low surface=grass forest=0.015 trees=scotspine ores=hematite:0.024,quartz:0.012,copper:0.010 wildgrass=0.18 stones=0.025 boulders=0.008 scatter=edelweiss:0.006,mugwort:0.004 height=0.80 shore=14 rough=0.18")
     print("region G rock=chert rock2=shale fertility=low surface=grass forest=0.030 trees=scotspine litter=0.5 sticks=0.03 ores=limonite:0.032,coal:0.012,quartz:0.010,copper:0.006 wildgrass=0.25 bushes=blueberry:0.004,cranberry:0.004 scatter=horsetail:0.008,eaglefern:0.010,fieldmushroom:0.004 height=0.68 shore=14 rough=0.10")
     print("region P rock=chert rock2=shale fertility=medium surface=grass forest=0.070 trees=scotspine litter=0.9 sticks=0.06 ores=limonite:0.042,coal:0.014,quartz:0.010,lead:0.007,zinc:0.006 orebits=iron:0.002 wildgrass=0.20 bushes=blueberry:0.006,cloudberry:0.003 scatter=flyagaric:0.004,kingbolete:0.005,deerfern:0.012,horsetail:0.008 height=0.62 shore=12 rough=0.09")
     print("region C rock=chert rock2=shale surface=rock ores=limonite:0.028,quartz:0.012 boulders=0.012 stones=0.02 height=0.55 shore=3 rough=0.16")
     print("region N rock=granite surface=rock ores=hematite:0.028,quartz:0.012 boulders=0.012 stones=0.02 height=0.55 shore=3 rough=0.16")
-    print("region R rock=chert surface=rock ores=limonite:0.055,quartz:0.015,sulfur:0.008 orebits=iron:0.003 boulders=0.022 stones=0.03 height=1.10 shore=6 rough=0.20")
-    print("region W rock=slate surface=rock ores=magnetite:0.032,titanium:0.010,quartz:0.014,copper:0.008 orebits=iron:0.002 boulders=0.015 stones=0.03 height=0.70 shore=7 rough=0.22")
-    print("region w rock=slate surface=rock ores=magnetite:0.032,quartz:0.014 boulders=0.015 stones=0.03 height=0.55 shore=9 rough=0.30")
+    print("region R rock=chert surface=rock ores=limonite:0.055,quartz:0.015,sulfur:0.008 orebits=iron:0.003 boulders=0.022 stones=0.03 height=1.10 shore=6 rough=0.35")
+    print("region W rock=slate surface=rock ores=magnetite:0.032,titanium:0.010,quartz:0.014,copper:0.008 orebits=iron:0.002 boulders=0.015 stones=0.03 height=0.70 shore=7 rough=0.55")
+    print("region w rock=slate surface=rock ores=magnetite:0.032,quartz:0.014 boulders=0.015 stones=0.03 height=0.55 shore=9 rough=0.60")
     print("region B rock=chert sand=sand-chert surface=sand shells=0.02 height=0.15 shore=16 rough=0.03")
-    # One cave, the whole island's 8000-step budget: a vast bore (radius x
-    # scale = 13.2, the carve cap) diving at 24 degrees to depth 115, which
-    # clamps at the y=8 floor just above the mantle. mouth=9 keeps the huge
-    # entry ellipsoid clear of the sea per the wide-mouth papercut.
-    print("cave K heading=270 dip=24 length=430 radius=5.5 squash=0.8 weave=0.55 scale=2.4 branches=6 branchdepth=3 branchlen=0.55 depth=115 mouth=14 entry=16 ores=iron:0.06 seed=1")
+    # One cave, the whole island's 8000-step budget: a vast main bore
+    # (radius x scale = 13.2, the carve cap) diving at 24 degrees to depth
+    # 115, which clamps at the y=8 floor just above the mantle. mouth=14
+    # keeps the huge entry ellipsoid clear of the sea per the wide-mouth
+    # papercut. branchradius=0.45 halves the width per branch level, so
+    # side passages run ~half the main bore and their branches ~a quarter:
+    # long narrow twisting galleries off one vast artery, with room events
+    # still blowing out the occasional large cavern at any depth.
+    print("cave K heading=270 dip=24 length=430 radius=5.5 squash=0.8 weave=0.6 scale=2.4 branches=5 branchdepth=3 branchlen=0.6 branchradius=0.45 depth=115 mouth=14 entry=16 ores=iron:0.06 seed=1")
     print("deposits natural")
     print()
     print("map")
