@@ -1178,6 +1178,7 @@ storyloc devastationarea -2550 -8750
         public uint Seed;                       // 0 = derived from the entrance cell, stable per design
         public string OreName;                  // wall-lining ore (ores=copper:0.05)
         public double OreChance;                // chance per exposed wall block
+        public bool Flooded;                    // flooded=1: mouth on the sea/lake FLOOR, tunnel filled with water (a diving cave)
     }
 
     private class CaveMarker
@@ -2187,6 +2188,7 @@ storyloc devastationarea -2550 -8750
                 case "mouth": d.Mouth = (int)Math.Clamp(ParseD(v, 2), 0, 30); break;
                 case "entry": d.Entry = (int)Math.Clamp(ParseD(v, 10), 0, 60); break;
                 case "seed": d.Seed = (uint)Math.Abs((long)ParseD(v, 0)); break;
+                case "flooded": d.Flooded = ParseD(v, 0) > 0; break;
                 case "ores":
                 {
                     string[] parts = v.Split(':');
@@ -3426,15 +3428,46 @@ storyloc devastationarea -2550 -8750
         {
             CaveDef def = cm.Def;
 
+            // The step budget is per cave LINE (a line's branches share it),
+            // not per island: a vast mine used to starve every later cave
+            // line of its whole allowance.
+            w.TotalSteps = 0;
+
             // Entrance cell to world, forward-rotated like tree markers.
             double lx = (cm.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
             double lz = (cm.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
             int ex = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
             int ez = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
 
-            if (!ColumnSurface(job, ex, ez, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out Region entReg) || uw)
+            if (!ColumnSurface(job, ex, ez, job.SeaLevel, out int topY, out bool uw, out _, out _, out _, out Region entReg) || (uw && !def.Flooded))
             {
                 notes.Add($"cave at map {cm.Gx},{cm.Gz} has no dry ground, skipped");
+                continue;
+            }
+
+            // Flooded caves dive from the sea (or crater lake) FLOOR: the
+            // mouth is a hole in the actual ground at the marker, the walk
+            // needs no headwall and no open-air scan (it starts in open
+            // water), and CarveStep fills the tunnel with water.
+            if (def.Flooded)
+            {
+                double fhor;
+                if (double.IsNaN(def.HeadingDeg))
+                {
+                    fhor = Math.Atan2(job.Cz - ez, job.Cx - ex);
+                }
+                else
+                {
+                    double fth = def.HeadingDeg * Math.PI / 180.0;
+                    double fmx = Math.Sin(fth), fmz = -Math.Cos(fth);
+                    fhor = Math.Atan2(fmx * job.RotSin + fmz * job.RotCos, fmx * job.RotCos - fmz * job.RotSin);
+                }
+                uint fseed = def.Seed != 0 ? def.Seed
+                    : 0x9E3779B9u ^ (uint)(cm.Gx * 668265263) ^ (uint)(cm.Gz * 2246822519);
+                CarveTunnel(w, def, ex + 0.5, topY + 1.6, ez + 0.5, fhor,
+                    def.DipDeg * Math.PI / 180.0, (int)def.Length + 4, def.Radius * def.Scale,
+                    topY + 1.6 - def.Depth, def.Branches, def.BranchDepth, new CaveRand(fseed), 7);
+                tunnels++;
                 continue;
             }
 
@@ -3731,11 +3764,14 @@ storyloc devastationarea -2550 -8750
         int y0 = Math.Max(5, (int)Math.Floor(cy - vr - 1));
         int y1 = Math.Min(sapi.WorldManager.MapSizeY - 3, (int)Math.Ceiling(cy + vr + 1));
 
+        // Flooded caves are MEANT to meet water (they open on the sea or
+        // lake floor and stay full of it), so only dry caves get the guard.
         double pad = (hr + 1) * (hr + 1);
         for (int xx = x0; xx <= x1; xx++)
             for (int zz = z0; zz <= z1; zz++)
             {
                 if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) return;
+                if (def.Flooded) continue;
                 for (int yy = y0; yy <= y1; yy++)
                 {
                     double dx = xx + 0.5 - cx, dy = yy + 0.5 - cy, dz = zz + 0.5 - cz;
@@ -3770,7 +3806,9 @@ storyloc devastationarea -2550 -8750
                     if ((dx * dx + dz * dz) / hr2 + dy * dy / vr2 > 1.0) continue;
                     pos.Set(xx, yy, zz);
                     w.Ba.SetBlock(0, pos);
-                    w.Ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+                    // Flooded tunnels fill with the sea's own water up to the
+                    // surface: a divable cave, stable against the lake above.
+                    w.Ba.SetBlock(def.Flooded && yy <= job.SeaLevel - 1 ? job.SaltWaterId : 0, pos, BlockLayersAccess.Fluid);
                     w.Blocks++;
                 }
 

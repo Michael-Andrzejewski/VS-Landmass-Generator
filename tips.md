@@ -363,10 +363,10 @@ All verified against 1.22.3 assets. When in doubt, grep
   marker may stand in open ocean (it only joins a region that directly
   touches it). It counts toward the decoration chunk rect, so a far-out
   marker still gets its chunk preloaded for the pre-open pass.
-- VAST caves (ironmine_island): the whole island shares ONE 8000-step cave
-  budget (CaveWork.TotalSteps counts every tunnel and branch of every cave
-  line together), so "our largest cave yet" means a SINGLE cave line that
-  owns the full budget, not several. radius x scale is the bore size and
+- VAST caves (ironmine_island): every cave LINE gets its own 8000-step
+  budget since 0.43.0 (a line's branches share it; before that the whole
+  island shared one budget and a vast mine starved every later cave line
+  to zero, silently). radius x scale is the bore size and
   pins at the carve cap 13 (~26 wide); branches=6 branchdepth=3 spends the
   8000 steps to the tips, more branch levels just truncate deeper. depth
   clamps at 200 but the walk floors at y=8, so depth >= sealevel+mouth is
@@ -426,6 +426,23 @@ All verified against 1.22.3 assets. When in doubt, grep
   behind it (two cliff regions on ironmine, chert C + granite N), and
   wobble straight province borders with two sines or the rock/forest
   boundary reads ruler-drawn from the map.
+- Flooded caves (0.43.0, volcano_ring): `flooded=1` on a cave line makes a
+  DIVING cave. The mouth is a hole in the actual sea or lake floor at the
+  marker (mouth= is ignored, the marker may stand in open water), there is
+  no headwall and no open-air scan, the fluid guard is off (water contact
+  is the point), and every carved cell below sea level fills with the
+  ocean's own still water, so the tunnel is stable against the lake above
+  and swimmable end to end. Small entry= (4) plus a steep dip reads as a
+  drowned shaft; wall ores still line it (mining with a breath timer).
+  The previewer draws flooded systems BLUE and reports "N flooded
+  mouth(s)"; they never count as wet steps. Keep flooded and dry systems
+  visually apart in the x-ray: a dry cave meeting flooded water in-game
+  just truncates on its guard, but do not design them to touch. Mixed
+  cave suites (ironmine, volcano_ring) place small digs radius 2.0-2.8,
+  length 100-160, branches 1-2 depth 1, and vary dip 14-38 so no two
+  entrances feel alike; a mouth partway up the caldera/inner cliff wall
+  (marker on the wall band, heading pointing OUTWARD so the seaward scan
+  looks over the lake) makes a fine overlook mine door.
 - A crater ring is the annulus version of the spine trick (volcano_ring):
   land iff lakeR(th) < ro <= outerR(th) with SEPARATE harmonic stacks on
   each radius, and the key term is an independent sin(2th) on both: it

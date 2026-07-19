@@ -98,6 +98,7 @@ function parseShape(text) {
         else if (k === 'mouth') d.mouth = Math.min(30, Math.max(0, Math.trunc(parseFloat(v) || 2)));
         else if (k === 'entry') d.entry = Math.min(60, Math.max(0, Math.trunc(parseFloat(v) || 10)));
         else if (k === 'seed') d.seed = Math.abs(Math.trunc(parseFloat(v) || 0)) >>> 0;
+        else if (k === 'flooded') d.flooded = (parseFloat(v) || 0) > 0;
         else if (k === 'ores') { const p = v.split(':'); d.oreName = p[0]; d.oreChance = parseFloat(p[1]) || 0.04; }
       }
       caveDefs[tok[1][0]] = d;
@@ -371,11 +372,14 @@ function traceCaves(island, domeHeight) {
 
   for (const cm of shape.caves) {
     const def = cm.def;
+    // Per cave LINE budget, mirroring the C# reset (a vast mine no longer
+    // starves later cave lines).
+    guard.total = 0;
     const ex = Math.round((cm.gx + 0.5 - shape.W / 2) * wpc);
     const ez = Math.round((cm.gz + 0.5 - shape.H / 2) * wpc);
     const col = island.columnSurface(ex, ez);
-    if (!col || col.topY < 0) continue;
-    const mouthY = Math.max(-1, -1 + def.mouth);
+    if (!col || (col.topY < 0 && !def.flooded)) continue;
+    if (def.flooded && !col) continue;
 
     let hor;
     if (isNaN(def.headingDeg)) hor = Math.atan2(0 - ez, 0 - ex);
@@ -386,6 +390,16 @@ function traceCaves(island, domeHeight) {
     const seed = def.seed !== 0 ? def.seed
       : (0x9E3779B9 ^ Math.imul(cm.gx, 668265263) ^ Math.imul(cm.gz, 2246822519)) >>> 0;
 
+    if (def.flooded) {
+      // Flooded cave: dives from the actual floor at the marker, no
+      // open-air scan, no headwall, tunnel full of water (drawn blue).
+      mouths.push({ x: ex, y: col.topY, z: ez, flooded: true });
+      walk(def, ex + 0.5, col.topY + 1.6, ez + 0.5, hor, def.dip * Math.PI / 180, Math.trunc(def.length) + 4,
+        def.radius * def.scale, col.topY + 1.6 - def.depth, def.branches, def.branchDepth, new CaveRand(seed), 0, true);
+      continue;
+    }
+
+    const mouthY = Math.max(-1, -1 + def.mouth);
     const openS = findOpenS(island, ex, ez, hor, mouthY);
     const sx = ex + 0.5 + Math.cos(hor) * (openS - 4), sz = ez + 0.5 + Math.sin(hor) * (openS - 4);
     mouths.push({ x: Math.round(ex + Math.cos(hor) * openS), y: mouthY, z: Math.round(ez + Math.sin(hor) * openS) });
@@ -410,7 +424,7 @@ function traceCaves(island, domeHeight) {
     return false;
   }
 
-  function walk(def, x, y, z, hor, dip, length, radius, floorY, branches, branchDepth, rand, level) {
+  function walk(def, x, y, z, hor, dip, length, radius, floorY, branches, branchDepth, rand, level, flooded) {
     const path = [];
     // level 0 is the main tunnel: it leaves the mouth dead level for the
     // entry adit (7 doorway steps + def.entry), mirroring the C# mouthSteps.
@@ -459,7 +473,8 @@ function traceCaves(island, domeHeight) {
       const pinchMul = 1 - (def.pinch || 0) * (0.5 + 0.5 * Math.sin(t * pinchCycles * 2 * Math.PI + pinchPhase));
       const r = Math.min(13, Math.max(1.5, radius * (0.7 + 0.6 * Math.sin(t * Math.PI)) * pinchMul + pulse * 0.9 + hswell));
       const v = Math.min(10, Math.max(1.45, r * def.squash + vswell * 0.5));
-      steps.push({ x, y, z, r, v, level, wet: touchesWater(x, y, z, r, v) });
+      // Flooded caves never trip the fluid guard: water contact is by design.
+      steps.push({ x, y, z, r, v, level, flooded: !!flooded, wet: flooded ? false : touchesWater(x, y, z, r, v) });
       path.push({ x, y, z, hor });
     }
     if (branchDepth <= 0 || path.length < 20) return;
@@ -471,7 +486,7 @@ function traceCaves(island, domeHeight) {
       const childSeed = rand.nextUInt();
       const p = path[Math.min(Math.max(Math.trunc(f * path.length), 0), path.length - 1)];
       walk(def, p.x, p.y, p.z, p.hor + angOff, dip * 0.75, Math.trunc(length * lenFrac),
-        radius * def.branchRadius, floorY, Math.max(1, branches - 1), branchDepth - 1, new CaveRand(childSeed), level + 1);
+        radius * def.branchRadius, floorY, Math.max(1, branches - 1), branchDepth - 1, new CaveRand(childSeed), level + 1, flooded);
     }
   }
 
@@ -532,6 +547,7 @@ function rebuild(shape, dia, hgt) {
   const headwalls = new Map();
   for (const cm of shape.caves) {
     const def = cm.def;
+    if (def.flooded) continue; // flooded mouths get no headwall
     const ex = Math.round((cm.gx + 0.5 - shape.W / 2) * island.wpc);
     const ez = Math.round((cm.gz + 0.5 - shape.H / 2) * island.wpc);
     const col0 = island.columnSurface(ex, ez);
@@ -655,13 +671,15 @@ function rebuild(shape, dia, hgt) {
   // Caves: the true in-game path.
   const caves = traceCaves(island, hgt);
   const LEVELC = [0xff7a22, 0xffb347, 0xffe08a, 0xfff2c0];
-  for (let lv = -1; lv < 4; lv++) {
+  for (let lv = -2; lv < 4; lv++) {
     // lv -1 collects steps the in-game fluid guard would SKIP (they touch
     // water), drawn dark so a cave leaking out of the island is obvious.
-    const lvSteps = caves.steps.filter((s) => (lv === -1 ? s.wet : s.level === lv && !s.wet));
+    // lv -2 collects FLOODED cave steps (water-filled by design), drawn blue.
+    const lvSteps = caves.steps.filter((s) => (lv === -2 ? s.flooded
+      : lv === -1 ? s.wet : s.level === lv && !s.wet && !s.flooded));
     if (!lvSteps.length) continue;
     const mat = new THREE.MeshLambertMaterial({
-      color: lv === -1 ? 0x4a3038 : LEVELC[lv],
+      color: lv === -2 ? 0x3fb8ff : lv === -1 ? 0x4a3038 : LEVELC[lv],
       transparent: true, opacity: lv === -1 ? 0.4 : 0.6, depthTest: true,
     });
     caveMats.push(mat);
@@ -707,6 +725,7 @@ function rebuild(shape, dia, hgt) {
     caveWetMain: wetMain,
     caveWetRun: wetRun,
     caveMouths: caves.mouths.length,
+    caveFlooded: caves.mouths.filter((m) => m.flooded).length,
     caveDeepest: Math.round(-deepest),
     size: half * 2,
   };
@@ -774,6 +793,7 @@ function refresh() {
   info.textContent = `${sel.value}: ${stats.columns.toLocaleString()} columns`
     + (stats.caveMouths
       ? `\ncaves: ${stats.caveMouths} mouth(s), ${stats.caveSteps} steps, deepest ${stats.caveDeepest} below sea`
+        + (stats.caveFlooded ? `\n${stats.caveFlooded} flooded mouth(s) on the sea floor (blue)` : '')
         + (stats.caveWet ? `\n${stats.caveWet} step(s) touch water and will NOT carve (dark): `
           + `${stats.caveWetMain} on the main tunnel, worst run ${stats.caveWetRun}` : '')
       : '\nno caves declared');
