@@ -360,6 +360,39 @@ All verified against 1.22.3 assets. When in doubt, grep
   marker may stand in open ocean (it only joins a region that directly
   touches it). It counts toward the decoration chunk rect, so a far-out
   marker still gets its chunk preloaded for the pre-open pass.
+- VAST caves (ironmine_island): the whole island shares ONE 8000-step cave
+  budget (CaveWork.TotalSteps counts every tunnel and branch of every cave
+  line together), so "our largest cave yet" means a SINGLE cave line that
+  owns the full budget, not several. radius x scale is the bore size and
+  pins at the carve cap 13 (~26 wide); branches=6 branchdepth=3 spends the
+  8000 steps to the tips, more branch levels just truncate deeper. depth
+  clamps at 200 but the walk floors at y=8, so depth >= sealevel+mouth is
+  "down to the mantle" and the previewer's "deepest N below sea" confirms
+  it. THE BIG LESSON: a huge bore needs ground taller than the bore at the
+  mouth, or doorway mode shaves the cover off and the entrance becomes an
+  open amphitheater scar instead of a roofed maw (the previewer tell is a
+  flat terraced semicircle at the mouth). Fix by raising the mouth region
+  into a headland dome (R at height=1.10 on a height=30 island swallows a
+  radius*scale=13.2 mouth at mouth=14); the stamped headwall then bulges
+  from a real cliff face. Deep galleries may run far under the SEA floor:
+  legal and great, the fluid guard already proves them dry, and in-game
+  the guard reads real blocks so a natural-seabed mismatch only costs a
+  skipped step, never a breach.
+- Iron country is three rock provinces, not one rock (verified 1.22
+  allowedVariants): limonite lives in chert/shale/basalt, hematite in
+  granite/peridotite/limestone/sandstone/phyllite, magnetite in
+  slate/andesite (+claystone/chalk/conglomerate, poor/medium only). Chert
+  is the game's reddish rock, shale its grey partner, so rock=chert
+  rock2=shale IS "red-grey iron rock". Split the island into provinces
+  (granite mountains, chert/shale lowland, slate spurs), give each its own
+  ores= line, and one cave ores=iron:0.06 lines every gallery correctly
+  for free: cave wall ore resolves per actual wall block through the same
+  iron to limonite/hematite/magnetite alias. Region ores= always
+  places blocks of the PRIMARY rock's ore, so keep deposits inside their
+  own province. Also: match the coastal cliff band's rock to the province
+  behind it (two cliff regions on ironmine, chert C + granite N), and
+  wobble straight province borders with two sines or the rock/forest
+  boundary reads ruler-drawn from the map.
 - Decoration can beat the loading screen too (0.38.2+): ServerMain launch
   order is TriggerWorldgenStartup (worldgen init + BLOCKING spawn chunk
   generation, 7x7 chunks = 224 blocks around map middle) then the RunGame
