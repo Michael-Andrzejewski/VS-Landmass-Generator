@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Voxel viewer</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #202830; font: 12px system-ui, sans-serif; }
+  #hud { position: fixed; top: 8px; left: 8px; color: #dde; background: rgba(20,26,34,.8);
+         padding: 8px 10px; border-radius: 6px; max-width: 340px; }
+  #hud input[type=range] { width: 220px; vertical-align: middle; }
+  #pick { color: #ffd27a; margin-top: 4px; min-height: 14px; }
+  button { margin-top: 6px; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div><b id="title">voxels</b> <span id="stats"></span></div>
+  <div>y-slice <input id="ycap" type="range" min="1" max="255" value="255"> <span id="ycapval"></span></div>
+  <div id="pick">hover a block to identify it</div>
+  <button id="cap">capture to shots/</button>
+</div>
+<script src="three.min.js"></script>
+<script src="voxels.js"></script>
+</body>
+</html>

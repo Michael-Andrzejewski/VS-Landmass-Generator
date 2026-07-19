@@ -2,3 +2,4 @@ bin/
 obj/
 *.user
 viewer/shots/
+viewer/data/

@@ -466,3 +466,15 @@ All verified against 1.22.3 assets. When in doubt, grep
   are all loaded, else it falls back to the paced live pass. The offshore
   ring may poke past the spawn area; it needs no decoration, so the check
   ignores it.
+
+## Voxel viewer page (voxels.html)
+
+`http://localhost:5184/viewer/voxels.html?file=data/<name>.json` renders an
+arbitrary block dump with orbit controls, a y-slice slider, hover-to-identify
+(shows the block code under the cursor) and the same capture-to-shots button
+as the island previewer. Data files live in `viewer/data/` (gitignored,
+derived). Generate one from any VS BlockSchematic with
+`python NadiyaVillageAssistance/tools/schematic_to_voxels.py <schematic.json> <out.json>`
+(defaults: the Nadiya story village into viewer/data/nadiya-village.json).
+Index packing is `(y<<20)|(z<<10)|x`, 10 bits per axis; interior voxels are
+culled at conversion time.
