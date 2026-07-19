@@ -1171,6 +1171,7 @@ storyloc devastationarea -2550 -8750
         public int BranchDepth = 2;             // branches may branch again this many levels
         public double BranchLen = 0.5;          // branch length as a fraction of the parent (its midpoint; each branch varies +-30%)
         public double BranchRadius = 0.85;      // branch carve radius as a fraction of the parent's, per level: 0.45 turns a vast main bore into narrow side passages
+        public double Pinch;                    // 0..0.8: periodic squeezes along every tunnel, so wide passages neck down and open out again (a squeeze roughly every 85 blocks)
         public double Depth = 60;               // level out this many blocks below the mouth
         public int Mouth = 2;                   // mouth floor this many blocks above sea level
         public int Entry = 10;                  // blocks of dead-level adit before the dive starts
@@ -2181,6 +2182,7 @@ storyloc devastationarea -2550 -8750
                 case "branchdepth": d.BranchDepth = (int)Math.Clamp(ParseD(v, 2), 0, 4); break;
                 case "branchlen": d.BranchLen = Math.Clamp(ParseD(v, 0.5), 0.2, 1.2); break;
                 case "branchradius": d.BranchRadius = Math.Clamp(ParseD(v, 0.85), 0.3, 1.2); break;
+                case "pinch": d.Pinch = Math.Clamp(ParseD(v, 0), 0, 0.8); break;
                 case "depth": d.Depth = Math.Clamp(ParseD(v, 60), 4, 200); break;
                 case "mouth": d.Mouth = (int)Math.Clamp(ParseD(v, 2), 0, 30); break;
                 case "entry": d.Entry = (int)Math.Clamp(ParseD(v, 10), 0, 60); break;
@@ -2497,6 +2499,28 @@ storyloc devastationarea -2550 -8750
             pos.Set(x, y, z);
             ba.SetBlock(0, pos);
             ba.SetBlock(y <= waterTopY ? waterId : 0, pos, BlockLayersAccess.Fluid);
+        }
+
+        // naturalY comes from the engine heightmap, which our own bulk fills
+        // do not update (only the deposits pass fixes it, and only on region
+        // columns). Regenerating over or beside an earlier built island can
+        // therefore leave its terrain, and any island's TREES, hanging above
+        // clearTop as floating remnants with sheer cut faces. Keep clearing
+        // upward while anything solid remains; a few air probes per column
+        // is cheap and a 4-block gap ends the scan under open sky while
+        // still stepping through tree canopies.
+        var world = sapi.World.BlockAccessor;
+        int yTop = sapi.WorldManager.MapSizeY - 2;
+        int gap = 0;
+        for (int y = clearTop + 1; y <= yTop && gap < 4; y++)
+        {
+            pos.Set(x, y, z);
+            bool occupied = world.GetBlock(pos, BlockLayersAccess.SolidBlocks).BlockId != 0
+                || world.GetBlock(pos, BlockLayersAccess.Fluid).BlockId != 0;
+            if (!occupied) { gap++; continue; }
+            gap = 0;
+            ba.SetBlock(0, pos);
+            ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
         }
         return true;
     }
@@ -3549,6 +3573,12 @@ storyloc devastationarea -2550 -8750
         double mh = 0, mv = 0, pulse = 0, vert = mouthSteps > 0 ? 0 : -dip * 0.5;
         double hswell = 0, vswell = 0;
         double hor0 = hor;
+        // pinch= necks every tunnel down and back open on a fixed rhythm:
+        // wide hall, squeeze, wide hall on the far side. Deterministic and
+        // RNG-free (phase comes from the tunnel's starting bearing), so it
+        // never shifts a saved seed's path or branch layout.
+        double pinchCycles = Math.Max(1.5, length / 85.0);
+        double pinchPhase = hor0 * 3.7;
         // Weave wanders AROUND the design bearing instead of forgetting it: a
         // pure drunk walk turns an adit back on itself within ~20 steps, so
         // every step also pulls the heading back toward hor0 (shortest arc).
@@ -3613,7 +3643,10 @@ storyloc devastationarea -2550 -8750
             y += Math.Sin(vert);
             if (y < 8) y = 8;
 
-            double r = Math.Min(13.0, Math.Max(1.5, radius * (0.7 + 0.6 * Math.Sin(t * Math.PI)) + pulse * 0.9 + hswell));
+            // The squeeze scales the tunnel's own body but not the chamber
+            // swells, so room events still blow out big halls anywhere.
+            double pinchMul = 1.0 - def.Pinch * (0.5 + 0.5 * Math.Sin(t * pinchCycles * 2 * Math.PI + pinchPhase));
+            double r = Math.Min(13.0, Math.Max(1.5, radius * (0.7 + 0.6 * Math.Sin(t * Math.PI)) * pinchMul + pulse * 0.9 + hswell));
             double v = Math.Min(10.0, Math.Max(1.45, r * def.Squash + vswell * 0.5));
             if (!buried)
             {
@@ -3714,11 +3747,15 @@ storyloc devastationarea -2550 -8750
                 if (xx < job.MinX || xx >= job.MinX + job.W || zz < job.MinZ || zz >= job.MinZ + job.H) continue;
 
                 int ground = DesignedGround(w, xx, zz);
-                // Doorway: carve anything. Shallow: keep at least the
-                // surface block, so the ground never opens. Normal: stay 5
-                // under the ground, which puts the ceiling below the 3-block
-                // soil skin: cave ceilings are always ROCK, never dirt.
-                int roof = mouthKind == 2 ? int.MaxValue : mouthKind == 1 ? ground - 1 : ground - 5;
+                // Doorway: carve anything. Shallow: keep the surface AND a
+                // real lid under it. A single kept surface block was enough
+                // for slim tunnels, but a vast bore can run shallow for tens
+                // of blocks and a huge gallery under a one-block skin of
+                // hanging grass reads as broken worldgen (Michael hit this
+                // on ironmine's entry). Normal: stay 5 under the ground,
+                // which puts the ceiling below the 3-block soil skin: cave
+                // ceilings are always ROCK, never dirt.
+                int roof = mouthKind == 2 ? int.MaxValue : mouthKind == 1 ? ground - 4 : ground - 5;
 
                 int yTop = Math.Min(sapi.WorldManager.MapSizeY - 3, (int)Math.Ceiling(cy + vr));
                 for (int yy = Math.Max(5, (int)Math.Floor(cy - vr)); yy <= yTop; yy++)

@@ -17,8 +17,11 @@ in [papercuts.md](papercuts.md).
 4. Code changes need `dotnet build -c Release` (auto-deploys the zip to the
    Mods folder) **and a world restart** to load the new DLL.
 5. Test with `/genisland shape=<name> diameter=<d> height=<h>` from open ocean.
-   Regenerating over an old island works, but old TREES are never cleared, so
-   prefer a fresh spot.
+   Since 0.41.0 regenerating in place is clean: the fill keeps clearing
+   upward past its computed clear top while anything solid remains, so old
+   trees and the remnants of earlier builds come down with the rebuild.
+   (Before that, old TREES were never cleared and stale heightmaps could
+   leave whole slabs of an earlier island hanging; see papercuts.)
 6. Check the design in the localhost previewer BEFORE asking Michael to test:
    `node viewer/serve.js`, open http://localhost:5184, pick the shape. It
    renders terrain, regions, water, markers, and the EXACT cave paths (the
@@ -387,14 +390,27 @@ All verified against 1.22.3 assets. When in doubt, grep
   occasional halls. Changing branches= or branchradius= rerolls nothing
   on the main path (same seed, same artery) but branch layouts shift, so
   recheck wet steps in the previewer after any cave-line edit.
-- "Lots of little mountains" is TWO layers, not one knob (ironmine M/W):
-  crank rough= well past the old 0.3 comfort zone (rough is +-4*rough
-  blocks of the island's 22-block SurfNoise, so rough=0.8 is +-3 blocks
-  of rolling crag on the granite) AND scatter small peak-knot regions
-  (T tors at height 1.35, V crags at 1.05, radius 3-6 cells, shore about
-  their half-width so they rise as cones). The knots only overwrite
-  their own province's cells, so they clip clean at borders; the
-  5-cell height smoothing rounds them into summits rather than towers.
+- "Lots of little mountains" is TWO layers, not one knob: crank rough=
+  well past the old 0.3 comfort zone (rough is +-4*rough blocks of the
+  island's 22-block SurfNoise, so rough=0.8 is +-3 blocks of rolling
+  crag) AND scatter small peak-knot regions (tors at height ~1.35,
+  radius 3-6 cells, shore about their half-width so they rise as cones).
+  Knots that only overwrite their own province's cells clip clean at
+  borders, and the 5-cell height smoothing rounds them into summits.
+  Ironmine tried and then DROPPED this by request: Michael wants its
+  granite flat for a ruined city, so the recipe lives here for other
+  islands, not in that shape.
+- Passage RHYTHM beats uniform width (0.41.0, Michael on ironmine's
+  first cut: "a wide passage, then a narrow passage, and then a wide
+  passage on the other side"). pinch= necks every tunnel down and back
+  open about every 85 blocks (squeeze depth = the pinch fraction; body
+  only, chamber events still blow out full halls, so squeezes stay
+  passable at the 1.5 carve floor). It is RNG-free (phase from the
+  tunnel's start bearing) so adding or tuning pinch= NEVER moves a
+  saved seed's path or branches; wet steps can still change (radii
+  shrink), so recheck the previewer line anyway. ironmine runs
+  pinch=0.6 with branchradius=0.45: vast segmented artery, beaded
+  narrow galleries.
 - Iron country is three rock provinces, not one rock (verified 1.22
   allowedVariants): limonite lives in chert/shale/basalt, hematite in
   granite/peridotite/limestone/sandstone/phyllite, magnetite in

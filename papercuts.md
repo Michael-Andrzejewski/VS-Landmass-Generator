@@ -397,3 +397,39 @@ away and it never fires. `block` markers take an optional lift
 (`block X underwaterhorrors:serpentspawner 15`), capped at 3 below the
 surface, so the trigger sphere reaches the surface. Note the spawner also
 skips creative/spectator players when /uh observer is ON.
+
+## "A few chunks didn't generate" that was really the cave (0.40.0, fixed 0.41.0)
+
+Michael reported broken chunks at ironmine's east face: a huge void roofed
+by a one-block lattice of hanging grass with pines on top, a sheer smooth
+pale wall, sea water pooled below. The server log showed one clean island
+run, zero unloaded columns. None of it was chunk generation:
+
+- The hanging lattice was the SHALLOW carve mode (mouthKind 1) doing its
+  documented job: it kept exactly one surface block. Fine over a slim
+  tunnel; under a 26-wide bore that stays shallow for tens of blocks it
+  yields a gallery under a floating skin, which reads as failed worldgen.
+  Fixed: shallow mode now keeps the surface plus a 3-block lid
+  (roof = ground - 4, was ground - 1).
+- The "smooth sand wall" was the stamped HEADWALL seen from inside:
+  rock-chert is pale cream and the stamp is a smooth dome, so up close it
+  reads as an unnaturally flat sand plane.
+- Lesson: before debugging "bad chunks", read server-main.log for the
+  island-complete line and its warnings, and place the report's HUD
+  coordinates against the island design (556,-402 was exactly the mouth
+  cell of an island generated at 319,-368).
+
+## Live fills never update the heightmap, so rebuilds leave hanging remnants (fixed 0.41.0)
+
+FillColumn cleared above the new terrain up to max(naturalY, dome top),
+with naturalY from GetTerrainMapheightAt. The live builder never writes
+that heightmap back (only the deposits pass does, and only on region
+columns), so any column a PREVIOUS live island had raised still reported
+the original seabed: regenerating over or beside an earlier build kept
+everything above the clear top as floating slabs with sheer cut faces,
+and trees were never cleared at all. Fixed structurally: after the normal
+clear, the fill keeps scanning upward and deletes solids and fluids until
+it sees 4 consecutive air blocks, so old terrain, old ponds and old trees
+all come down. The heightmap itself is still only corrected by the
+deposits pass; if a shape drops `deposits natural`, remnant clearing is
+what saves the next rebuild.

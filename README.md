@@ -166,6 +166,7 @@ wall.
 | `branchdepth` | 2 | How many levels deep branches may branch again. |
 | `branchlen` | 0.5 | Branch length as a fraction of the parent tunnel (each branch varies about 30% around it). Raise toward 1 for long wandering galleries, with a small `scale` for a cramped spidery mine. |
 | `branchradius` | 0.85 | Branch carve radius as a fraction of the parent's, applied per branch level (0.3 to 1.2). At 0.45 a vast main bore forks into half-width side passages whose own branches run a quarter width: long narrow twisting galleries off one grand artery. Chamber events still scale with `scale`, so narrow passages keep opening into the occasional large cavern. |
+| `pinch` | 0 | Periodic squeezes along every tunnel (0 to 0.8): the passage necks down by this fraction and opens out again roughly every 85 blocks, so wide halls connect through narrow throats. Squeezes scale the tunnel body but not chamber events, and they are RNG-free, so adding pinch never changes a saved seed's path. |
 | `depth` | 60 | The tunnel levels out this many blocks below its mouth. |
 | `mouth` | 2 | Mouth floor height above sea level. |
 | `entry` | 10 | Blocks of dead-level adit before the dive starts, so the entrance is a horizontal doorway in the hill face, never a hole in the floor. |

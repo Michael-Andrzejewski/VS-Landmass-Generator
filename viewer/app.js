@@ -93,6 +93,7 @@ function parseShape(text) {
         else if (k === 'branchdepth') d.branchDepth = Math.min(4, Math.max(0, Math.trunc(parseFloat(v) || 2)));
         else if (k === 'branchlen') d.branchLen = Math.min(1.2, Math.max(0.2, parseFloat(v) || 0.5));
         else if (k === 'branchradius') d.branchRadius = Math.min(1.2, Math.max(0.3, parseFloat(v) || 0.85));
+        else if (k === 'pinch') d.pinch = Math.min(0.8, Math.max(0, parseFloat(v) || 0));
         else if (k === 'depth') d.depth = Math.min(200, Math.max(4, parseFloat(v) || 60));
         else if (k === 'mouth') d.mouth = Math.min(30, Math.max(0, Math.trunc(parseFloat(v) || 2)));
         else if (k === 'entry') d.entry = Math.min(60, Math.max(0, Math.trunc(parseFloat(v) || 10)));
@@ -417,6 +418,10 @@ function traceCaves(island, domeHeight) {
     let hswell = 0, vswell = 0;
     const hor0 = hor;
     const homing = 0.03 + 0.05 * (1 - def.weave);
+    // pinch= squeeze rhythm, RNG-free and phase-locked to the start bearing
+    // exactly like the C# walk.
+    const pinchCycles = Math.max(1.5, length / 85.0);
+    const pinchPhase = hor0 * 3.7;
     for (let i = 0; i < length; i++) {
       if (guard.total++ > 8000) break;
       const t = i / length;
@@ -451,7 +456,8 @@ function traceCaves(island, domeHeight) {
       z += Math.sin(hor) * cv;
       y += Math.sin(vert);
       if (y < -102) y = -102; // the C# clamp at absolute y=8 (sea level ~110)
-      const r = Math.min(13, Math.max(1.5, radius * (0.7 + 0.6 * Math.sin(t * Math.PI)) + pulse * 0.9 + hswell));
+      const pinchMul = 1 - (def.pinch || 0) * (0.5 + 0.5 * Math.sin(t * pinchCycles * 2 * Math.PI + pinchPhase));
+      const r = Math.min(13, Math.max(1.5, radius * (0.7 + 0.6 * Math.sin(t * Math.PI)) * pinchMul + pulse * 0.9 + hswell));
       const v = Math.min(10, Math.max(1.45, r * def.squash + vswell * 0.5));
       steps.push({ x, y, z, r, v, level, wet: touchesWater(x, y, z, r, v) });
       path.push({ x, y, z, hor });
