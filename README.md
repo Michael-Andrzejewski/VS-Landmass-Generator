@@ -202,6 +202,31 @@ The bastion is axis-aligned regardless of `rotate=`. The previewer draws it
 as schematic boxes (towers, curtain, dungeon slab) for placement checks; the
 dungeon slab box ignores the island clipping the real pass applies.
 
+### Wreck fields (`wreck <char> ...`)
+
+A drowned metallic wreckage field structure pass (0.46.0): `wreck W
+radius=55 whirlpool=0 seed=7` plus a `W` at the field center. Builds from
+corroded rusty-iron metal blocks, metal chutes (rusted pipes), locust-nest
+metal spikes (they really hurt), iron fences, part piles and devastation
+rock:
+
+- One TITANIC hull (up to 64 blocks) rolled onto its side and half-sunk,
+  plating torn open by coherent noise with the rib cage surviving, spiky
+  metal along the torn edges, interior flooded below the waterline.
+- 8-12 shattered segments (bow cones, open hull rings) beached on banks or
+  adrift half-sunk, strewn as if a whirlpool gathered them.
+- A debris carpet fading with distance: runs of rusted pipe, rising jutting
+  beams, part piles, spikes, fence stubs, lone hull blocks, and a drock
+  rust crust creeping over every bank surface.
+- `whirlpool=1` (the maelstrom): a sealed draining funnel at the center,
+  rimmed by a jagged lip of jammed rust just above sea. Inside, open air
+  descends to a pool 12 below the surface, three spiral streams of REAL
+  flowing-water blocks run down the walls, a 2x2 down-flow throat churns at
+  the middle, and several wrecks lie in the pit. The rim is sealed on
+  purpose: a live ocean breach would let liquid physics slowly refill the
+  pit. Pair with lowered bank heights so the whole field feels dragged
+  down (see gen_wreckage_field.py, which emits both variants).
+
 ## Localhost previewer
 
     node viewer/serve.js        ->  http://localhost:5184

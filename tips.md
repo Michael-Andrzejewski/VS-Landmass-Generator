@@ -532,3 +532,18 @@ culled at conversion time.
   quarter-scale mood kit still applies: lone_bastion_1 is the flatcave
   study at 100 wide with the same sheer walls, one green lawn, and a
   10-station skerry ring.
+- A wreck FIELD is scatter math plus one good hull function (0.46.0,
+  wreck=, built for wreckage_field / wreckage_maelstrom): the same
+  superellipse-tube-with-taper places the titan and every shattered
+  segment, just varied in length, beam, roll and decay; "rolled onto its
+  side" is nothing but roll ~80-100 degrees on the cross-section frame.
+  Rusty metal is metalblock-corroded-{riveted,plain}-rusty-iron, pipes
+  are chute-straight-{ns,we,ud}, spikes are locustnest-metalspike-*
+  (real touch damage), rust ground crust is drock. The game HAS
+  directional flowing water as placeable blocks (saltwater-{n,ne,e,se,
+  s,sw,w,nw,d}-{1..7}): the maelstrom's spiral streams and down-flow
+  throat are just those placed on a carved funnel wall. A drained pit
+  in open ocean MUST be a sealed basin (rim berm solid from ground to
+  above sea): breach it and liquid physics slowly refills it. Terrain
+  side: dead drowned banks are barren basalt + climate=arid +
+  devastation= patches, flood=1 shoals and flood=3 basalt-sand flats.

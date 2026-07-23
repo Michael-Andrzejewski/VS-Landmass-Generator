@@ -32,9 +32,9 @@ function fbm(x, z, seed) { // 3 octaves, 0..1
 
 // ── shape file parsing ────────────────────────────────────────────────────
 function parseShape(text) {
-  const s = { regions: {}, markers: [], blocks: [], caves: [], bastions: [], rows: [], suggested: {} };
+  const s = { regions: {}, markers: [], blocks: [], caves: [], bastions: [], wrecks: [], rows: [], suggested: {} };
   let inMap = false;
-  const caveDefs = {}, treeChars = {}, blockChars = {}, bastionChars = {};
+  const caveDefs = {}, treeChars = {}, blockChars = {}, bastionChars = {}, wreckChars = {};
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/\s+$/, '');
     if (inMap) { if (line.trim().length) s.rows.push(line); continue; }
@@ -114,6 +114,16 @@ function parseShape(text) {
         else if (k === 'seed') d.seed = Math.trunc(parseFloat(v) || 1);
       }
       bastionChars[tok[1][0]] = d;
+    } else if (/^wreck$/i.test(tok[0]) && tok.length >= 2) {
+      const d = { radius: 55, whirlpool: false, seed: 1 };
+      for (let i = 2; i < tok.length; i++) {
+        const eq = tok[i].indexOf('='); if (eq <= 0) continue;
+        const k = tok[i].slice(0, eq).toLowerCase(), v = tok[i].slice(eq + 1);
+        if (k === 'radius') d.radius = Math.min(140, Math.max(20, Math.trunc(parseFloat(v) || 55)));
+        else if (k === 'whirlpool') d.whirlpool = (parseFloat(v) || 0) > 0;
+        else if (k === 'seed') d.seed = Math.trunc(parseFloat(v) || 1);
+      }
+      wreckChars[tok[1][0]] = d;
     }
   }
 
@@ -129,6 +139,7 @@ function parseShape(text) {
       else if (caveDefs[c]) { s.caves.push({ gx: x, gz: z, def: caveDefs[c] }); c = '?'; }
       else if (blockChars[c]) { s.blocks.push({ gx: x, gz: z, code: blockChars[c].code, up: blockChars[c].up }); c = '!'; }
       else if (bastionChars[c]) { s.bastions.push({ gx: x, gz: z, def: bastionChars[c] }); c = '?'; }
+      else if (wreckChars[c]) { s.wrecks.push({ gx: x, gz: z, def: wreckChars[c] }); c = '?'; }
       row.push(c);
     }
     s.cells.push(row);
@@ -743,6 +754,30 @@ function rebuild(shape, dia, hgt) {
     dg.scale.set(R * 2, 4, R * 2);
     dg.renderOrder = 4;
     group.add(dg);
+  }
+
+  // Wreck fields as schematics: field circle, titan bar, funnel cone ring.
+  for (const wk of shape.wrecks || []) {
+    const wpc = island.wpc;
+    const wx = (wk.gx + 0.5 - shape.W / 2) * wpc, wz = (wk.gz + 0.5 - shape.H / 2) * wpc;
+    const rustMat = new THREE.MeshLambertMaterial({ color: 0x8a4a2a, transparent: true, opacity: 0.8 });
+    const ringMat = new THREE.MeshLambertMaterial({ color: 0x8a4a2a, transparent: true, opacity: 0.35 });
+    const titan = new THREE.Mesh(boxGeo, rustMat);
+    titan.position.set(wx + wk.def.radius * 0.18, wk.def.whirlpool ? -8 : -2, wz + wk.def.radius * 0.12);
+    titan.scale.set(60, 14, 16);
+    titan.rotation.y = 0.6;
+    group.add(titan);
+    const field = new THREE.Mesh(new THREE.CylinderGeometry(wk.def.radius, wk.def.radius, 1, 40), ringMat);
+    field.position.set(wx, 1.5, wz);
+    group.add(field);
+    if (wk.def.whirlpool) {
+      const fr = Math.max(20, Math.trunc(wk.def.radius * 0.45));
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(3, fr + 2, 22, 32, 1, true),
+        new THREE.MeshLambertMaterial({ color: 0x2a6a9a, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+      cone.position.set(wx, -10, wz);
+      cone.rotation.x = Math.PI;
+      group.add(cone);
+    }
   }
 
   scene.add(group);

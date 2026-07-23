@@ -982,6 +982,7 @@ storyloc devastationarea -2550 -8750
             StampPumpkinPatches(job);
             string caveNote = CarveCaves(job);
             caveNote += BuildBastions(job);
+            caveNote += BuildWrecks(job);
             StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
             sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
@@ -1224,6 +1225,24 @@ storyloc devastationarea -2550 -8750
         public BastionDef Def;
     }
 
+    // A drowned metallic wreckage field: one titanic capsized hull, shattered
+    // ship segments, and a debris carpet of pipes, beams, spikes and rust
+    // over low drowned banks. whirlpool=1 additionally sculpts a sealed
+    // draining funnel at the center with flowing spiral streams, and sinks
+    // the wrecks into it.
+    private class WreckDef
+    {
+        public int Radius = 55;     // debris field radius, blocks
+        public bool Whirlpool;      // 1 = maelstrom variant
+        public int Seed = 1;
+    }
+
+    private class WreckMarker
+    {
+        public int Gx, Gz;
+        public WreckDef Def;
+    }
+
     // Deterministic PRNG for cave paths, shared bit-for-bit with the localhost
     // previewer (viewer/app.js ports it verbatim), so the preview shows the
     // SAME weave and branches the game will carve. Do not swap for LCGRandom.
@@ -1251,6 +1270,7 @@ storyloc devastationarea -2550 -8750
         public List<BlockMarker> BlockMarkers = new();
         public List<CaveMarker> Caves = new();
         public List<BastionMarker> Bastions = new();
+        public List<WreckMarker> Wrecks = new();
         public bool NaturalDeposits;  // `deposits natural`: run the game's own ore pass
         // Bounding box of the actual land cells (plus block markers), in
         // cells. A narrow chain drawn across a wide grid touches far fewer
@@ -1573,6 +1593,7 @@ storyloc devastationarea -2550 -8750
         var markerDefs = new Dictionary<char, (ITreeGenerator gen, float size)>();
         var caveDefs = new Dictionary<char, CaveDef>();
         var bastionDefs = new Dictionary<char, BastionDef>();
+        var wreckDefs = new Dictionary<char, WreckDef>();
         var blockDefs = new Dictionary<char, (string code, int up)>();
         var rows = new List<string>();
         bool inMap = false;
@@ -1615,6 +1636,10 @@ storyloc devastationarea -2550 -8750
             {
                 bastionDefs[tok[1][0]] = ParseBastion(tok, problems);
             }
+            else if (tok[0].Equals("wreck", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
+            {
+                wreckDefs[tok[1][0]] = ParseWreck(tok, problems);
+            }
             else if (tok[0].Equals("block", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
             {
                 int up = tok.Length > 3 && int.TryParse(tok[3], out int u) ? Math.Clamp(u, 0, 60) : 0;
@@ -1651,6 +1676,11 @@ storyloc devastationarea -2550 -8750
                 else if (bastionDefs.ContainsKey(c))
                 {
                     shape.Bastions.Add(new BastionMarker { Gx = x, Gz = z, Def = bastionDefs[c] });
+                    c = '?';
+                }
+                else if (wreckDefs.ContainsKey(c))
+                {
+                    shape.Wrecks.Add(new WreckMarker { Gx = x, Gz = z, Def = wreckDefs[c] });
                     c = '?';
                 }
                 else if (blockDefs.ContainsKey(c))
@@ -2270,6 +2300,26 @@ storyloc devastationarea -2550 -8750
         return d;
     }
 
+    private static WreckDef ParseWreck(string[] tok, List<string> problems)
+    {
+        var d = new WreckDef();
+        for (int i = 2; i < tok.Length; i++)
+        {
+            int eq = tok[i].IndexOf('=');
+            if (eq <= 0) continue;
+            string k = tok[i].Substring(0, eq).ToLowerInvariant();
+            string v = tok[i].Substring(eq + 1);
+            switch (k)
+            {
+                case "radius": d.Radius = (int)Math.Clamp(ParseD(v, 55), 20, 140); break;
+                case "whirlpool": d.Whirlpool = ParseD(v, 0) > 0; break;
+                case "seed": d.Seed = (int)ParseD(v, 1); break;
+                default: problems.Add($"wreck: unknown option '{k}'"); break;
+            }
+        }
+        return d;
+    }
+
     // The surface-cluster set for one rock: loose bit + shallow ore blocks,
     // taking the first candidate mineral that occurs in this rock.
     private void ResolveOreBits(string[] minerals, string rock, out int bit, out int poor, out int med)
@@ -2484,6 +2534,7 @@ storyloc devastationarea -2550 -8750
             int pumpkinPatches = StampPumpkinPatches(job);
             string caveNote = CarveCaves(job);
             caveNote += BuildBastions(job);
+            caveNote += BuildWrecks(job);
             int climRegions = StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
 
@@ -4269,6 +4320,331 @@ storyloc devastationarea -2550 -8750
     }
 
     private static int PosMod(int a, int m) { int r = a % m; return r < 0 ? r + m : r; }
+
+    // ── wreck: a drowned metallic wreckage field ─────────────────────────
+    // One titanic hull rolled onto its side and half-sunk, shattered ship
+    // segments scattered as if a whirlpool gathered them, a debris carpet
+    // (rusted pipes, beams, spikes, gear piles, iron fences) and a drock
+    // rust skin over every bank. whirlpool=1 sculpts a sealed draining
+    // funnel with flowing spiral streams and sinks the wrecks into it.
+
+    private string BuildWrecks(IslandJob job)
+    {
+        var list = job.Shape?.Wrecks;
+        if (list == null || list.Count == 0) return "";
+
+        int built = 0, blocks = 0;
+        foreach (var wm in list)
+        {
+            double lx = (wm.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
+            double lz = (wm.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
+            int cx = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
+            int cz = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
+            blocks += BuildWreckField(job, wm.Def, cx, cz);
+            built++;
+        }
+        return built > 0 ? $", {built} wreck field(s) ({blocks} block edits)" : "";
+    }
+
+    private int BuildWreckField(IslandJob job, WreckDef def, int cx, int cz)
+    {
+        var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+        var rand = new CaveRand((uint)(def.Seed * 2654435761L + 40787));
+        int placed = 0;
+        int sea = job.SeaLevel;
+
+        int Id(string code) => sapi.World.GetBlock(new AssetLocation("game", code))?.BlockId ?? 0;
+        int hullA = Id("metalblock-corroded-riveted-rusty-iron");
+        int hullB = Id("metalblock-corroded-plain-rusty-iron");
+        int hullC = Id("metalblock-corroded-riveted-iron");
+        int drock = Id("drock");
+        int chNS = Id("chute-straight-ns"), chWE = Id("chute-straight-we"), chUD = Id("chute-straight-ud");
+        int fenceNS = Id("ironfence-base-ns"), fenceEW = Id("ironfence-base-ew");
+        int[] spikes = {
+            Id("locustnest-metalspike-tiny"), Id("locustnest-metalspike-small"),
+            Id("locustnest-metalspike-medium"), Id("locustnest-metalspike-large") };
+        int[] piles = {
+            Id("metalpartpile-tiny"), Id("metalpartpile-small"),
+            Id("metal-parts"), Id("metal-scraps") };
+        if (hullA == 0) return 0;
+        if (hullB == 0) hullB = hullA;
+        if (hullC == 0) hullC = hullA;
+
+        int Hull()
+        {
+            double r0 = rand.NextDouble();
+            return r0 < 0.55 ? hullA : r0 < 0.85 ? hullB : hullC;
+        }
+
+        bool InRect(int x, int z) => x >= job.MinX && x < job.MinX + job.W && z >= job.MinZ && z < job.MinZ + job.H;
+
+        void Set(int x, int y, int z, int id)
+        {
+            if (!InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
+            pos.Set(x, y, z);
+            ba.SetBlock(id, pos);
+            if (id == 0) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+            placed++;
+        }
+
+        void SetFluid(int x, int y, int z, int fluidId)
+        {
+            if (!InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
+            pos.Set(x, y, z);
+            ba.SetBlock(0, pos);
+            ba.SetBlock(fluidId, pos, BlockLayersAccess.Fluid);
+            placed++;
+        }
+
+        var groundCache = new Dictionary<long, int>();
+        int Ground(int x, int z)
+        {
+            long key = ((long)x << 24) ^ (uint)z;
+            if (groundCache.TryGetValue(key, out int g)) return g;
+            g = ColumnSurface(job, x, z, sea, out int ty, out _, out _, out _, out _, out _)
+                ? ty : sea - job.Water;
+            groundCache[key] = g;
+            return g;
+        }
+
+        uint Hash(int a, int b) => (uint)(a * 374761393 + b * 668265263 + def.Seed * 2246822519L);
+        double Hash01(int a, int b) { uint h = Hash(a, b); h ^= h >> 13; h *= 1274126177u; return ((h ^ (h >> 16)) & 0xFFFFFF) / 16777216.0; }
+
+        int R = def.Radius;
+        int sink = def.Whirlpool ? 5 : 0;   // the maelstrom pulls everything down
+        int funnelR = def.Whirlpool ? Math.Max(20, (int)(R * 0.45)) : 0;
+
+        // ── the whirlpool funnel FIRST, so wrecks then embed into its walls.
+        // A sealed basin: the rim berm stands above sea, so the lowered pool
+        // inside is stable, like a pond below sea level. Spiral streams of
+        // real flowing-water blocks run down the walls into a down-flow
+        // throat: the moving drain. The rim is NOT breached: a live ocean
+        // connection would let liquid physics fill the pit back up.
+        int poolY = sea - 12;
+        if (def.Whirlpool)
+        {
+            for (int x = cx - funnelR - 3; x <= cx + funnelR + 3; x++)
+                for (int z = cz - funnelR - 3; z <= cz + funnelR + 3; z++)
+                {
+                    double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
+                    if (d > funnelR + 2.5) continue;
+                    if (d > funnelR - 0.5)
+                    {
+                        // rim berm: a jagged lip of jammed rust just above sea
+                        int g = Ground(x, z);
+                        int top = sea + (Hash01(x, z) < 0.75 ? 1 : 2);
+                        for (int y = Math.Min(g, sea - 6); y <= top; y++)
+                            Set(x, y, z, Hash01(x * 3, z * 7 + y) < 0.35 ? Hull() : drock != 0 ? drock : job.StoneId);
+                        continue;
+                    }
+                    int floorY = Math.Max(sea - 6 - (int)((funnelR - d) * 1.0), sea - 28);
+                    // solid funnel wall, then the cone of air, then the pool
+                    Set(x, floorY, z, drock != 0 && Hash01(x, z + 9999) < 0.8 ? drock : job.StoneId);
+                    for (int y = floorY - 1; y >= floorY - 2; y--) Set(x, y, z, job.StoneId);
+                    for (int y = floorY + 1; y <= sea + 1; y++)
+                    {
+                        if (y <= poolY) SetFluid(x, y, z, job.SaltWaterId);
+                        else Set(x, y, z, 0);
+                    }
+                }
+
+            // three spiral streams down the funnel wall, flowing inward
+            for (int arm = 0; arm < 3; arm++)
+            {
+                double a0 = arm * 2.094 + rand.NextDouble();
+                for (double s = 0; s <= 1.0; s += 0.02)
+                {
+                    double r = (funnelR - 2) - s * (funnelR - 6);
+                    double ang = a0 + s * 4.2 * Math.PI;
+                    int x = cx + (int)Math.Round(r * Math.Cos(ang));
+                    int z = cz + (int)Math.Round(r * Math.Sin(ang));
+                    double dHere = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
+                    int wallY = Math.Max(sea - 6 - (int)((funnelR - dHere) * 1.0), sea - 28);
+                    if (wallY + 1 <= poolY) break; // reached the pool
+                    // flow direction: tangent plus inward pull, mapped to 8-way
+                    double tx = -Math.Sin(ang), tz = Math.Cos(ang);
+                    double ix = -Math.Cos(ang), iz = -Math.Sin(ang);
+                    double fx = tx * 0.6 + ix * 0.8, fz = tz * 0.6 + iz * 0.8;
+                    string code = (fz < -0.38 ? "n" : fz > 0.38 ? "s" : "") + (fx > 0.38 ? "e" : fx < -0.38 ? "w" : "");
+                    if (code.Length == 0) code = "d";
+                    int lvl = Math.Max(2, 7 - (int)(s * 5));
+                    int flow = Id($"saltwater-{code}-{lvl}");
+                    Set(x, wallY, z, drock != 0 ? drock : job.StoneId); // groove bed
+                    if (flow != 0) SetFluid(x, wallY + 1, z, flow);
+                }
+            }
+            // the throat: a 2x2 down-flow column from the pool surface
+            int dn = Id("saltwater-d-6");
+            if (dn != 0)
+                for (int dx = 0; dx <= 1; dx++)
+                    for (int dz = 0; dz <= 1; dz++)
+                        for (int y = poolY; y >= Math.Max(sea - 27, poolY - 12); y--)
+                            SetFluid(cx + dx, y, cz + dz, dn);
+        }
+
+        // ── one hull: shared by the titan and every segment. Rolled frame:
+        // the cross-section ellipse is rotated by rollDeg, so "deck sideways"
+        // is just roll ~80-100. Plating survives where the tear-noise allows;
+        // rib frames survive everywhere, so holes read as a torn rib cage.
+        void Hull3(double hx, double hz, double hy, double yaw, double rollDeg,
+            int len, double beamHalf, double depthHalf, double bowSharp, double decay, int waterTopY)
+        {
+            double ux = Math.Cos(yaw), uz = Math.Sin(yaw);
+            double px = -uz, pz = ux;
+            double roll = rollDeg * Math.PI / 180;
+            double cr = Math.Cos(roll), sr = Math.Sin(roll);
+            double reach = Math.Max(beamHalf, depthHalf) + 2;
+            int x0 = (int)(hx - len / 2.0 - reach), x1 = (int)(hx + len / 2.0 + reach);
+            int z0 = (int)(hz - len / 2.0 - reach), z1 = (int)(hz + len / 2.0 + reach);
+            for (int x = x0; x <= x1; x++)
+                for (int z = z0; z <= z1; z++)
+                {
+                    double t = ((x - hx) * ux + (z - hz) * uz) / (len / 2.0);
+                    if (t < -1.05 || t > 1.05) continue;
+                    double v = (x - hx) * px + (z - hz) * pz;
+                    // taper: blunt stern, sharp bow (positive t)
+                    double s = t >= 0 ? Math.Pow(Math.Max(0, 1 - Math.Pow(t, bowSharp)), 0.6)
+                        : Math.Pow(Math.Max(0, 1 - Math.Pow(-t, 3.5)), 0.45);
+                    if (s < 0.12) continue;
+                    for (int y = (int)(hy - reach); y <= (int)(hy + reach); y++)
+                    {
+                        double w = y - hy;
+                        double p = v * cr + w * sr, q = -v * sr + w * cr;
+                        double ea = Math.Pow(Math.Abs(p / (beamHalf * s)), 2.2)
+                            + Math.Pow(Math.Abs(q / (depthHalf * s)), 2.2);
+                        double e = Math.Pow(ea, 1.0 / 2.2);
+                        if (e > 1.0) continue;
+                        bool rib = PosMod((int)Math.Round((t + 1) * len / 2.0), 5) == 0;
+                        if (e >= 0.78)
+                        {
+                            // plating, torn open by coherent noise; ribs hold
+                            double tear = Hash01(x * 5 + y * 3, z * 5 - y * 2);
+                            if (!rib && tear < decay) continue;
+                            Set(x, y, z, Hull());
+                            // spiky metal along torn edges and top surfaces
+                            if (y > sea && rand.NextDouble() < 0.05 && spikes[3] != 0)
+                            {
+                                int sp = spikes[1 + (int)(rand.NextDouble() * 3) % 3];
+                                if (sp != 0) Set(x, y + 1, z, sp);
+                            }
+                        }
+                        else
+                        {
+                            // hollow interior: flooded below the LOCAL waterline
+                            // (the drained pit's pool, not the sea, for wrecks
+                            // lying inside the maelstrom funnel)
+                            if (y <= waterTopY) SetFluid(x, y, z, job.SaltWaterId);
+                            else Set(x, y, z, 0);
+                        }
+                    }
+                }
+        }
+
+        // ── the titan: rolled onto its side, bow toward the field's rim.
+        double tYaw = rand.NextDouble() * Math.PI * 2;
+        int tLen = Math.Min(64, R + 10);
+        double titanY = sea - 2 - sink - (def.Whirlpool ? 3 : 0);
+        Hull3(cx + Math.Cos(tYaw + 2.2) * R * 0.18, cz + Math.Sin(tYaw + 2.2) * R * 0.18,
+            titanY, tYaw, 80 + rand.NextDouble() * 25, tLen, 8, 7, 1.7, 0.30,
+            def.Whirlpool ? poolY : sea - 1);
+
+        // ── shattered segments: bow cones, hull rings, keel slabs, strewn
+        // in a rough spiral as if the maelstrom dragged them inward.
+        int segs = 8 + (int)(rand.NextDouble() * 4);
+        for (int i = 0; i < segs; i++)
+        {
+            double ang = rand.NextDouble() * Math.PI * 2;
+            double rr = def.Whirlpool && i < 3
+                ? 6 + rand.NextDouble() * (funnelR - 12)          // some lie IN the pit
+                : R * (0.35 + rand.NextDouble() * 0.55);
+            double sx = cx + rr * Math.Cos(ang), sz = cz + rr * Math.Sin(ang);
+            int len = 8 + (int)(rand.NextDouble() * 10);
+            double beam = 3.5 + rand.NextDouble() * 2.5;
+            double sy;
+            if (def.Whirlpool && rr < funnelR - 2)
+                sy = Math.Max(sea - 6 - (funnelR - rr), sea - 28) + beam * 0.5; // resting in the funnel
+            else if (rand.NextDouble() < 0.55)
+                sy = Ground((int)sx, (int)sz) + beam * 0.4 - sink;              // beached on a bank
+            else
+                sy = sea - 2 - rand.NextDouble() * 3 - sink;                    // adrift, half-sunk
+            double bow = rand.NextDouble() < 0.4 ? 1.7 : 8.0;    // 8 = blunt ring section
+            bool inPit = def.Whirlpool && rr < funnelR - 2;
+            Hull3(sx, sz, sy, rand.NextDouble() * Math.PI * 2, rand.NextDouble() * 180,
+                len, beam, beam * 0.85, bow, 0.45 + rand.NextDouble() * 0.25, inPit ? poolY : sea - 1);
+        }
+
+        // ── debris carpet + rust skin over every bank in the field.
+        for (int x = cx - R; x <= cx + R; x++)
+            for (int z = cz - R; z <= cz + R; z++)
+            {
+                double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
+                if (d > R) continue;
+                if (def.Whirlpool && d < funnelR + 3) continue;   // the funnel already owns this
+                int g = Ground(x, z);
+                if (g < sea - 14) continue;                        // deep dead water: nothing to stand on
+
+                // rust skin: drock crust creeping over the ground
+                if (drock != 0 && Hash01(x * 7, z * 13) < 0.30) { Set(x, g, z, drock); }
+
+                double roll = rand.NextDouble();
+                double p0 = 0.085 * Math.Pow(1 - d / (R + 1.0), 0.7) + 0.015;
+                if (roll > p0) continue;
+
+                double kind = rand.NextDouble();
+                if (kind < 0.34)
+                {
+                    // a run of rusted pipe, the field's signature litter
+                    bool ns = rand.NextDouble() < 0.5;
+                    int n = 2 + (int)(rand.NextDouble() * 4);
+                    int pipe = ns ? chNS : chWE;
+                    if (pipe != 0)
+                        for (int k = 0; k < n; k++)
+                            Set(x + (ns ? 0 : k), Ground(x + (ns ? 0 : k), z + (ns ? k : 0)) + 1, z + (ns ? k : 0), pipe);
+                    if (rand.NextDouble() < 0.25 && chUD != 0) Set(x, Ground(x, z) + 2, z, chUD);
+                }
+                else if (kind < 0.48)
+                {
+                    // a jutting beam: a rising diagonal of hull metal
+                    double bAng = rand.NextDouble() * Math.PI * 2;
+                    int n = 4 + (int)(rand.NextDouble() * 5);
+                    for (int k = 0; k < n; k++)
+                        Set(x + (int)Math.Round(Math.Cos(bAng) * k), g + 1 + k / 2, z + (int)Math.Round(Math.Sin(bAng) * k), Hull());
+                }
+                else if (kind < 0.62 && g >= sea - 2)
+                {
+                    int pile = piles[(int)(rand.NextDouble() * piles.Length) % piles.Length];
+                    if (pile != 0) Set(x, g + 1, z, pile);
+                }
+                else if (kind < 0.74 && g >= sea - 1)
+                {
+                    int sp = spikes[(int)(rand.NextDouble() * 2)];
+                    if (sp != 0) Set(x, g + 1, z, sp);
+                }
+                else if (kind < 0.84)
+                {
+                    int f = rand.NextDouble() < 0.5 ? fenceNS : fenceEW;
+                    if (f != 0) Set(x, g + 1, z, f);
+                }
+                else if (kind < 0.93)
+                {
+                    int n = 1 + (int)(rand.NextDouble() * 3);
+                    for (int k = 0; k < n; k++) Set(x, g + 1 + k, z, Hull());
+                }
+                else if (drock != 0)
+                {
+                    // a wider crust blob
+                    int br = 2 + (int)(rand.NextDouble() * 2);
+                    for (int bx = -br; bx <= br; bx++)
+                        for (int bz = -br; bz <= br; bz++)
+                            if (bx * bx + bz * bz <= br * br && Hash01(x + bx, z + bz + 555) < 0.7)
+                                Set(x + bx, Ground(x + bx, z + bz), z + bz, drock);
+                }
+            }
+
+        ba.Commit();
+        return placed;
+    }
 
     // climate= support. Grass and leaf COLOR is not in the block: the client
     // tints plants from the worldgen climate stored in each map region's
