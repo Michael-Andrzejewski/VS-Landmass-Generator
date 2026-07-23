@@ -178,6 +178,30 @@ Height comes from a distance-to-coast field, so interiors rise and shores taper 
     /genisland shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
     /genisland shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid
 
+### Bastion ruins (`bastion <char> ...`)
+
+A ruined fortress structure pass (0.45.0), placed like a cave: a `bastion Q
+size=34 dungeony=-8 seed=5` line plus a `Q` on the map at the castle center.
+Builds in the masonry of the marker region's rock (stone bricks, cracked
+bricks, cobble):
+
+- Four 9x9 corner towers with two ruined floors, window slits, courtyard
+  doorways, and tops sheared off diagonally toward the sea.
+- A crumbled curtain wall with merlons, breaches and fallen stones, plus two
+  roofless outbuildings.
+- Spiral stairs in the NW and SE towers boring down to a flat dungeon level:
+  a lattice of square 2-wide hallways and 8x6 cells with iron-bar doors
+  (some long broken), part-dressed walls and rubble, cut straight out of the
+  island's rock. `dungeony=` sets the dungeon floor relative to sea level.
+- The dungeon spreads under the whole fortress and beyond, clipped to
+  columns at least 6 blocks inside the island, so halls never breach a
+  cliff or the sea. A cave line whose `depth=` puts its floor at the
+  dungeon level becomes a back entrance where it crosses the halls.
+
+The bastion is axis-aligned regardless of `rotate=`. The previewer draws it
+as schematic boxes (towers, curtain, dungeon slab) for placement checks; the
+dungeon slab box ignores the island clipping the real pass applies.
+
 ## Localhost previewer
 
     node viewer/serve.js        ->  http://localhost:5184

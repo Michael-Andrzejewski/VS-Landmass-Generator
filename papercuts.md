@@ -460,3 +460,12 @@ floors). Mantle-depth designs are untouched (their design floor sits at
 or under the y=8 clamp), but any REGENERATED island whose old walk had
 strayed below its design depth gets a slightly different lower cave
 layout than the version it was first built with.
+
+## A cave marker on the outermost coast cell can drown and be silently skipped
+
+The coastline jitter can round the outermost land cell's world column into
+water, and a cave marker standing there is dropped without a note (the
+previewer says "no caves declared", the game just carves nothing).
+lone_bastion_1 hit this: the east-cliff mouth scan picked the last body
+cell on its row. Place cave and bastion markers 2+ cells inside the coast;
+the mouth's open-air scan walks outward and opens the face anyway.

@@ -981,6 +981,7 @@ storyloc devastationarea -2550 -8750
             StampDevastation(job);
             StampPumpkinPatches(job);
             string caveNote = CarveCaves(job);
+            caveNote += BuildBastions(job);
             StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
             sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
@@ -1207,6 +1208,22 @@ storyloc devastationarea -2550 -8750
         public CaveDef Def;
     }
 
+    // A ruined fortress: four sheared corner towers on a crumbled curtain
+    // wall, spiral stairs boring down to a flat dungeon level of rectangular
+    // hallways and barred cells cut straight out of the island's rock.
+    private class BastionDef
+    {
+        public int Size = 40;      // curtain wall outer width, blocks
+        public int DungeonY = -8;  // dungeon FLOOR, blocks relative to sea level
+        public int Seed = 1;
+    }
+
+    private class BastionMarker
+    {
+        public int Gx, Gz;
+        public BastionDef Def;
+    }
+
     // Deterministic PRNG for cave paths, shared bit-for-bit with the localhost
     // previewer (viewer/app.js ports it verbatim), so the preview shows the
     // SAME weave and branches the game will carve. Do not swap for LCGRandom.
@@ -1233,6 +1250,7 @@ storyloc devastationarea -2550 -8750
         public List<TreeMarker> Markers = new();
         public List<BlockMarker> BlockMarkers = new();
         public List<CaveMarker> Caves = new();
+        public List<BastionMarker> Bastions = new();
         public bool NaturalDeposits;  // `deposits natural`: run the game's own ore pass
         // Bounding box of the actual land cells (plus block markers), in
         // cells. A narrow chain drawn across a wide grid touches far fewer
@@ -1554,6 +1572,7 @@ storyloc devastationarea -2550 -8750
         var shape = new ShapeDef();
         var markerDefs = new Dictionary<char, (ITreeGenerator gen, float size)>();
         var caveDefs = new Dictionary<char, CaveDef>();
+        var bastionDefs = new Dictionary<char, BastionDef>();
         var blockDefs = new Dictionary<char, (string code, int up)>();
         var rows = new List<string>();
         bool inMap = false;
@@ -1592,6 +1611,10 @@ storyloc devastationarea -2550 -8750
             {
                 caveDefs[tok[1][0]] = ParseCave(tok, problems);
             }
+            else if (tok[0].Equals("bastion", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
+            {
+                bastionDefs[tok[1][0]] = ParseBastion(tok, problems);
+            }
             else if (tok[0].Equals("block", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
             {
                 int up = tok.Length > 3 && int.TryParse(tok[3], out int u) ? Math.Clamp(u, 0, 60) : 0;
@@ -1623,6 +1646,11 @@ storyloc devastationarea -2550 -8750
                 else if (caveDefs.ContainsKey(c))
                 {
                     shape.Caves.Add(new CaveMarker { Gx = x, Gz = z, Def = caveDefs[c] });
+                    c = '?';
+                }
+                else if (bastionDefs.ContainsKey(c))
+                {
+                    shape.Bastions.Add(new BastionMarker { Gx = x, Gz = z, Def = bastionDefs[c] });
                     c = '?';
                 }
                 else if (blockDefs.ContainsKey(c))
@@ -2222,6 +2250,26 @@ storyloc devastationarea -2550 -8750
         return d;
     }
 
+    private static BastionDef ParseBastion(string[] tok, List<string> problems)
+    {
+        var d = new BastionDef();
+        for (int i = 2; i < tok.Length; i++)
+        {
+            int eq = tok[i].IndexOf('=');
+            if (eq <= 0) continue;
+            string k = tok[i].Substring(0, eq).ToLowerInvariant();
+            string v = tok[i].Substring(eq + 1);
+            switch (k)
+            {
+                case "size": d.Size = (int)Math.Clamp(ParseD(v, 40), 16, 120); break;
+                case "dungeony": d.DungeonY = (int)Math.Clamp(ParseD(v, -8), -30, 20); break;
+                case "seed": d.Seed = (int)ParseD(v, 1); break;
+                default: problems.Add($"bastion: unknown option '{k}'"); break;
+            }
+        }
+        return d;
+    }
+
     // The surface-cluster set for one rock: loose bit + shallow ore blocks,
     // taking the first candidate mineral that occurs in this rock.
     private void ResolveOreBits(string[] minerals, string rock, out int bit, out int poor, out int med)
@@ -2435,6 +2483,7 @@ storyloc devastationarea -2550 -8750
             int devPatches = StampDevastation(job);
             int pumpkinPatches = StampPumpkinPatches(job);
             string caveNote = CarveCaves(job);
+            caveNote += BuildBastions(job);
             int climRegions = StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
 
@@ -3928,6 +3977,298 @@ storyloc devastationarea -2550 -8750
         }
         return null;
     }
+
+    // ── bastion: a ruined fortress structure pass ────────────────────────
+    // Four sheared corner towers on a crumbled curtain wall, spiral stairs
+    // in the NW and SE towers boring down to a flat dungeon level of
+    // rectangular hallways and barred cells cut out of the island's rock.
+    // Runs AFTER CarveCaves so a side cave that dives to the dungeon level
+    // meets carved halls and becomes a back entrance.
+
+    private string BuildBastions(IslandJob job)
+    {
+        var list = job.Shape?.Bastions;
+        if (list == null || list.Count == 0) return "";
+
+        int built = 0, blocks = 0;
+        foreach (var bm in list)
+        {
+            double lx = (bm.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
+            double lz = (bm.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
+            int cx = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
+            int cz = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
+            string rock = job.Shape.Regions.TryGetValue(job.Shape.Cells[bm.Gx, bm.Gz], out Region reg)
+                ? reg.RockType : "granite";
+            blocks += BuildBastion(job, bm.Def, cx, cz, rock);
+            built++;
+        }
+        return built > 0 ? $", {built} bastion ruin(s) ({blocks} block edits)" : "";
+    }
+
+    private int BuildBastion(IslandJob job, BastionDef def, int cx, int cz, string rock)
+    {
+        var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+        var rand = new CaveRand((uint)(def.Seed * 2654435761L + 977));
+        int placed = 0;
+
+        int Id(string code) => sapi.World.GetBlock(new AssetLocation("game", code))?.BlockId ?? 0;
+        int brick = Id($"stonebricks-{rock}");
+        int cracked = Id($"crackedstonebricks-{rock}");
+        int cobble = Id($"cobblestone-{rock}");
+        if (brick == 0) brick = Id("stonebricks-granite");
+        if (cracked == 0) cracked = brick;
+        if (cobble == 0) cobble = brick;
+        int barsBase = Id("ironfence-base-ew"), barsTop = Id("ironfence-top-ew");
+        if (brick == 0) return 0; // no masonry blocks at all: nothing sane to build
+
+        int Wall()
+        {
+            double r0 = rand.NextDouble();
+            return r0 < 0.55 ? brick : r0 < 0.80 ? cracked : r0 < 0.93 ? cobble : brick;
+        }
+
+        void Set(int x, int y, int z, int id)
+        {
+            if (x < job.MinX || x >= job.MinX + job.W || z < job.MinZ || z >= job.MinZ + job.H) return;
+            if (y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
+            pos.Set(x, y, z);
+            ba.SetBlock(id, pos);
+            if (id == 0) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+            placed++;
+        }
+
+        // Designed ground, cached: the same design function the fill used,
+        // so foundations sit on the terrain as built, trees excluded.
+        var groundCache = new Dictionary<long, int>();
+        int Ground(int x, int z)
+        {
+            long key = ((long)x << 24) ^ (uint)z;
+            if (groundCache.TryGetValue(key, out int g)) return g;
+            g = ColumnSurface(job, x, z, job.SeaLevel, out int ty, out _, out _, out _, out _, out _)
+                ? ty : int.MinValue / 2;
+            groundCache[key] = g;
+            return g;
+        }
+
+        int gy = Ground(cx, cz);
+        if (gy < job.SeaLevel + 3) return 0; // marker fell on water or a beach: refuse quietly
+
+        int half = def.Size / 2;
+        const int towerR = 4;   // towers are 9x9 shells on the curtain corners
+        const int wallH = 6;
+        int df = job.SeaLevel + def.DungeonY;              // dungeon FLOOR level
+        if (df > gy - 8) df = gy - 8;                      // never scrape the courtyard
+
+        // Column is deep enough inside the island for dungeon halls: solid
+        // designed ground well above the sea here and 6 blocks to every side,
+        // so halls never breach a cliff face or the sea floor.
+        bool Deep(int x, int z)
+        {
+            if (Ground(x, z) < job.SeaLevel + 5) return false;
+            return Ground(x + 6, z) >= job.SeaLevel + 5 && Ground(x - 6, z) >= job.SeaLevel + 5
+                && Ground(x, z + 6) >= job.SeaLevel + 5 && Ground(x, z - 6) >= job.SeaLevel + 5;
+        }
+
+        uint Hash(int a, int b) => (uint)(a * 374761393 + b * 668265263 + def.Seed * 2246822519L);
+        double Hash01(int a, int b) { uint h = Hash(a, b); h ^= h >> 13; h *= 1274126177u; return ((h ^ (h >> 16)) & 0xFFFFFF) / 16777216.0; }
+
+        // ── curtain walls: crumbled height from smooth waves, so ruin comes
+        // in surviving runs and fallen breaches, not per-block static.
+        for (int side = 0; side < 4; side++)
+        {
+            double phase = side * 2.1 + def.Seed * 0.7;
+            for (int s = -half + towerR + 1; s <= half - towerR - 1; s++)
+            {
+                int x = side == 2 ? cx - half : side == 3 ? cx + half : cx + s;
+                int z = side == 0 ? cz - half : side == 1 ? cz + half : cz + s;
+                int g = Ground(x, z);
+                if (g < job.SeaLevel + 3) continue;
+                double hh = wallH * (0.30 + 0.85 * (0.5 + 0.5 * Math.Sin(s * 0.23 + phase))
+                    + (rand.NextDouble() - 0.5) * 0.24);
+                if (hh < 1.6)
+                {
+                    if (rand.NextDouble() < 0.4) Set(x, g + 1, z, cobble); // fallen stones in the breach
+                    continue;
+                }
+                int top = gy + (int)Math.Round(hh);
+                for (int y = Math.Min(g, gy); y <= top; y++)
+                {
+                    if (y > gy + 2 && rand.NextDouble() < 0.04) { Set(x, y, z, 0); continue; }
+                    Set(x, y, z, Wall());
+                }
+                if (top >= gy + wallH - 1 && ((s & 1) == 0)) Set(x, top + 1, z, brick); // merlon
+            }
+        }
+
+        // ── four corner towers, tops sheared diagonally toward the outside.
+        for (int k = 0; k < 4; k++)
+        {
+            int sx = (k == 0 || k == 3) ? -1 : 1;
+            int sz = k < 2 ? -1 : 1;
+            int tx = cx + sx * half, tz = cz + sz * half;
+            int hBase = 13 + (int)(Hash01(k, 17) * 4);      // 13-16 at the tall edge
+            bool stairTower = k == 0 || k == 2;             // NW and SE carry the spirals
+
+            for (int du = -towerR; du <= towerR; du++)
+                for (int dv = -towerR; dv <= towerR; dv++)
+                {
+                    int x = tx + du, z = tz + dv;
+                    int g = Ground(x, z);
+                    if (g < job.SeaLevel + 3) continue;
+                    // shear: tall at the inner corner, sheared low at the outer
+                    double t = ((du * sx + dv * sz) / (2.0 * towerR)) + 0.5;
+                    int top = gy + hBase - (int)Math.Round(7 * t) + (int)(Hash01(x, z) * 2) - 1;
+
+                    bool shell = Math.Abs(du) == towerR || Math.Abs(dv) == towerR;
+                    if (shell)
+                    {
+                        for (int y = Math.Min(g, gy); y <= top; y++)
+                        {
+                            // ragged upper edges and the odd window slit
+                            if (y > gy + 10 && rand.NextDouble() < 0.22) continue;
+                            if (y > gy + 2 && y < top - 1 && rand.NextDouble() < 0.05) { Set(x, y, z, 0); continue; }
+                            Set(x, y, z, Wall());
+                        }
+                    }
+                    else
+                    {
+                        // hollow interior with two ruined floors
+                        for (int y = gy + 1; y <= gy + hBase + 1; y++) Set(x, y, z, 0);
+                        Set(x, gy, z, rand.NextDouble() < 0.12 ? cobble : brick); // ground floor
+                        foreach (int fy in new[] { gy + 5, gy + 10 })
+                            if (fy < top - 1 && rand.NextDouble() > 0.18) Set(x, fy, z, brick);
+                    }
+                }
+
+            // doorway into the courtyard: a 2-wide, 3-high opening in the
+            // inner-facing shell wall next to the corner.
+            for (int d = -1; d <= 0; d++)
+                for (int y = gy + 1; y <= gy + 3; y++)
+                {
+                    Set(tx - sx * towerR, y, tz + d, 0);
+                    Set(tx + d, y, tz - sz * towerR, 0);
+                }
+
+            // ── spiral stair: brick-lined 5x5 shaft with a solid center
+            // pillar, treads descending one block per ring step, from the
+            // courtyard down through the rock to the dungeon floor.
+            if (stairTower)
+            {
+                for (int y = df; y <= gy; y++)
+                {
+                    for (int du = -2; du <= 2; du++)
+                        for (int dv = -2; dv <= 2; dv++)
+                        {
+                            bool ring = Math.Abs(du) == 2 || Math.Abs(dv) == 2;
+                            if (ring) { if (rand.NextDouble() < 0.85) Set(tx + du, y, tz + dv, Wall()); }
+                            else if (du != 0 || dv != 0) Set(tx + du, y, tz + dv, 0);
+                        }
+                    Set(tx, y, tz, brick); // center pillar
+                }
+                var ring8 = new (int du, int dv)[] { (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0) };
+                int sy = gy, idx = 0;
+                while (sy > df)
+                {
+                    var (du, dv) = ring8[idx % 8];
+                    Set(tx + du, sy, tz + dv, brick);
+                    idx++; sy--;
+                }
+                // landing under the tower, opening toward the island center
+                for (int du = -1; du <= 1; du++)
+                    for (int dv = -1; dv <= 1; dv++)
+                        for (int y = df + 1; y <= df + 3; y++)
+                            Set(tx + du, y, tz + dv, 0);
+                // connecting hall from the landing toward the dungeon lattice
+                for (int stp = 2; stp <= half + 14; stp++)
+                {
+                    int x = tx - sx * stp;
+                    if (!Deep(x, tz)) break;
+                    for (int dv = 0; dv <= 1; dv++)
+                        for (int y = df + 1; y <= df + 3; y++)
+                            Set(x, y, tz + dv, 0);
+                    Set(x, df, tz, rand.NextDouble() < 0.6 ? brick : 0);
+                    if (PosMod(x - cx, 12) < 2) break; // reached a north-south hallway
+                }
+            }
+        }
+
+        // ── two ruined outbuildings against the north and east curtain.
+        foreach (var (bx1, bz1, bx2, bz2) in new[] {
+            (cx - 12, cz - half + 2, cx - 4, cz - half + 7),
+            (cx + half - 7, cz - 10, cx + half - 2, cz - 2) })
+        {
+            for (int x = bx1; x <= bx2; x++)
+                for (int z = bz1; z <= bz2; z++)
+                {
+                    int g = Ground(x, z);
+                    if (g < job.SeaLevel + 3) continue;
+                    bool edge = x == bx1 || x == bx2 || z == bz1 || z == bz2;
+                    if (!edge) { Set(x, gy, z, rand.NextDouble() < 0.2 ? cobble : brick); continue; }
+                    double hh = 4 * (0.3 + 0.7 * Hash01(x * 3, z * 5)) ;
+                    if (hh < 1.2) continue;
+                    for (int y = Math.Min(g, gy); y <= gy + (int)hh; y++) Set(x, y, z, Wall());
+                }
+            // doorway on the courtyard-facing side
+            for (int y = gy + 1; y <= gy + 2; y++) Set((bx1 + bx2) / 2, y, (bz1 > cz ? bz1 : bz2), 0);
+        }
+
+        // ── the dungeon: a flat lattice of rectangular hallways and barred
+        // cells at df, bored straight out of the rock under the whole
+        // fortress and beyond, clipped to columns deep inside the island.
+        int R = (int)(half * 1.8) + 8;
+
+        // carved(mu,mv) in tile space: 12 wide (x) by 10 deep (z); hallways
+        // are the 2-cell bands, rooms the 8x6 interiors, walls 1 cell.
+        bool TileCarved(int tileU, int tileV, int mu, int mv)
+        {
+            if (mu < 2 || mv < 2) return true;                    // hallways
+            if (mu >= 3 && mu <= 10 && mv >= 3 && mv <= 8)        // cell interior
+                return Hash01(tileU * 7 + 3, tileV * 11 + 5) > 0.15; // 15% collapsed cells
+            return false;
+        }
+
+        for (int x = cx - R; x <= cx + R; x++)
+            for (int z = cz - R; z <= cz + R; z++)
+            {
+                if (!Deep(x, z)) continue;
+                int mu = PosMod(x - cx, 12), mv = PosMod(z - cz, 10);
+                int tu = FloorDiv(x - cx, 12), tv = FloorDiv(z - cz, 10);
+
+                if (TileCarved(tu, tv, mu, mv))
+                {
+                    for (int y = df + 1; y <= df + 3; y++) Set(x, y, z, 0);
+                    double fr = rand.NextDouble();
+                    Set(x, df, z, fr < 0.5 ? brick : fr < 0.68 ? cracked : job.StoneId);
+                    if (rand.NextDouble() < 0.035) Set(x, df + 1, z, cobble); // rubble
+                    continue;
+                }
+
+                // wall cells bordering carved space get part-dressed in brick;
+                // cell doorways onto the east-west hallways get iron bars.
+                bool borders = TileCarved(tu, tv, PosMod(mu + 1, 12), mv) || TileCarved(tu, tv, PosMod(mu - 1 + 12, 12), mv)
+                    || TileCarved(tu, tv, mu, PosMod(mv + 1, 10)) || TileCarved(tu, tv, mu, PosMod(mv - 1 + 10, 10));
+                if (!borders) continue;
+
+                bool door = mv == 2 && (mu == 6 || mu == 7) && TileCarved(tu, tv, mu, 3);
+                if (door)
+                {
+                    double dr = Hash01(tu * 13 + 1, tv * 17 + 2);
+                    Set(x, df, z, brick);
+                    Set(x, df + 3, z, Wall());                     // lintel
+                    if (dr < 0.30) { Set(x, df + 1, z, 0); Set(x, df + 2, z, 0); }          // bars long gone
+                    else { Set(x, df + 1, z, barsBase != 0 ? barsBase : 0); Set(x, df + 2, z, barsTop != 0 ? barsTop : 0); }
+                    continue;
+                }
+                for (int y = df; y <= df + 3; y++)
+                    if (rand.NextDouble() < 0.45) Set(x, y, z, Wall());
+            }
+
+        ba.Commit();
+        return placed;
+    }
+
+    private static int PosMod(int a, int m) { int r = a % m; return r < 0 ? r + m : r; }
 
     // climate= support. Grass and leaf COLOR is not in the block: the client
     // tints plants from the worldgen climate stored in each map region's

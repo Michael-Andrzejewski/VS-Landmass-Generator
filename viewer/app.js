@@ -32,9 +32,9 @@ function fbm(x, z, seed) { // 3 octaves, 0..1
 
 // ── shape file parsing ────────────────────────────────────────────────────
 function parseShape(text) {
-  const s = { regions: {}, markers: [], blocks: [], caves: [], rows: [], suggested: {} };
+  const s = { regions: {}, markers: [], blocks: [], caves: [], bastions: [], rows: [], suggested: {} };
   let inMap = false;
-  const caveDefs = {}, treeChars = {}, blockChars = {};
+  const caveDefs = {}, treeChars = {}, blockChars = {}, bastionChars = {};
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/\s+$/, '');
     if (inMap) { if (line.trim().length) s.rows.push(line); continue; }
@@ -104,6 +104,16 @@ function parseShape(text) {
       caveDefs[tok[1][0]] = d;
     } else if (/^block$/i.test(tok[0]) && tok.length >= 3) {
       blockChars[tok[1][0]] = { code: tok[2], up: parseInt(tok[3], 10) || 0 };
+    } else if (/^bastion$/i.test(tok[0]) && tok.length >= 2) {
+      const d = { size: 40, dungeonY: -8, seed: 1 };
+      for (let i = 2; i < tok.length; i++) {
+        const eq = tok[i].indexOf('='); if (eq <= 0) continue;
+        const k = tok[i].slice(0, eq).toLowerCase(), v = tok[i].slice(eq + 1);
+        if (k === 'size') d.size = Math.min(120, Math.max(16, Math.trunc(parseFloat(v) || 40)));
+        else if (k === 'dungeony') d.dungeonY = Math.min(20, Math.max(-30, Math.trunc(parseFloat(v) || -8)));
+        else if (k === 'seed') d.seed = Math.trunc(parseFloat(v) || 1);
+      }
+      bastionChars[tok[1][0]] = d;
     }
   }
 
@@ -118,6 +128,7 @@ function parseShape(text) {
       if (treeChars[c]) { s.markers.push({ gx: x, gz: z, size: treeChars[c].size }); c = '?'; }
       else if (caveDefs[c]) { s.caves.push({ gx: x, gz: z, def: caveDefs[c] }); c = '?'; }
       else if (blockChars[c]) { s.blocks.push({ gx: x, gz: z, code: blockChars[c].code, up: blockChars[c].up }); c = '!'; }
+      else if (bastionChars[c]) { s.bastions.push({ gx: x, gz: z, def: bastionChars[c] }); c = '?'; }
       row.push(c);
     }
     s.cells.push(row);
@@ -702,6 +713,36 @@ function rebuild(shape, dia, hgt) {
     s.renderOrder = 6;
     caveMats.push(s.material);
     group.add(s);
+  }
+
+  // Bastion ruins as schematic boxes (towers, curtain, dungeon slab): enough
+  // to judge placement against the cliffs; the real ruin is the C# pass.
+  for (const b of shape.bastions || []) {
+    const wpc = island.wpc;
+    const bx = (b.gx + 0.5 - shape.W / 2) * wpc, bz = (b.gz + 0.5 - shape.H / 2) * wpc;
+    const bcol = island.columnSurface(Math.round(bx), Math.round(bz));
+    const gy = bcol ? bcol.topY : 0;
+    const half = b.def.size / 2;
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0x9a938a, transparent: true, opacity: 0.85 });
+    const dgMat = new THREE.MeshLambertMaterial({ color: 0x6a5a33, transparent: true, opacity: 0.4 });
+    for (const [wdx, wdz, sxl, szl] of [[0, -half, half * 2 - 8, 1], [0, half, half * 2 - 8, 1], [-half, 0, 1, half * 2 - 8], [half, 0, 1, half * 2 - 8]]) {
+      const m = new THREE.Mesh(boxGeo, wallMat);
+      m.position.set(bx + wdx, gy + 3, bz + wdz);
+      m.scale.set(sxl, 6, szl);
+      group.add(m);
+    }
+    for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const m = new THREE.Mesh(boxGeo, wallMat);
+      m.position.set(bx + sx * half, gy + 6, bz + sz * half);
+      m.scale.set(9, 12, 9);
+      group.add(m);
+    }
+    const R = half * 1.8 + 8;
+    const dg = new THREE.Mesh(boxGeo, dgMat);
+    dg.position.set(bx, b.def.dungeonY + 2, bz);
+    dg.scale.set(R * 2, 4, R * 2);
+    dg.renderOrder = 4;
+    group.add(dg);
   }
 
   scene.add(group);
