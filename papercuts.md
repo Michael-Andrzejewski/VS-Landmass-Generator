@@ -446,3 +446,17 @@ it sees 4 consecutive air blocks, so old terrain, old ponds and old trees
 all come down. The heightmap itself is still only corrected by the
 deposits pass; if a shape drops `deposits natural`, remnant clearing is
 what saves the next rebuild.
+
+## depth= was a suggestion: high weave drilled branches 40+ blocks past the design floor (fixed 0.44.1)
+
+The walk's level-out is an EASED steering target (12% of the gap per
+step), and weave adds vertical momentum noise on top. On a weave=0.7
+cave, a bad momentum run out-fights the easing for a hundred straight
+steps: Lone Bastion's depth=52 dungeon reported "deepest 88 below sea",
+with the dive in a level-2 branch. Nothing warns; the previewer's deepest
+line is the only tell. Fixed structurally: after the mantle clamp, no
+step may sink below floorY - 2 (the 2 leaves room events their dished
+floors). Mantle-depth designs are untouched (their design floor sits at
+or under the y=8 clamp), but any REGENERATED island whose old walk had
+strayed below its design depth gets a slightly different lower cave
+layout than the version it was first built with.

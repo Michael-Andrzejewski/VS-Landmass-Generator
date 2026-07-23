@@ -470,6 +470,7 @@ function traceCaves(island, domeHeight) {
       z += Math.sin(hor) * cv;
       y += Math.sin(vert);
       if (y < -102) y = -102; // the C# clamp at absolute y=8 (sea level ~110)
+      if (y < floorY - 2) y = floorY - 2; // depth= is a hard floor (0.44.1)
       const pinchMul = 1 - (def.pinch || 0) * (0.5 + 0.5 * Math.sin(t * pinchCycles * 2 * Math.PI + pinchPhase));
       const r = Math.min(13, Math.max(1.5, radius * (0.7 + 0.6 * Math.sin(t * Math.PI)) * pinchMul + pulse * 0.9 + hswell));
       const v = Math.min(10, Math.max(1.45, r * def.squash + vswell * 0.5));

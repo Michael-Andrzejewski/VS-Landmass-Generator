@@ -3700,6 +3700,10 @@ storyloc devastationarea -2550 -8750
             z += Math.Sin(hor) * cv;
             y += Math.Sin(vert);
             if (y < 8) y = 8;
+            // depth= is a promise, not a suggestion: high weave used to let
+            // branch noise out-fight the level-out easing and drill 40+
+            // blocks past the design floor. Rooms may still dish 2 below.
+            if (y < floorY - 2) y = floorY - 2;
 
             // The squeeze scales the tunnel's own body but not the chamber
             // swells, so room events still blow out big halls anywhere.
