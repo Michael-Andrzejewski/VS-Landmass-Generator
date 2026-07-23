@@ -495,3 +495,24 @@ derived). Generate one from any VS BlockSchematic with
 (defaults: the Nadiya story village into viewer/data/nadiya-village.json).
 Index packing is `(y<<20)|(z<<10)|x`, 10 bits per axis; interior voxels are
 culled at conversion time.
+- A ruined-fortress island is mostly a MOOD kit (lonebastion_island, "the
+  Lone Bastion", from Michael's freecam-sculpting session with Opus):
+  rough uneven square = superellipse (exponent ~3.4) with 2/3/5-harmonic
+  wobble and slightly unequal half-extents; sheer walls = one thin cliff
+  band at shore=3 height=0.90 against a height=1.0 plateau, NO beach
+  regions at all. Desolation is climate=arid + fertility=verylow + sparse
+  wildgrass on every rusty region, with the "quiet hopeful green" as
+  UNTINTED fertility=medium patches: climate pixels are ~30 blocks wide,
+  so green patches need to be ~55+ blocks across to actually read green
+  against the arid fade, and they must stay clear of the cliff band or
+  the lawn visually spills over the drop. Machine-ruin ground is the tin
+  island scatter kit (loosegears-1..4, metalpartpile-tiny/small,
+  metal-scraps) at three intensities: a whisper on open ground, castle
+  rubble (+granite boulders/stones) on the keep footprint, and a dense
+  wreck-corner blob nobody can tell apart from the collapsed machine.
+  Sharp-rock water = the Salt Teeth pair worn as a full ring: pointed dry
+  spires (shore ~ half-width, rough 0.55) mixed with flood=1 lurker
+  shards, plus flood=2 sand beds with kelp for seaweed swaying between
+  them. Record the future STRUCTURE footprint as its own region letter
+  with identical terrain params (C = castle): free documentation, zero
+  visual seam, and the structure pass gets exact cells to build on.
