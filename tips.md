@@ -516,3 +516,19 @@ culled at conversion time.
   them. Record the future STRUCTURE footprint as its own region letter
   with identical terrain params (C = castle): free documentation, zero
   visual seam, and the structure pass gets exact cells to build on.
+- REAL castle ruins are a structure pass, not terrain (0.45.0, bastion=,
+  built for lone_bastion_1): one `bastion Q size=34 dungeony=-8 seed=5`
+  line + a Q at the castle center gives four diagonally-sheared corner
+  towers, a crumbled curtain, roofless outbuildings, and NW/SE tower
+  spiral stairs down to a flat lattice dungeon of square hallways and
+  iron-barred cells cut from the island rock (masonry follows the marker
+  region's rock). Pair it with a cave line whose floor matches the
+  dungeon level (floor = mouth + 1.6 - depth; dungeon air is dungeony+1
+  .. dungeony+3) and the cave becomes the dungeon's back entrance where
+  it crosses the halls. The dungeon self-clips to columns 6+ blocks
+  inside the island, so "expansive" is safe to overshoot. Keep the
+  castle's towers (center +- size/2 + 4) inside the plateau or their
+  seaward columns crumble off the cliff (which also looks great). The
+  quarter-scale mood kit still applies: lone_bastion_1 is the flatcave
+  study at 100 wide with the same sheer walls, one green lawn, and a
+  10-station skerry ring.

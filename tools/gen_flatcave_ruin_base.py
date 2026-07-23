@@ -30,9 +30,9 @@ session (sculpted with Opus in voice mode). The vision, block by block:
 - One drowned shaft (flooded=1) out among the SE skerries: the 90% buried
   machine country, minable with a breath timer.
 
-    python tools/gen_lonebastion_island.py > shapes/lonebastion_island.txt
+    python tools/gen_flatcave_ruin_base.py > shapes/flatcave_ruin_base.txt
 
-Suggested: /genisland shape=lonebastion_island diameter=340 height=27 water=40
+Suggested: /genisland shape=flatcave_ruin_base diameter=340 height=27 water=40
 """
 import math
 
@@ -158,7 +158,7 @@ def main():
         fc += 1
     grid[fr][fc] = 'F'
 
-    print("# lonebastion_island - the Lone Bastion: a ruined fortress on a rough")
+    print("# flatcave_ruin_base - the Lone Bastion: a ruined fortress on a rough")
     print("# uneven square of pale granite, ~27 blocks sheer above deep cold water.")
     print("# Rusty iron seams in the cliffs, rusty grass with a few hopeful green")
     print("# patches, gear piles and machine scrap thickening toward the collapsed")
@@ -168,8 +168,8 @@ def main():
     print("# partway up the west cliff to just under the seabed; a drowned shaft")
     print("# waits among the SE skerries. The castle itself (towers, walls, cells,")
     print("# blue moss, chests) is a later structure pass; region C is its footprint.")
-    print("# Regenerate: python tools/gen_lonebastion_island.py > shapes/lonebastion_island.txt")
-    print("# Suggested: /genisland shape=lonebastion_island diameter=340 height=27 water=40")
+    print("# Regenerate: python tools/gen_flatcave_ruin_base.py > shapes/flatcave_ruin_base.txt")
+    print("# Suggested: /genisland shape=flatcave_ruin_base diameter=340 height=27 water=40")
     print()
     print("region P rock=granite fertility=verylow surface=grass climate=arid ores=hematite:0.020,quartz:0.010,copper:0.008,tin:0.004,bismuth:0.003 orebits=iron:0.002 wildgrass=0.12 stones=0.03 scatter=loosegears-1:0.004,loosegears-2:0.002,metalpartpile-tiny:0.002 height=1.0 shore=8 rough=0.08")
     print("region C rock=granite fertility=verylow surface=grass climate=arid ores=hematite:0.020,quartz:0.010,copper:0.008,tin:0.004,bismuth:0.003 orebits=iron:0.002 wildgrass=0.10 stones=0.05 boulders=0.020 scatter=loosegears-1:0.006,loosegears-3:0.003,metalpartpile-tiny:0.004,metal-scraps:0.002 height=1.0 shore=8 rough=0.08")
