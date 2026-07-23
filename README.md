@@ -219,6 +219,14 @@ to 0, applied immediately; land then only exists where forced), `clearspawn N`
 worldgen maps (dropping the auto-rolled story spots), then pregenerates each
 story area one by one with progress in chat.
 
+    /timereset
+
+Rewinds the calendar to 8am on the 1st of May, year 0, the date a brand new
+world starts on. Vanilla `/time` can set the hour and the month but never the
+year. Run it as the last step before handing the finished save file to a new
+player, so their story begins on day one. Uses the world's own calendar
+settings, so custom days-per-month worlds land on the right date too.
+
 ## Notes and current limits
 
 Early standalone build, kept separate from Building Commands until it proves stable.

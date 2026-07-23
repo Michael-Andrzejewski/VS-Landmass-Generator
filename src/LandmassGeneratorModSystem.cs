@@ -176,6 +176,12 @@ public class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.OptionalWord("plan"))
                 .HandleWith(OnGenWorldSetup));
 
+        RegisterCmd(api, "timereset", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Rewind the calendar to 8am on the 1st of May, year 0, the date and time a brand new world starts on. Use after building out a world, right before handing the save file to a new player, so their story begins on day one.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .HandleWith(OnTimeReset));
+
         // The 'Rustfall world' checkbox on the world creation screen (see
         // worldconfig.json at the mod root) lands in the world config; run
         // the world setup once, as early as possible. RunGame fires while
@@ -380,6 +386,20 @@ public class LandmassGeneratorModSystem : ModSystem
     //  not). This command chains the vanilla commands and re-points those
     //  snapshots in between, so one command does the whole job.
     // ─────────────────────────────────────────────────────────────────────
+
+    // Vanilla /time can set the hour and the month but never the year, so a
+    // world that spent weeks being built cannot be handed over reading
+    // "year 0" without this. TotalHours counts from the 1st of January of
+    // year 0, so the target is an absolute date and Add() just bridges the
+    // difference; every unit comes from the calendar itself so custom
+    // days-per-month worlds land on the right date too.
+    private TextCommandResult OnTimeReset(TextCommandCallingArgs args)
+    {
+        var cal = sapi.World.Calendar;
+        double targetHours = (5 - 1) * (double)cal.DaysPerMonth * cal.HoursPerDay + 8.0;
+        cal.Add((float)(targetHours - cal.TotalHours));
+        return TextCommandResult.Success("Calendar rewound. It is now " + cal.PrettyDate());
+    }
 
     private TextCommandResult OnGenStoryLoc(TextCommandCallingArgs args)
     {
