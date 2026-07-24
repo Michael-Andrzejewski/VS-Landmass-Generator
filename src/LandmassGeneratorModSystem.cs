@@ -201,6 +201,19 @@ public class LandmassGeneratorModSystem : ModSystem
         // file IS the console.
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, TryRunDumpJobs);
 
+        // Serve mode (dumpgen keeps the server alive between runs): in the
+        // dump world, keep watching for a NEW dumpjobs.txt every 2 seconds,
+        // so iterating on a structure costs one island build instead of a
+        // full server boot every time.
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, () =>
+        {
+            if (sapi.WorldManager.SaveGame?.WorldName != "LandmassGenerator dump world") return;
+            sapi.Event.RegisterGameTickListener(dt =>
+            {
+                if (!_dumpJobsRunning && !_islandBusy) TryRunDumpJobs();
+            }, 2000);
+        });
+
         // For checkbox worlds, force the ocean config BEFORE worldgen ever
         // reads it (SaveGameLoaded fires ahead of InitWorldGenerator). The
         // first spawn chunks then already generate as pure ocean, instead
@@ -213,7 +226,8 @@ public class LandmassGeneratorModSystem : ModSystem
             // same pure ocean a Rustfall world gets (serverconfig.json world
             // overrides are ignored at world creation), but skip the full
             // Rustfall story setup.
-            if (File.Exists(Path.Combine(shapeFolder, "dumpjobs.txt")))
+            if (File.Exists(Path.Combine(shapeFolder, "dumpjobs.txt"))
+                || sapi.WorldManager.SaveGame?.WorldName == "LandmassGenerator dump world")
             {
                 wc.SetString("landcover", "0");
                 wc.SetString("upheavelCommonness", "0");
@@ -359,6 +373,8 @@ public class LandmassGeneratorModSystem : ModSystem
     // dumpjobs.txt: one /genisland option line per row (with or without the
     // leading "/genisland"). The file is deleted before running so a crash
     // mid-job cannot boot-loop the server.
+    private bool _dumpJobsRunning;
+
     private void TryRunDumpJobs()
     {
         string f = Path.Combine(shapeFolder, "dumpjobs.txt");
@@ -373,6 +389,7 @@ public class LandmassGeneratorModSystem : ModSystem
         try { File.Delete(f); } catch { /* best effort */ }
         if (lines.Count == 0) return;
 
+        _dumpJobsRunning = true;
         sapi.Logger.Notification("[dump] {0} dump job(s) queued", lines.Count);
         sapi.Event.RegisterCallback(_ => RunDumpJob(lines, 0), 4000);
     }
@@ -381,6 +398,14 @@ public class LandmassGeneratorModSystem : ModSystem
     {
         if (idx >= lines.Count)
         {
+            _dumpJobsRunning = false;
+            // dumpwatch.flag (written by dumpgen): stay alive and keep
+            // watching, so the next dumpgen run skips the server boot.
+            if (File.Exists(Path.Combine(shapeFolder, "dumpwatch.flag")))
+            {
+                sapi.Logger.Notification("[dump] all dump jobs finished, server staying alive for more");
+                return;
+            }
             sapi.Logger.Notification("[dump] all dump jobs finished, stopping the server");
             sapi.Event.RegisterCallback(_ =>
                 sapi.ChatCommands.ExecuteUnparsed("/stop",
@@ -1434,7 +1459,16 @@ storyloc devastationarea -2550 -8750
         // dump=1 (or dump=name): after the island fully finishes, write every
         // block in the build volume to LandmassGenerator/dumps/<name>.lmd so
         // the localhost previewer can render the REAL result block for block.
+        // Bare by default: columns the generator never touched are written as
+        // air, so the viewer loads and meshes only the island and its
+        // structures. dumpfull=1 keeps the natural terrain around it, for
+        // checking how the piece meets the real seabed.
         public string DumpName;
+        public bool DumpFull;
+        // Columns any megastructure block landed in (world x<<32|z), so a
+        // bare dump keeps chains, stumps and debris standing in open ocean
+        // outside the terrain-pass footprint.
+        public HashSet<long> TouchedCols = new();
 
         public NormalizedSimplexNoise CoastNoise, SurfNoise, RockBlend;
         public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
@@ -1619,6 +1653,8 @@ storyloc devastationarea -2550 -8750
             foreach (char ch in dn.ToLowerInvariant())
                 if (char.IsLetterOrDigit(ch) || ch == '_' || ch == '-') sb.Append(ch);
             job.DumpName = sb.Length > 0 ? sb.ToString() : "island";
+            string full = OptStr(opt, "dumpfull", "0");
+            job.DumpFull = full == "1" || full.Equals("true", StringComparison.OrdinalIgnoreCase);
         }
 
         if (shapeName != null)
@@ -2753,6 +2789,28 @@ storyloc devastationarea -2550 -8750
         string path = Path.Combine(dir, job.DumpName + ".lmd");
         string tmp = path + ".tmp";
 
+        // Bare dumps (the default): columns the generator never touched are
+        // written as pure air, so the viewer only loads the landmass and the
+        // blocks the mod actually placed. TouchedCols keeps structures that
+        // stand in open ocean; a small halo keeps their block footprints.
+        bool[] keep = null;
+        if (!job.DumpFull)
+        {
+            keep = new bool[sx * sz];
+            foreach (long k in job.TouchedCols)
+            {
+                int tx = (int)(k >> 32) - x0, tz = (int)k - z0;
+                for (int hz = tz - 1; hz <= tz + 1; hz++)
+                    for (int hx = tx - 1; hx <= tx + 1; hx++)
+                        if (hx >= 0 && hz >= 0 && hx < sx && hz < sz) keep[hz * sx + hx] = true;
+            }
+            for (int dz = 0; dz < sz; dz++)
+                for (int dx = 0; dx < sx; dx++)
+                    if (!keep[dz * sx + dx]
+                        && ColumnSurface(job, x0 + dx, z0 + dz, job.SeaLevel, out _, out _, out _, out _, out _, out _))
+                        keep[dz * sx + dx] = true;
+        }
+
         long cells = 0;
         using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write))
         using (var gz = new GZipStream(fs, CompressionLevel.Fastest))
@@ -2767,6 +2825,14 @@ storyloc devastationarea -2550 -8750
             for (int dz = 0; dz < sz; dz++)
             for (int dx = 0; dx < sx; dx++)
             {
+                if (keep != null && !keep[dz * sx + dx])
+                {
+                    cells++;
+                    if (first) { runIdx = 0; runLen = 1; first = false; }
+                    else if (runIdx == 0 && runLen < uint.MaxValue) runLen++;
+                    else { runs.Add((runLen, runIdx)); runIdx = 0; runLen = 1; }
+                    continue;
+                }
                 pos.Set(x0 + dx, y, z0 + dz);
                 Block b = ba.GetBlock(pos, BlockLayersAccess.SolidBlocks);
                 if (b == null || b.Id == 0) b = ba.GetBlock(pos, BlockLayersAccess.Fluid);
@@ -4718,6 +4784,7 @@ storyloc devastationarea -2550 -8750
             pos.Set(x, y, z);
             ba.SetBlock(id, pos);
             if (id == 0) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+            job.TouchedCols.Add(((long)x << 32) | (uint)z);
             placed++;
         }
 
@@ -4727,6 +4794,7 @@ storyloc devastationarea -2550 -8750
             pos.Set(x, y, z);
             ba.SetBlock(0, pos);
             ba.SetBlock(fluidId, pos, BlockLayersAccess.Fluid);
+            job.TouchedCols.Add(((long)x << 32) | (uint)z);
             placed++;
         }
 
@@ -4735,6 +4803,7 @@ storyloc devastationarea -2550 -8750
             if (!InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
             float rot = (float)(Math.Round(-heading / (Math.PI / 2)) * (Math.PI / 2));
             clutterSpots.Add((x, y, z, type, rot));
+            job.TouchedCols.Add(((long)x << 32) | (uint)z);
         }
 
         var groundCache = new Dictionary<long, int>();
@@ -5261,6 +5330,7 @@ storyloc devastationarea -2550 -8750
             pos.Set(x, y, z);
             ba.SetBlock(id, pos);
             if (id == 0) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+            job.TouchedCols.Add(((long)x << 32) | (uint)z);
             placed++;
         }
 
@@ -5270,6 +5340,7 @@ storyloc devastationarea -2550 -8750
             pos.Set(x, y, z);
             ba.SetBlock(0, pos);
             ba.SetBlock(fluidId, pos, BlockLayersAccess.Fluid);
+            job.TouchedCols.Add(((long)x << 32) | (uint)z);
             placed++;
         }
 
@@ -5304,13 +5375,17 @@ storyloc devastationarea -2550 -8750
             if (!InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
             float rot = (float)(Math.Round(-heading / (Math.PI / 2)) * (Math.PI / 2));
             clutterSpots.Add((x, y, z, type, rot));
+            job.TouchedCols.Add(((long)x << 32) | (uint)z);
         }
 
         // shared palettes
         int rustA = Id("metalblock-corroded-riveted-rusty-iron");
         int rustB = Id("metalblock-corroded-plain-rusty-iron");
-        int plateA = Id("metalblock-new-plain-rusty-iron");
-        int plateB = Id("metalblock-new-riveted-rusty-iron");
+        // Bright steel plate. metalblock-new-*-rusty-iron is skipVariant'd out
+        // of the game entirely (exact-preview find: every "plate" was falling
+        // back to corroded rust), but the steel and iron variants exist.
+        int plateA = IdFirst("metalblock-new-plain-steel", "metalblock-new-plain-iron");
+        int plateB = IdFirst("metalblock-new-riveted-steel", "metalblock-new-riveted-iron");
         if (plateA == 0) plateA = rustB;
         if (plateB == 0) plateB = rustA;
         int drock = Id("drock");

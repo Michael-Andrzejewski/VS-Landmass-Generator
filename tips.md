@@ -615,3 +615,28 @@ culled at conversion time.
   PassTimeWhenEmpty true or a playerless server may not tick the island
   builder. Ground truth caveat: the dump world runs ONLY LandmassGenerator
   + UnderwaterHorrors, so mods that alter worldgen are absent from dumps.
+
+- Block-code traps found via exact dumps (0.51.0):
+  metalblock-new-*-rusty-iron is skipVariants'd out of the game, so the
+  colossus "steel plate" had silently been all-corroded rust since 0.49.0;
+  the new (bright) variants that DO exist are per-metal, use
+  metalblock-new-plain-steel / metalblock-new-riveted-steel (iron works
+  too). Devastation ornaments: devgrowth-{thorns,shard,shrike,bush};
+  root them in devastatedsoil-N so they read as growth, drock is the
+  devastated rock cube. Aged interiors: planks-aged-we /
+  planks-veryaged-we, lootvessel-{food,tool,seed,...},
+  stationarybasket-{n,e,s,w}, loosegears-{1..5} are all real codes.
+
+- `ocean basin=` is carve-only since 0.51.0: it never raises a naturally
+  deeper seabed (the old fill built a plateau ring with cliff walls
+  around every basin structure), and its pull fades in over the first 30
+  blocks off any shore so land inside a deep basin descends instead of
+  standing on a sheer rock tower (the old chainfield islets and colossus
+  stubs were vertical columns). If a tiny islet still reads too steep
+  over a deep bowl, flood= it into a submerged reef stub instead.
+
+- Light emitters (ghostlights): place them through the world accessor
+  AFTER the bulk-accessor Commit (collect spots, then SetBlock each),
+  the same way clutter goes in. That bakes their light immediately, like
+  the Underwater Horrors ruins; through the bulk accessor they can end
+  up dark until a neighbor update.

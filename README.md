@@ -277,32 +277,42 @@ One directive, five set pieces (0.49.0). The marker can stand in open
 water; pair with `ocean basin=` when the piece needs guaranteed depth.
 
 - `kind=lighthouse` (size = tower height): the Drowned Lighthouse
-  (`beacon` still accepted as an alias). A tapered
-  granite lighthouse rising from the sea floor: flooded spiral stair in
-  the drowned third, torn rusty band at the waterline, a ghostlight lamp
-  room with gallery rail and cone roof, and a broken sister stump whose
-  fallen lantern cage still glows on the seabed.
-- `kind=chains` (size = field radius): the Chainfield. Colossal rusted
-  anchor chains (hollow alternating links, wide enough to walk) rise taut
-  from seabed anchor plates and vanish high into the sky-fog, or sag
-  walkably over the water between two anchors. Some carry torn wrecks
-  hooked mid-air.
-- `kind=colossus`: the Kneeling Colossus. A ~110-block armored giant
-  kneeling on the deep floor: steel plate (new/riveted iron metal blocks)
-  with gold trim (bountiful native gold ore bands), corroding below, falx
-  arm outstretched, shield tucked at the chest, carved eye slit. Only the
-  gilded helm crown and the falx blade break the surface.
-- `kind=serpent` (size = coil radius): the Vertebrae Serpent. A chalk
-  sea-serpent skeleton curled 2.2 turns around a sunken ship on the
-  lagoon floor, vertebra by vertebra, ribs arching 20+ blocks, horned
-  skull with open jaws. Underwater Horrors ghostlights stud the rib tips,
-  dorsal ridge and eye sockets so the coil glows up through the water
-  (skipped gracefully if that mod is absent).
+  (`beacon` still accepted as an alias). A tapered granite lighthouse
+  standing centered on its drowned shoal: an interior spiral stair
+  climbs through planked room floors (flooded below the sea, furnished
+  above it, window slits per room), torn rusty band at the waterline,
+  and a hollow glass lamp room with a baked ghostlight on its pedestal,
+  gallery walkway, rail and cone roof. A broken sister stump stands on
+  the same shoal, its fallen lantern cage still glowing.
+- `kind=chains` (size = field radius): the Sealed Orb. A hollow shell of
+  devastated rock and soil floating half-out of the sea, crusted with
+  devastation growth (thorns, shards, shrikes), its upper shell cracked
+  and leaking the green light of whatever is sealed inside. Colossal
+  rusted chains (hollow alternating links, wide enough to walk) run taut
+  from its hide down through the water and into the seabed rock.
+- `kind=colossus`: the Kneeling Colossus. A ~110-block giant kneeling
+  on the deep floor, built from high-exponent boxes so every part is
+  rectangular, Minecraft-statue style. Carved from the island's stone
+  with rusted-iron highlights only (iron part rims, corroded plate
+  courses, no ore and no gold), ghostlight eyes burning behind the
+  carved eye slit, glowing studs around the iron crown band, shield
+  tucked at the chest, and a SOLID straight rusted greatsword raised
+  point-up. Only the crown and the blade break the surface.
+- `kind=serpent` (size = half-circle radius): the Giant Serpent
+  Skeleton. A 330-block chalk skeleton lying in an omega pose on the
+  lagoon floor: straight neck, half-circle body, straight tapering tail,
+  distinct vertebrae and a full ribcage, horned skull with glowing eye
+  sockets. At the heart of the half-circle lies a large ship torn in
+  two, masts fallen, debris strewn between the halves. Underwater
+  Horrors ghostlights stud the spine and rib tips (skipped gracefully if
+  that mod is absent).
 - `kind=forge` (size = crater radius): the Crater Forge. Carves a real
   crater into a volcano cone, floods the throat with actual lava
   (`lava-still-7`), and hangs a crucible full of melt over it on four
   colossal chains, with a railed catwalk from the rim and three frozen
-  lava runs spilling down the outer slopes.
+  lava runs spilling down the outer slopes. The forge_volcano shape
+  pairs it with a wide low island: soil flats a few blocks above the
+  waterline, a terra preta ring, and a stepped basalt cone.
 
 Shapes: `lighthouse`, `chainfield`, `colossus_deep`,
 `giant_serpent_skeleton`, `forge_volcano` (see their gen scripts for the
@@ -332,27 +342,42 @@ For a preview that CANNOT differ from the game, generate a block dump:
 
     node tools/dumpgen.mjs lighthouse chainfield ...
     node tools/dumpgen.mjs all               (every shape with a Suggested line)
+    node tools/dumpgen.mjs --full ...        (keep the natural terrain around it)
     node tools/dumpgen.mjs --reset ...       (recreate the throwaway world)
+    node tools/dumpgen.mjs --stop            (shut the background server down)
 
-The script boots a throwaway headless dedicated server (data folder
-`export/data`, its own port, pure-ocean world; your real game data is never
-touched), builds each island there with the current DLL and shape files
-using each shape's `# Suggested:` command line, and writes every block to
+The script drives a headless dedicated server (data folder `export/data`,
+its own port, pure-ocean world; your real game data is never touched),
+builds each island there with the current DLL and shape files using each
+shape's `# Suggested:` command line, and writes the blocks to
 `export/data/LandmassGenerator/dumps/<shape>.lmd`. The previewer's dropdown
 lists dumps under "exact dumps": every voxel on screen is a block the real
-generator placed, including vanilla worldgen (natural seabed, deposits,
-cave systems, ruins). Colors are averaged from the actual game textures
+generator placed. Colors are averaged from the actual game textures
 (`tools/gen_blockcolors.py`, run automatically). The water checkbox and the
 cutaway slider expose underwater and interior work; ghostlight, lava and
 other glow blocks render full bright.
 
-Under the hood: `/genisland ... dump=1` (or `dump=<name>`) writes the dump
-when the island finishes, from any world. The headless server runs the
-commands from `LandmassGenerator/dumpjobs.txt` at boot because the server
-console ignores piped stdin, and stops itself after the last job. A world
-with a pending dumpjobs.txt forces the pure-ocean config at load. After a
-DLL change, `dotnet build -c Release` then rerun dumpgen; shape-file edits
-need no rebuild.
+Fast loop: the server is left RUNNING between runs, so the first run pays
+the ~35s boot and every later run hands its jobs straight to the live
+server: an iteration costs one island build. Each run builds at fresh
+coordinates (a persistent job counter), so runs never collide. When the
+mod zip is newer than the running server, dumpgen restarts it
+automatically, so after `dotnet build -c Release` you just rerun dumpgen.
+Shape-file edits need no rebuild or restart at all.
+
+Dumps are BARE by default: columns the generator never touched are written
+as air, so files load and mesh fast and the viewer shows exactly what the
+mod will place (landmass, structures, their carved ocean ring). Pass
+`--full` to keep the natural seabed and vanilla worldgen around the island,
+for checking how a piece meets real terrain.
+
+Under the hood: `/genisland ... dump=1` (or `dump=<name>`, plus
+`dumpfull=1` for full dumps) writes the dump when the island finishes,
+from any world. The headless server runs commands from
+`LandmassGenerator/dumpjobs.txt` (the server console ignores piped stdin):
+consumed at boot, and in the dump world also watched for on a 2s tick,
+which is what lets dumpgen feed a running server. `dumpwatch.flag` keeps
+the server alive after the last job; without it the server stops itself.
 
 ## Story world commands
 

@@ -68,6 +68,7 @@ OVERRIDES = [
     (r"^flower-", [170, 160, 90]),
     (r"^devgrowth", [96, 62, 88]),
     (r"^metalblock-.*corroded", [96, 78, 62]),
+    (r"^metalblock-new", [152, 156, 162]),   # bright steel plate
     (r"^metalblock", [108, 112, 120]),
     (r"quartz_nativegold", [196, 156, 62]),   # gold trim should READ as gold
     (r"^ironfence|^metalfence", [70, 68, 66]),
@@ -75,6 +76,9 @@ OVERRIDES = [
     (r"^coalpile", [40, 38, 36]),
     (r"^stationarybasket", [150, 118, 62]),
     (r"^aquaticplant|^seaweed", [46, 110, 70]),
+    (r"^forestfloor", [72, 58, 40]),
+    (r"^loosestick", [112, 88, 58]),
+    (r"^stonepath", [128, 124, 118]),
 ]
 
 WORD = re.compile(r"[a-z]+")
