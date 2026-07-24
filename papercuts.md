@@ -478,3 +478,16 @@ the mouth's open-air scan walks outward and opens the face anyway.
   when the colossus site rendered as shallow plateaus. Fix: `ocean
   basin=R depth=D` (0.49.0) guarantees the bowl around the island
   center; the previewer mirrors it.
+
+## Rebuilding open-water structure shapes leaves remnants + drained ocean
+
+Rebuilding an island at the same spot only restores columns the coast
+carve processes (within OceanRing of land). For open-water shapes (wrecks,
+megastructures) most of the area is BEYOND the ring: old structure blocks
+out there are never cleared, and water state can end up mixed (the exact
+previewer showed a lighthouse rebuilt inside a drained cylinder wearing
+the previous tower's remnants). The dump pipeline sidesteps it by
+recreating its world every run (dumpgen default). In the REAL world, when
+iterating a struct/wreck shape at the same coordinates, expect remnants;
+a clean regen needs /wgen delr on the area first (or a proper
+clear-struct-bounds pass, not built yet).

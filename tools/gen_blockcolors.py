@@ -71,6 +71,10 @@ OVERRIDES = [
     (r"^metalblock", [108, 112, 120]),
     (r"quartz_nativegold", [196, 156, 62]),   # gold trim should READ as gold
     (r"^ironfence|^metalfence", [70, 68, 66]),
+    (r"^devastatedsoil", [78, 60, 74]),
+    (r"^coalpile", [40, 38, 36]),
+    (r"^stationarybasket", [150, 118, 62]),
+    (r"^aquaticplant|^seaweed", [46, 110, 70]),
 ]
 
 WORD = re.compile(r"[a-z]+")

@@ -6,10 +6,14 @@
 // shows IS what the game builds.
 //
 //   node tools/dumpgen.mjs lighthouse chainfield ...
-//   node tools/dumpgen.mjs all            (every shape with a Suggested line)
-//   node tools/dumpgen.mjs --reset ...    (delete the export world first)
+//   node tools/dumpgen.mjs all              (every shape with a Suggested line)
+//   node tools/dumpgen.mjs --keep-world ... (reuse the world; faster, but a
+//                                            rebuild over older runs can leave
+//                                            remnants and drained ocean)
 //
-// Each shape's /genisland options come from its "# Suggested:" header line.
+// The export world is recreated fresh each run by default, so every dump is
+// built on virgin ocean. Each shape's /genisland options come from its
+// "# Suggested:" header line.
 import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -63,7 +67,7 @@ function prepare(reset) {
 
   if (reset) {
     const saves = path.join(dataPath, 'Saves');
-    if (fs.existsSync(saves)) { fs.rmSync(saves, { recursive: true, force: true }); log('export world deleted (--reset)'); }
+    if (fs.existsSync(saves)) { fs.rmSync(saves, { recursive: true, force: true }); log('export world recreated (default; pass --keep-world to reuse)'); }
   }
 
   // Fresh copies of the needed mod zips only.
@@ -158,7 +162,7 @@ function run(shapes) {
 }
 
 const args = process.argv.slice(2);
-const reset = args.includes('--reset');
+const reset = !args.includes('--keep-world');
 let shapes = args.filter(a => !a.startsWith('--'));
 if (shapes.length === 1 && shapes[0] === 'all') {
   shapes = fs.readdirSync(path.join(repo, 'shapes'))
