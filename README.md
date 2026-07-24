@@ -255,7 +255,7 @@ devastation rock. Meant for a shape of sheer rock spires over deep water
   only recompute on block updates, so the sculpted sea holds its shape
   until a player disturbs it.
 
-### Ocean plunge (`ocean plunge=N`)
+### Ocean plunge and basin (`ocean plunge=N basin=R depth=D`)
 
 By default the reshaped sea floor starts 2 blocks below sea right at a
 drawn coastline, which makes a wading shelf and a visible sand ring around
@@ -263,6 +263,49 @@ every land mass. The standalone shape line `ocean plunge=20` starts the
 floor 20 below sea instead: coasts drop sheer into deep water with no
 shelf and no ring. Pair with `stone=`/`sand=` command options matching the
 island's rock so the reshaped ocean floor is not default granite.
+
+`basin=R depth=D` guarantees a bowl of D-deep water within R blocks of
+the ISLAND CENTER, no matter how far the nearest land is. The normal
+coast carve only reaches `OceanRing` blocks off shore (about 22% of the
+diameter), so a megastructure placed in open water would otherwise stand
+on whatever shallow natural seabed happens to be there. The basin fades
+back to natural over 18 blocks past R.
+
+### Megastructures (`struct <char> kind=... size=... seed=...`)
+
+One directive, five set pieces (0.49.0). The marker can stand in open
+water; pair with `ocean basin=` when the piece needs guaranteed depth.
+
+- `kind=beacon` (size = tower height): the Drowned Beacon. A tapered
+  granite lighthouse rising from the sea floor: flooded spiral stair in
+  the drowned third, torn rusty band at the waterline, a ghostlight lamp
+  room with gallery rail and cone roof, and a broken sister stump whose
+  fallen lantern cage still glows on the seabed.
+- `kind=chains` (size = field radius): the Chainfield. Colossal rusted
+  anchor chains (hollow alternating links, wide enough to walk) rise taut
+  from seabed anchor plates and vanish high into the sky-fog, or sag
+  walkably over the water between two anchors. Some carry torn wrecks
+  hooked mid-air.
+- `kind=colossus`: the Kneeling Colossus. A ~110-block armored giant
+  kneeling on the deep floor: steel plate (new/riveted iron metal blocks)
+  with gold trim (bountiful native gold ore bands), corroding below, falx
+  arm outstretched, shield tucked at the chest, carved eye slit. Only the
+  gilded helm crown and the falx blade break the surface.
+- `kind=serpent` (size = coil radius): the Vertebrae Serpent. A chalk
+  sea-serpent skeleton curled 2.2 turns around a sunken ship on the
+  lagoon floor, vertebra by vertebra, ribs arching 20+ blocks, horned
+  skull with open jaws. Underwater Horrors ghostlights stud the rib tips,
+  dorsal ridge and eye sockets so the coil glows up through the water
+  (skipped gracefully if that mod is absent).
+- `kind=forge` (size = crater radius): the Crater Forge. Carves a real
+  crater into a volcano cone, floods the throat with actual lava
+  (`lava-still-7`), and hangs a crucible full of melt over it on four
+  colossal chains, with a railed catwalk from the rim and three frozen
+  lava runs spilling down the outer slopes.
+
+Shapes: `drowned_beacon`, `chainfield`, `colossus_deep`,
+`vertebrae_atoll`, `forge_volcano` (see their gen scripts for the
+suggested commands).
 
 ## Localhost previewer
 

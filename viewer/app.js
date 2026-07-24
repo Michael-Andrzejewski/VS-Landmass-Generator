@@ -32,9 +32,9 @@ function fbm(x, z, seed) { // 3 octaves, 0..1
 
 // ── shape file parsing ────────────────────────────────────────────────────
 function parseShape(text) {
-  const s = { regions: {}, markers: [], blocks: [], caves: [], bastions: [], wrecks: [], rows: [], suggested: {}, oceanPlunge: 2 };
+  const s = { regions: {}, markers: [], blocks: [], caves: [], bastions: [], wrecks: [], structs: [], rows: [], suggested: {}, oceanPlunge: 2, basinR: 0, basinDepth: 40 };
   let inMap = false;
-  const caveDefs = {}, treeChars = {}, blockChars = {}, bastionChars = {}, wreckChars = {};
+  const caveDefs = {}, treeChars = {}, blockChars = {}, bastionChars = {}, wreckChars = {}, structChars = {};
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/\s+$/, '');
     if (inMap) { if (line.trim().length) s.rows.push(line); continue; }
@@ -124,11 +124,23 @@ function parseShape(text) {
         else if (k === 'seed') d.seed = Math.trunc(parseFloat(v) || 1);
       }
       wreckChars[tok[1][0]] = d;
+    } else if (/^struct$/i.test(tok[0]) && tok.length >= 2) {
+      const d = { kind: '', size: 60, seed: 1 };
+      for (let i = 2; i < tok.length; i++) {
+        const eq = tok[i].indexOf('='); if (eq <= 0) continue;
+        const k = tok[i].slice(0, eq).toLowerCase(), v = tok[i].slice(eq + 1);
+        if (k === 'kind') d.kind = v.toLowerCase();
+        else if (k === 'size') d.size = Math.min(160, Math.max(8, Math.trunc(parseFloat(v) || 60)));
+        else if (k === 'seed') d.seed = Math.trunc(parseFloat(v) || 1);
+      }
+      structChars[tok[1][0]] = d;
     } else if (/^ocean$/i.test(tok[0]) && tok.length >= 2) {
       for (let i = 1; i < tok.length; i++) {
         const eq = tok[i].indexOf('='); if (eq <= 0) continue;
         const k = tok[i].slice(0, eq).toLowerCase(), v = tok[i].slice(eq + 1);
         if (k === 'plunge') s.oceanPlunge = Math.min(60, Math.max(2, Math.trunc(parseFloat(v) || 2)));
+        else if (k === 'basin') s.basinR = Math.min(200, Math.max(0, Math.trunc(parseFloat(v) || 0)));
+        else if (k === 'depth') s.basinDepth = Math.min(180, Math.max(4, Math.trunc(parseFloat(v) || 40)));
       }
     }
   }
@@ -146,6 +158,7 @@ function parseShape(text) {
       else if (blockChars[c]) { s.blocks.push({ gx: x, gz: z, code: blockChars[c].code, up: blockChars[c].up }); c = '!'; }
       else if (bastionChars[c]) { s.bastions.push({ gx: x, gz: z, def: bastionChars[c] }); c = '?'; }
       else if (wreckChars[c]) { s.wrecks.push({ gx: x, gz: z, def: wreckChars[c] }); c = '?'; }
+      else if (structChars[c]) { s.structs.push({ gx: x, gz: z, def: structChars[c] }); c = '?'; }
       row.push(c);
     }
     s.cells.push(row);
@@ -355,11 +368,22 @@ function buildIsland(shape, diameter, domeHeight) {
     const ccx = Math.min(Math.max(gx, 0), W - 1), ccz = Math.min(Math.max(gz, 0), H - 1);
     const over = Math.hypot(gx - ccx, gz - ccz);
     const dLand = (bilinear(distToLand, W, H, ccx, ccz) + over) * wpc;
-    if (dLand > oceanRing) return null;
+    // `ocean basin=R depth=D`: guaranteed-deep bowl centered on the island
+    let basinY = null;
+    if (shape.basinR > 0) {
+      const dC = Math.hypot((gx - W / 2) * wpc, (gz - H / 2) * wpc);
+      if (dC < shape.basinR + 18)
+        basinY = -2 - shape.basinDepth * smooth(Math.min(1, Math.max(0, (shape.basinR + 18 - dC) / 18)));
+    }
+    if (dLand > oceanRing) {
+      if (basinY === null) return null;
+      return { topY: Math.round(basinY), waterTop: -1, mat: 'rock', reg: null, cell: '.' };
+    }
     const naturalY = -8;
     const deep = -(shape.oceanPlunge || 2) - water * smooth(dLand / (oceanRing * 0.45));
     const back = smooth((dLand - oceanRing * 0.55) / (oceanRing * 0.45));
-    const topY = Math.round(lerp(deep, naturalY, back));
+    let topY = Math.round(lerp(deep, naturalY, back));
+    if (basinY !== null && basinY < topY) topY = Math.round(basinY);
     return { topY, waterTop: topY < 0 ? -1 : -1000, mat: topY >= -4 ? 'sand' : 'rock', reg: null, cell: '.' };
   }
 
@@ -784,6 +808,54 @@ function rebuild(shape, dia, hgt) {
         new THREE.MeshLambertMaterial({ color: 0x2a6a9a, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
       cone.position.set(wx, -13, wz);
       group.add(cone);
+    }
+  }
+
+  // Megastructures (struct lines) as crude schematics: enough to check
+  // placement and scale; the real geometry only exists in-game.
+  for (const st of shape.structs || []) {
+    const wpc = island.wpc;
+    const wx = (st.gx + 0.5 - shape.W / 2) * wpc, wz = (st.gz + 0.5 - shape.H / 2) * wpc;
+    const mat = new THREE.MeshLambertMaterial({ color: 0xb08a4a, transparent: true, opacity: 0.75 });
+    const k = st.def.kind, sz = st.def.size;
+    if (k === 'beacon') {
+      // base near the local sea floor; schematic rises from -20
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(3, 7, sz, 16), mat);
+      tower.position.set(wx, sz / 2 - 20, wz);
+      group.add(tower);
+    } else if (k === 'chains') {
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4 + 0.3;
+        const bar = new THREE.Mesh(boxGeo, mat);
+        bar.position.set(wx + Math.cos(a) * sz * 0.35, 8, wz + Math.sin(a) * sz * 0.35);
+        bar.scale.set(3, sz * 0.9, 3);
+        bar.rotation.z = 0.7 * Math.cos(a);
+        bar.rotation.x = 0.7 * Math.sin(a);
+        group.add(bar);
+      }
+    } else if (k === 'colossus') {
+      const body = new THREE.Mesh(boxGeo, mat);
+      body.position.set(wx, -45, wz);
+      body.scale.set(34, 100, 30);
+      group.add(body);
+      const helm = new THREE.Mesh(boxGeo, mat);
+      helm.position.set(wx + 3, 12, wz);
+      helm.scale.set(16, 20, 16);
+      group.add(helm);
+    } else if (k === 'serpent') {
+      const coil = new THREE.Mesh(new THREE.CylinderGeometry(sz, sz, 20, 28, 1, true),
+        new THREE.MeshLambertMaterial({ color: 0xd8d8c8, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+      coil.position.set(wx, -22, wz);
+      group.add(coil);
+    } else if (k === 'forge') {
+      const bowl = new THREE.Mesh(new THREE.CylinderGeometry(sz, sz * 0.4, 24, 20, 1, true),
+        new THREE.MeshLambertMaterial({ color: 0xc84a2a, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+      bowl.position.set(wx, 38, wz);
+      group.add(bowl);
+      const cru = new THREE.Mesh(boxGeo, mat);
+      cru.position.set(wx, 34, wz);
+      cru.scale.set(16, 8, 16);
+      group.add(cru);
     }
   }
 

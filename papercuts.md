@@ -469,3 +469,12 @@ previewer says "no caves declared", the game just carves nothing).
 lone_bastion_1 hit this: the east-cliff mouth scan picked the last body
 cell on its row. Place cave and bastion markers 2+ cells inside the coast;
 the mouth's open-air scan walks outward and opens the face anyway.
+
+- A structure marker in OPEN WATER stands on the natural seabed, not on
+  your deep water. The ocean carve only reaches OceanRing blocks off
+  shore (~22% of diameter); beyond that ColumnSurface returns false and
+  Ground() falls back to sea - water, which LIES: the real floor is
+  whatever vanilla generated (often 10 deep). Caught in the previewer
+  when the colossus site rendered as shallow plateaus. Fix: `ocean
+  basin=R depth=D` (0.49.0) guarantees the bowl around the island
+  center; the previewer mirrors it.

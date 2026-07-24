@@ -984,6 +984,7 @@ storyloc devastationarea -2550 -8750
             string caveNote = CarveCaves(job);
             caveNote += BuildBastions(job);
             caveNote += BuildWrecks(job);
+            caveNote += BuildStructs(job);
             StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
             sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
@@ -1244,6 +1245,25 @@ storyloc devastationarea -2550 -8750
         public WreckDef Def;
     }
 
+    // `struct <char> kind=... size=... seed=...`: one directive, many
+    // megastructures. Kinds: beacon (drowned lighthouse), chains (colossal
+    // anchor chains rising from the deep), colossus (a kneeling armored
+    // giant, almost entirely submerged), serpent (a curled sea-serpent
+    // skeleton with ghostlights), forge (a crater forge suspended over
+    // real lava inside a volcano cone).
+    private class StructDef
+    {
+        public string Kind = "";
+        public int Size = 60;       // per-kind: beacon height, chains/serpent radius, forge crater radius
+        public int Seed = 1;
+    }
+
+    private class StructMarker
+    {
+        public int Gx, Gz;
+        public StructDef Def;
+    }
+
     // Deterministic PRNG for cave paths, shared bit-for-bit with the localhost
     // previewer (viewer/app.js ports it verbatim), so the preview shows the
     // SAME weave and branches the game will carve. Do not swap for LCGRandom.
@@ -1272,11 +1292,16 @@ storyloc devastationarea -2550 -8750
         public List<CaveMarker> Caves = new();
         public List<BastionMarker> Bastions = new();
         public List<WreckMarker> Wrecks = new();
+        public List<StructMarker> Structs = new();
         public bool NaturalDeposits;  // `deposits natural`: run the game's own ore pass
         // `ocean plunge=N`: the reshaped sea floor starts N below sea right at
         // the coastline. The default 2 makes a wading shelf (and a visible
         // sand ring); 15+ makes coasts drop sheer into deep water.
         public int OceanPlunge = 2;
+        // `ocean basin=R depth=D`: guarantee a bowl of D-deep water within R
+        // blocks of the island center, no matter how far the nearest land is.
+        public int BasinR;
+        public int BasinDepth = 40;
         // Bounding box of the actual land cells (plus block markers), in
         // cells. A narrow chain drawn across a wide grid touches far fewer
         // chunks than the grid square suggests.
@@ -1599,6 +1624,7 @@ storyloc devastationarea -2550 -8750
         var caveDefs = new Dictionary<char, CaveDef>();
         var bastionDefs = new Dictionary<char, BastionDef>();
         var wreckDefs = new Dictionary<char, WreckDef>();
+        var structDefs = new Dictionary<char, StructDef>();
         var blockDefs = new Dictionary<char, (string code, int up)>();
         var rows = new List<string>();
         bool inMap = false;
@@ -1645,6 +1671,10 @@ storyloc devastationarea -2550 -8750
             {
                 wreckDefs[tok[1][0]] = ParseWreck(tok, problems);
             }
+            else if (tok[0].Equals("struct", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
+            {
+                structDefs[tok[1][0]] = ParseStruct(tok, problems);
+            }
             else if (tok[0].Equals("block", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
             {
                 int up = tok.Length > 3 && int.TryParse(tok[3], out int u) ? Math.Clamp(u, 0, 60) : 0;
@@ -1664,6 +1694,8 @@ storyloc devastationarea -2550 -8750
                     string k = tok[ti].Substring(0, eq).ToLowerInvariant();
                     string v = tok[ti].Substring(eq + 1);
                     if (k == "plunge") shape.OceanPlunge = (int)Math.Clamp(ParseD(v, 2), 2, 60);
+                    else if (k == "basin") shape.BasinR = (int)Math.Clamp(ParseD(v, 0), 0, 200);
+                    else if (k == "depth") shape.BasinDepth = (int)Math.Clamp(ParseD(v, 40), 4, 180);
                     else problems.Add($"ocean: unknown key '{k}'");
                 }
             }
@@ -1698,6 +1730,11 @@ storyloc devastationarea -2550 -8750
                 else if (wreckDefs.ContainsKey(c))
                 {
                     shape.Wrecks.Add(new WreckMarker { Gx = x, Gz = z, Def = wreckDefs[c] });
+                    c = '?';
+                }
+                else if (structDefs.ContainsKey(c))
+                {
+                    shape.Structs.Add(new StructMarker { Gx = x, Gz = z, Def = structDefs[c] });
                     c = '?';
                 }
                 else if (blockDefs.ContainsKey(c))
@@ -2552,6 +2589,7 @@ storyloc devastationarea -2550 -8750
             string caveNote = CarveCaves(job);
             caveNote += BuildBastions(job);
             caveNote += BuildWrecks(job);
+            caveNote += BuildStructs(job);
             int climRegions = StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
 
@@ -2993,12 +3031,37 @@ storyloc devastationarea -2550 -8750
         // Ocean: deepen sharply just off the coast, then blend back into the
         // natural sea floor so the edit leaves no rim.
         double dLand = DistToLandContinuous(s, gx, gz) * job.WorldPerCell;
-        if (dLand > job.OceanRing) return false; // leave the open ocean alone
+
+        // `ocean basin=R depth=D`: a bowl of guaranteed-deep water centered
+        // on the island, independent of distance to land. The coast carve
+        // only reaches OceanRing blocks off shore, so a megastructure in
+        // open water (the colossus, the chainfield) would otherwise stand
+        // on whatever shallow natural seabed happens to be there.
+        double basinY = double.MaxValue;
+        if (s.BasinR > 0)
+        {
+            double dCx = x - job.Cx, dCz = z - job.Cz;
+            double dC = Math.Sqrt(dCx * dCx + dCz * dCz);
+            if (dC < s.BasinR + 18)
+                basinY = job.SeaLevel - 2 - s.BasinDepth * Smooth(Math.Clamp((s.BasinR + 18 - dC) / 18.0, 0, 1))
+                    + (job.SurfNoise.Noise(x * 0.4, z * 0.4) - 0.5) * 4.0;
+        }
+
+        if (dLand > job.OceanRing)
+        {
+            if (basinY == double.MaxValue) return false; // leave the open ocean alone
+            topY = (int)Math.Round(basinY);
+            underwater = true;
+            waterTopY = job.SeaLevel - 1;
+            topMat = SurfRock;
+            return true;
+        }
 
         nearIsland = dLand < job.WorldPerCell * 2;
         double deep = job.SeaLevel - (job.Shape?.OceanPlunge ?? 2) - job.Water * Smooth(dLand / (job.OceanRing * 0.45));
         double back = Smooth((dLand - job.OceanRing * 0.55) / (job.OceanRing * 0.45));
         topY = (int)Math.Round(Lerp(deep, naturalY, back));
+        if (basinY != double.MaxValue && basinY < topY) topY = (int)Math.Round(basinY);
         underwater = topY < job.SeaLevel;
         waterTopY = underwater ? job.SeaLevel - 1 : -1;
         topMat = topY >= job.SeaLevel - 4 ? SurfSand : SurfRock;
@@ -4888,6 +4951,737 @@ storyloc devastationarea -2550 -8750
                     beh.Blockentity.MarkDirty(true);
                 }
                 placed++;
+            }
+        }
+        return placed;
+    }
+
+    private static StructDef ParseStruct(string[] tok, List<string> problems)
+    {
+        var d = new StructDef();
+        for (int i = 2; i < tok.Length; i++)
+        {
+            int eq = tok[i].IndexOf('=');
+            if (eq <= 0) continue;
+            string k = tok[i].Substring(0, eq).ToLowerInvariant();
+            string v = tok[i].Substring(eq + 1);
+            switch (k)
+            {
+                case "kind": d.Kind = v.ToLowerInvariant(); break;
+                case "size": d.Size = (int)Math.Clamp(ParseD(v, 60), 8, 160); break;
+                case "seed": d.Seed = (int)ParseD(v, 1); break;
+                default: problems.Add($"struct: unknown key '{k}'"); break;
+            }
+        }
+        if (d.Kind != "beacon" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent" && d.Kind != "forge")
+            problems.Add($"struct: unknown kind '{d.Kind}' (beacon, chains, colossus, serpent, forge)");
+        return d;
+    }
+
+    private string BuildStructs(IslandJob job)
+    {
+        var list = job.Shape?.Structs;
+        if (list == null || list.Count == 0) return "";
+
+        int built = 0, blocks = 0;
+        foreach (var sm in list)
+        {
+            double lx = (sm.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
+            double lz = (sm.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
+            int cx = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
+            int cz = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
+            blocks += BuildStruct(job, sm.Def, cx, cz);
+            built++;
+        }
+        return built > 0 ? $", {built} megastructure(s) ({blocks} block edits)" : "";
+    }
+
+    // One builder, five megastructures. They share the sculpting helpers:
+    // Blob (an oriented superellipsoid with per-part material logic),
+    // ChainRun (colossal chain links along a line, walkable), HullTube (a
+    // compact torn ship hull), and the clutter stamp for machinery shapes.
+    private int BuildStruct(IslandJob job, StructDef def, int cx, int cz)
+    {
+        var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
+        var pos = new BlockPos(0, 0, 0, job.Dim);
+        var rand = new CaveRand((uint)(def.Seed * 2654435761L + def.Kind.Length * 977 + 15731));
+        int placed = 0;
+        int sea = job.SeaLevel;
+
+        int Id(string code)
+        {
+            var loc = code.IndexOf(':') >= 0 ? new AssetLocation(code) : new AssetLocation("game", code);
+            return sapi.World.GetBlock(loc)?.BlockId ?? 0;
+        }
+        int IdFirst(params string[] codes)
+        {
+            foreach (string c in codes) { int i = Id(c); if (i != 0) return i; }
+            return 0;
+        }
+
+        bool InRect(int x, int z) => x >= job.MinX && x < job.MinX + job.W && z >= job.MinZ && z < job.MinZ + job.H;
+
+        void Set(int x, int y, int z, int id)
+        {
+            if (!InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
+            pos.Set(x, y, z);
+            ba.SetBlock(id, pos);
+            if (id == 0) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
+            placed++;
+        }
+
+        void SetFluid(int x, int y, int z, int fluidId)
+        {
+            if (!InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
+            pos.Set(x, y, z);
+            ba.SetBlock(0, pos);
+            ba.SetBlock(fluidId, pos, BlockLayersAccess.Fluid);
+            placed++;
+        }
+
+        var groundCache = new Dictionary<long, int>();
+        int Ground(int x, int z)
+        {
+            long key = ((long)x << 24) ^ (uint)z;
+            if (groundCache.TryGetValue(key, out int g)) return g;
+            g = ColumnSurface(job, x, z, sea, out int ty, out _, out _, out _, out _, out _)
+                ? ty : sea - job.Water;
+            groundCache[key] = g;
+            return g;
+        }
+
+        uint Hash(int a, int b) => (uint)(a * 374761393 + b * 668265263 + def.Seed * 2246822519L);
+        double Hash01(int a, int b) { uint h = Hash(a, b); h ^= h >> 13; h *= 1274126177u; return ((h ^ (h >> 16)) & 0xFFFFFF) / 16777216.0; }
+
+        var clutterSpots = new List<(int X, int Y, int Z, string Type, float Rot)>();
+        void Clutter(int x, int y, int z, string type, double heading)
+        {
+            if (!InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
+            float rot = (float)(Math.Round(-heading / (Math.PI / 2)) * (Math.PI / 2));
+            clutterSpots.Add((x, y, z, type, rot));
+        }
+
+        // shared palettes
+        int rustA = Id("metalblock-corroded-riveted-rusty-iron");
+        int rustB = Id("metalblock-corroded-plain-rusty-iron");
+        int plateA = Id("metalblock-new-plain-rusty-iron");
+        int plateB = Id("metalblock-new-riveted-rusty-iron");
+        if (plateA == 0) plateA = rustB;
+        if (plateB == 0) plateB = rustA;
+        int drock = Id("drock");
+        int fenceNS = Id("ironfence-base-ns"), fenceEW = Id("ironfence-base-ew");
+        int[] spikes = {
+            Id("locustnest-metalspike-small"), Id("locustnest-metalspike-medium"),
+            Id("locustnest-metalspike-large") };
+        int Rust()
+        {
+            double r0 = rand.NextDouble();
+            return r0 < 0.6 && rustA != 0 ? rustA : rustB != 0 ? rustB : rustA;
+        }
+
+        // Colossal chain: hollow oval links, alternating orientation, walkable.
+        // From (x0,y0,z0) to (x1,y1,z1); sag > 0 dips the middle like a slack
+        // catenary. Returns nothing but rust.
+        void ChainRun(double x0, double y0, double z0, double x1, double y1, double z1, double sag, double linkR)
+        {
+            double dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+            double len = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            if (len < 2) return;
+            double ux = dx / len, uy = dy / len, uz = dz / len;
+            // two perpendiculars: one horizontal, one completing the frame
+            double hl = Math.Max(0.001, Math.Sqrt(ux * ux + uz * uz));
+            double p1x = -uz / hl, p1y = 0, p1z = ux / hl;
+            double p2x = uy * p1z - uz * p1y, p2y = uz * p1x - ux * p1z, p2z = ux * p1y - uy * p1x;
+            int links = (int)(len / (linkR * 1.5));
+            for (int li = 0; li <= links; li++)
+            {
+                double f = li / (double)Math.Max(1, links);
+                double lx = x0 + dx * f, ly = y0 + dy * f - Math.Sin(f * Math.PI) * sag, lz = z0 + dz * f;
+                bool flat = (li & 1) == 0;   // alternate link planes like a real chain
+                for (double ph = 0; ph < Math.PI * 2; ph += 0.22)
+                {
+                    double a = Math.Cos(ph) * linkR * 1.35, b = Math.Sin(ph) * linkR * 0.8;
+                    double wx = lx + ux * a + (flat ? p1x : p2x) * b;
+                    double wy = ly + uy * a + (flat ? p1y : p2y) * b;
+                    double wz = lz + uz * a + (flat ? p1z : p2z) * b;
+                    Set((int)Math.Round(wx), (int)Math.Round(wy), (int)Math.Round(wz), Rust());
+                }
+            }
+        }
+
+        // Compact torn hull (a slimmed cousin of the wreck pass's Hull3).
+        void HullTube(double hx, double hy, double hz, double yaw2, double rollDeg, int len, double beamHalf, double depthHalf, double decay)
+        {
+            double ux = Math.Cos(yaw2), uz = Math.Sin(yaw2);
+            double px = -uz, pz = ux;
+            double roll = rollDeg * Math.PI / 180;
+            double cr = Math.Cos(roll), sr = Math.Sin(roll);
+            double reach = Math.Max(beamHalf, depthHalf) + 2;
+            for (int x = (int)(hx - len / 2.0 - reach); x <= (int)(hx + len / 2.0 + reach); x++)
+                for (int z = (int)(hz - len / 2.0 - reach); z <= (int)(hz + len / 2.0 + reach); z++)
+                {
+                    double t = ((x - hx) * ux + (z - hz) * uz) / (len / 2.0);
+                    if (t < -1.05 || t > 1.05) continue;
+                    double v = (x - hx) * px + (z - hz) * pz;
+                    double s = Math.Pow(Math.Max(0, 1 - Math.Pow(Math.Abs(t), 2.8)), 0.5);
+                    if (s < 0.15) continue;
+                    for (int y = (int)(hy - reach); y <= (int)(hy + reach); y++)
+                    {
+                        double w = y - hy;
+                        double p = v * cr + w * sr, q = -v * sr + w * cr;
+                        double e = Math.Pow(Math.Pow(Math.Abs(p / (beamHalf * s)), 2.2)
+                            + Math.Pow(Math.Abs(q / (depthHalf * s)), 2.2), 1.0 / 2.2);
+                        if (e > 1.0) continue;
+                        if (e >= 0.75)
+                        {
+                            bool rib = PosMod((int)Math.Round((t + 1) * len / 2.0), 4) == 0;
+                            if (!rib && Hash01(x * 5 + y * 3, z * 5 - y * 2) < decay) continue;
+                            Set(x, y, z, Rust());
+                        }
+                        else if (y <= sea - 1) SetFluid(x, y, z, job.SaltWaterId);
+                        else Set(x, y, z, 0);
+                    }
+                }
+        }
+
+        int R = Math.Max(8, def.Size);
+
+        switch (def.Kind)
+        {
+            // ── THE DROWNED BEACON ─────────────────────────────────────────
+            // A lighthouse whose keeper's islet sank: bottom third stands in
+            // the sea with a flooded spiral stair, the waterline band is torn
+            // and rusted, and the lamp room still glows. A broken sister
+            // stump stands nearby, its fallen lantern cage aglow on the
+            // seabed.
+            case "beacon":
+            {
+                int brick = Id("stonebricks-granite"), cracked = Id("crackedstonebricks-granite"), cobble = Id("cobblestone-granite");
+                int band = IdFirst("stonebricks-basalt", "stonebricks-andesite");
+                int glass = IdFirst("glass-plain", "glass");
+                int glow = IdFirst("underwaterhorrors:ghostlight-green", "underwaterhorrors:ghostlight-blue");
+                if (brick == 0) break;
+                if (cracked == 0) cracked = brick;
+                if (cobble == 0) cobble = brick;
+                if (band == 0) band = cracked;
+                int Wall2()
+                {
+                    double r0 = rand.NextDouble();
+                    return r0 < 0.55 ? brick : r0 < 0.82 ? cracked : cobble;
+                }
+
+                int H = Math.Clamp(def.Size, 40, 110);
+                int baseY = Math.Clamp(Ground(cx, cz), sea - 26, sea - 4);   // bottom third drowned
+                int topY = baseY + H;
+                int lampY = topY - 7;
+
+                for (int y = baseY; y <= topY; y++)
+                {
+                    double frac = (y - baseY) / (double)H;
+                    double rr = 7.5 - 4.3 * frac;
+                    bool waterBand = y >= sea - 3 && y <= sea + 4;
+                    for (int x = cx - 9; x <= cx + 9; x++)
+                        for (int z = cz - 9; z <= cz + 9; z++)
+                        {
+                            double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
+                            if (d > rr + 0.4) continue;
+                            if (d > rr - 1.3)
+                            {
+                                // the wall ring; torn open around the waterline
+                                if (waterBand && Hash01(x * 3 + y, z * 3 - y) < 0.34) { Set(x, y, z, 0); continue; }
+                                bool doorway = y >= baseY + 1 && y <= baseY + 4 && Math.Abs(z - cz) <= 1 && x > cx;
+                                bool breach = y >= sea + 2 && y <= sea + 5 && Math.Abs(x - cx) <= 1 && z > cz;
+                                if (doorway || breach) { Set(x, y, z, 0); continue; }
+                                int m = (y - baseY) % 12 == 0 ? band : Wall2();
+                                if (waterBand && drock != 0 && Hash01(x + y, z * 7) < 0.25) m = drock;
+                                Set(x, y, z, m);
+                            }
+                            else
+                            {
+                                // hollow core, flooded below the sea; a spiral
+                                // stair winds up the inside wall
+                                double ang = Math.Atan2(z - cz, x - cx);
+                                double want = (y - baseY) * 0.45;
+                                double diff = ang - want;
+                                while (diff > Math.PI) diff -= Math.PI * 2;
+                                while (diff < -Math.PI) diff += Math.PI * 2;
+                                bool tread = d > rr - 3.4 && Math.Abs(diff) < 0.55;
+                                if (tread && y < lampY - 1) Set(x, y, z, brick);
+                                else if (y <= sea - 1) SetFluid(x, y, z, job.SaltWaterId);
+                                else Set(x, y, z, 0);
+                            }
+                        }
+                }
+
+                // the lamp room: pillars, glass, the light itself, a rail and
+                // a conical roof
+                double lr = 4.2;
+                for (int x = cx - 6; x <= cx + 6; x++)
+                    for (int z = cz - 6; z <= cz + 6; z++)
+                    {
+                        double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
+                        if (d <= lr + 0.4) Set(x, lampY - 1, z, band);          // lamp floor
+                        if (d > lr - 0.8 && d <= lr + 0.4)
+                        {
+                            bool pillar = (Math.Abs(x - cx) > 2.5 && Math.Abs(z - cz) > 2.5);
+                            for (int y = lampY; y <= lampY + 3; y++)
+                                Set(x, y, z, pillar ? brick : glass != 0 ? glass : 0);
+                        }
+                        if (d > lr + 0.4 && d <= lr + 1.6 && fenceNS != 0)
+                            Set(x, lampY, z, Math.Abs(x - cx) > Math.Abs(z - cz) ? fenceNS : fenceEW); // gallery rail
+                        double roofFrac = 1.0 - d / (lr + 1.5);
+                        if (roofFrac > 0)
+                            Set(x, lampY + 4 + (int)(roofFrac * 3), z, band);   // cone roof
+                    }
+                if (glow != 0)
+                    for (int gx2 = 0; gx2 <= 1; gx2++)
+                        for (int gz2 = 0; gz2 <= 1; gz2++)
+                            for (int gy = 0; gy <= 1; gy++)
+                                Set(cx + gx2, lampY + 1 + gy, cz + gz2, glow);  // the light
+
+                // the broken sister stump and its fallen, still-glowing lantern
+                double sAng = rand.NextDouble() * Math.PI * 2;
+                int sx = cx + (int)(Math.Cos(sAng) * 22), sz = cz + (int)(Math.Sin(sAng) * 22);
+                int sBase = Math.Clamp(Ground(sx, sz), sea - 26, sea - 4);
+                for (int y = sBase; y <= sea + 6; y++)
+                    for (int x = sx - 8; x <= sx + 8; x++)
+                        for (int z = sz - 8; z <= sz + 8; z++)
+                        {
+                            double d = Math.Sqrt((x - sx) * (x - sx) + (double)(z - sz) * (z - sz));
+                            double rr = 6.8 - 2.5 * (y - sBase) / (double)H;
+                            if (d > rr + 0.4 || d < rr - 1.3) continue;
+                            int jag = (int)(Hash01(x * 5, z * 5) * 5);         // sheared top
+                            if (y > sea + 1 + jag) continue;
+                            if (Hash01(x * 3 + y, z * 3 - y) < 0.22) continue; // torn
+                            Set(x, y, z, Wall2());
+                        }
+                int lx2 = sx + 7, lz2 = sz + 5, lb = Ground(lx2, lz2) + 1;
+                for (int x = lx2 - 2; x <= lx2 + 2; x++)
+                    for (int z = lz2 - 2; z <= lz2 + 2; z++)
+                        for (int y = lb; y <= lb + 4; y++)
+                        {
+                            bool shell = x == lx2 - 2 || x == lx2 + 2 || z == lz2 - 2 || z == lz2 + 2 || y == lb || y == lb + 4;
+                            if (!shell) continue;
+                            bool frame = (Math.Abs(x - lx2) == 2) == (Math.Abs(z - lz2) == 2) || y == lb || y == lb + 4;
+                            if (Hash01(x + y * 3, z - y) < 0.2) continue;
+                            Set(x, y, z, frame ? band : glass != 0 ? glass : 0);
+                        }
+                if (glow != 0) Set(lx2, lb + 2, lz2, glow);
+                break;
+            }
+
+            // ── THE CHAINFIELD ────────────────────────────────────────────
+            // No island. Colossal anchor chains rise taut out of the deep at
+            // angles, some sagging between two anchors, some carrying wrecks
+            // still hooked mid-air. The links are wide enough to walk.
+            case "chains":
+            {
+                int n = 12;
+                for (int i = 0; i < n; i++)
+                {
+                    double a0 = i * Math.PI * 2 / n + rand.NextDouble() * 0.5;
+                    double r0 = R * (0.5 + rand.NextDouble() * 0.45);
+                    double ax = cx + Math.Cos(a0) * r0, az = cz + Math.Sin(a0) * r0;
+                    int ag = Ground((int)ax, (int)az);
+                    // anchor plate on the seabed
+                    for (int x = (int)ax - 3; x <= (int)ax + 3; x++)
+                        for (int z = (int)az - 3; z <= (int)az + 3; z++)
+                            for (int y = ag; y <= ag + 2; y++)
+                                if (Hash01(x, z + y) < 0.85) Set(x, y, z, Rust());
+
+                    if (rand.NextDouble() < 0.6)
+                    {
+                        // taut riser: through the field's heart and up into the
+                        // sky-fog, ending in torn air
+                        double bxT = cx + Math.Cos(a0 + Math.PI + (rand.NextDouble() - 0.5) * 0.8) * R * 0.3;
+                        double bzT = cz + Math.Sin(a0 + Math.PI + (rand.NextDouble() - 0.5) * 0.8) * R * 0.3;
+                        double topY2 = sea + 42 + rand.NextDouble() * 26;
+                        ChainRun(ax, ag + 2, az, bxT, topY2, bzT, 0, 2.2);
+                        if (i % 4 == 1)
+                        {
+                            // a wreck still hooked on, dangling above the sea
+                            double f = 0.45 + rand.NextDouble() * 0.2;
+                            double wx2 = ax + (bxT - ax) * f, wz2 = az + (bzT - az) * f;
+                            double wy2 = (ag + 2) + (topY2 - ag - 2) * f;
+                            if (wy2 < sea + 6) wy2 = sea + 6;
+                            HullTube(wx2, wy2, wz2, rand.NextDouble() * Math.PI * 2,
+                                60 + rand.NextDouble() * 60, 10 + (int)(rand.NextDouble() * 5), 3.5, 3.0, 0.45);
+                            ChainRun(wx2, wy2 - 2, wz2, wx2 + 2, wy2 - 10, wz2 + 1, 0, 1.6); // torn tail below
+                        }
+                    }
+                    else
+                    {
+                        // slack span between two seabed anchors, dipping near
+                        // the surface at the middle: the walkable ones
+                        double a1 = a0 + 1.6 + rand.NextDouble() * 1.6;
+                        double r1 = R * (0.5 + rand.NextDouble() * 0.45);
+                        double bx2 = cx + Math.Cos(a1) * r1, bz2 = cz + Math.Sin(a1) * r1;
+                        int bg = Ground((int)bx2, (int)bz2);
+                        for (int x = (int)bx2 - 3; x <= (int)bx2 + 3; x++)
+                            for (int z = (int)bz2 - 3; z <= (int)bz2 + 3; z++)
+                                for (int y = bg; y <= bg + 2; y++)
+                                    if (Hash01(x, z + y) < 0.85) Set(x, y, z, Rust());
+                        double peak = sea + 14 + rand.NextDouble() * 10;
+                        double mx = (ax + bx2) / 2, mz = (az + bz2) / 2;
+                        ChainRun(ax, ag + 2, az, mx, peak, mz, 3, 2.2);
+                        ChainRun(mx, peak, mz, bx2, bg + 2, bz2, 3, 2.2);
+                    }
+                }
+                break;
+            }
+
+            // ── THE KNEELING COLOSSUS ─────────────────────────────────────
+            // A 110-block armored giant kneeling on the deep floor, falx arm
+            // outstretched, shield tucked at the chest. Only the crown of the
+            // great helm and the falx blade break the surface. Steel plate
+            // with gold trim; the deep half is corroding.
+            case "colossus":
+            {
+                int gold = IdFirst(
+                    "ore-bountiful-quartz_nativegold-granite", "ore-rich-quartz_nativegold-granite",
+                    "ore-bountiful-quartz_nativegold-andesite", "ore-rich-quartz_nativegold-andesite");
+                double yaw = rand.NextDouble() * Math.PI * 2;
+                double cyw = Math.Cos(yaw), syw = Math.Sin(yaw);
+                int y0 = Ground(cx, cz) - 2;
+
+                int Armor(int x, int y, int z, double v)
+                {
+                    if (Math.Abs(v) > 0.86 && gold != 0) return gold;               // gilded part rims
+                    double nz = Hash01(x * 3 + y * 7, z * 3 - y * 5);
+                    if (y < y0 + 34 && nz < 0.30) return Rust();                    // the deep corrodes
+                    if (nz < 0.10) return rustB != 0 ? rustB : plateA;
+                    if (((y - y0) / 6) % 2 == 0 && nz < 0.45) return plateB;        // riveted courses
+                    return plateA;
+                }
+
+                // A superellipsoid part in colossus-local space (+X forward),
+                // rotated to world by the pose yaw. mode 0 armor, 1 gold,
+                // 2 mail (riveted), 3 blade iron.
+                void Blob(double lxC, double lyC, double lzC, double rx, double ry, double rz, double expn, int mode)
+                {
+                    double wxC = cx + lxC * cyw - lzC * syw;
+                    double wzC = cz + lxC * syw + lzC * cyw;
+                    double reach = Math.Max(rx, rz) + 1;
+                    for (int x = (int)(wxC - reach); x <= (int)(wxC + reach); x++)
+                        for (int z = (int)(wzC - reach); z <= (int)(wzC + reach); z++)
+                        {
+                            // back to local space
+                            double dx = x - cx, dz = z - cz;
+                            double lx2 = dx * cyw + dz * syw, lz2 = -dx * syw + dz * cyw;
+                            double u = (lx2 - lxC) / rx, w = (lz2 - lzC) / rz;
+                            for (int y = (int)(lyC - ry); y <= (int)(lyC + ry); y++)
+                            {
+                                double v = (y - lyC) / ry;
+                                double e = Math.Pow(Math.Pow(Math.Abs(u), expn) + Math.Pow(Math.Abs(v), expn) + Math.Pow(Math.Abs(w), expn), 1.0 / expn);
+                                if (e > 1.0) continue;
+                                int m = mode == 1 && gold != 0 ? gold
+                                    : mode == 2 ? (Hash01(x + y, z - y) < 0.7 ? plateB : plateA)
+                                    : mode == 3 ? plateA
+                                    : Armor(x, y, z, v);
+                                Set(x, y, z, m);
+                            }
+                        }
+                }
+
+                // legs: left planted forward, right kneeling, shin along the floor
+                Blob(18, y0 + 3, -10, 7, 3.5, 5, 2.4, 0);     // left foot
+                Blob(17, y0 + 15, -10, 5, 12, 5, 2.4, 0);     // left shin
+                Blob(12, y0 + 30, -9, 5.5, 9, 5, 2.4, 0);     // left thigh lower
+                Blob(5, y0 + 38, -7, 5.5, 8, 5, 2.4, 0);      // left thigh upper
+                Blob(8, y0 + 10, 10, 5.5, 6.5, 5.5, 2.2, 0);  // right knee
+                Blob(0, y0 + 7, 11, 5, 4.5, 4.5, 2.4, 0);     // right shin (lying)
+                Blob(-8, y0 + 6, 12, 5, 4, 4.5, 2.4, 0);
+                Blob(-16, y0 + 5, 13, 6, 3.5, 4, 2.4, 0);     // right foot, toes down
+                Blob(4, y0 + 26, 9, 5.5, 11, 5, 2.4, 0);      // right thigh
+                // hips, mail skirt, torso
+                Blob(0, y0 + 35, 0, 9, 7, 12, 2.2, 2);        // mail skirt
+                Blob(0, y0 + 44, 0, 10, 8, 13, 2.4, 0);       // pelvis
+                Blob(1, y0 + 58, 0, 11, 11, 14, 2.4, 0);      // lower torso
+                Blob(3, y0 + 74, 0, 12, 11, 16, 2.4, 0);      // chest
+                Blob(3, y0 + 84, -18, 7, 6, 7, 2.0, 0);       // left pauldron
+                Blob(3, y0 + 84, 18, 7, 6, 7, 2.0, 0);        // right pauldron
+                // left arm hugging the shield to the chest
+                Blob(6, y0 + 74, -17, 4.5, 9, 4.5, 2.2, 0);
+                Blob(12, y0 + 63, -11, 4, 8, 4, 2.2, 0);
+                Blob(16, y0 + 57, -6, 3, 3, 3, 2.0, 0);       // hand
+                Blob(20, y0 + 63, -6, 2, 15, 11, 3.2, 0);     // the shield, tucked in
+                Blob(22, y0 + 63, -6, 1.5, 3, 3, 2.0, 1);     // gold boss
+                // right arm outstretched with the falx
+                Blob(5, y0 + 87, 24, 4.5, 4.5, 8, 2.2, 0);
+                Blob(10, y0 + 92, 32, 4, 4, 6, 2.2, 0);
+                Blob(13, y0 + 95, 38, 3, 3, 3, 2.0, 0);       // hand
+                // the great helm; the crown breaks the surface
+                Blob(5, y0 + 103, 0, 8.5, 11, 8.5, 3.2, 0);
+                Blob(5, y0 + 113, 0, 7.5, 2, 7.5, 3.2, 1);    // gilded crown band
+
+                // eye slit: carved through the front of the helm
+                for (int sz2 = -5; sz2 <= 5; sz2++)
+                    for (int sx2 = 10; sx2 <= 14; sx2++)
+                        for (int sy2 = 0; sy2 <= 1; sy2++)
+                        {
+                            int x = (int)Math.Round(cx + sx2 * cyw - sz2 * syw);
+                            int z = (int)Math.Round(cz + sx2 * syw + sz2 * cyw);
+                            Set(x, y0 + 103 + sy2, z, 0);
+                        }
+
+                // the falx: a gold ferrule, then an iron blade arcing up and
+                // forward, its last third above the waves
+                for (int i = 0; i <= 6; i++)
+                    Blob(13 + i * 0.3, y0 + 95 + i, 38 + i * 0.15, 1.6, 1.2, 1.6, 2.0, i < 2 ? 1 : 0);
+                int blen = 30;
+                for (int i = 0; i <= blen; i++)
+                {
+                    double f = i / (double)blen;
+                    double lx2 = 15 + 26 * f * f * 0.9 + 6 * f;
+                    double ly2 = y0 + 101 + 26 * f - 9 * f * f;
+                    double lz2 = 39 - 4 * f;
+                    int hgt = 3 - (int)(f * 2.2);
+                    for (int h = 0; h < Math.Max(1, hgt); h++)
+                    {
+                        int x = (int)Math.Round(cx + lx2 * cyw - lz2 * syw);
+                        int z = (int)Math.Round(cz + lx2 * syw + lz2 * cyw);
+                        Set(x, (int)Math.Round(ly2) + h, z, plateA);
+                    }
+                }
+                break;
+            }
+
+            // ── THE VERTEBRAE SERPENT ─────────────────────────────────────
+            // A colossal serpent skeleton curled on the lagoon floor around a
+            // sunken ship, ribs arching 20+ blocks, entirely underwater.
+            // Ghostlights stud its edges so it glows up through the water.
+            case "serpent":
+            {
+                int bone = IdFirst("rock-chalk", "rock-limestone");
+                int glowB = Id("underwaterhorrors:ghostlight-blue");
+                int glowG = Id("underwaterhorrors:ghostlight-green");
+                if (bone == 0) break;
+
+                double a0 = rand.NextDouble() * Math.PI * 2;
+                var spine = new List<double[]>();     // x, z, y, tangentAngle
+                double arc = 0, lastX = 0, lastZ = 0;
+                for (double t = 0; t <= 1.0001; t += 0.004)
+                {
+                    double ang = a0 + t * 4.4 * Math.PI;                 // 2.2 turns
+                    double rr = R - t * (R - 8);
+                    double px2 = cx + Math.Cos(ang) * rr, pz2 = cz + Math.Sin(ang) * rr;
+                    if (t > 0) arc += Math.Sqrt((px2 - lastX) * (px2 - lastX) + (pz2 - lastZ) * (pz2 - lastZ));
+                    lastX = px2; lastZ = pz2;
+                    double py2 = Ground((int)px2, (int)pz2) + 3.5;
+                    spine.Add(new[] { px2, pz2, py2, ang + Math.PI / 2, arc, t });
+                }
+
+                double nextVert = 0, nextRib = 10;
+                foreach (var sp in spine)
+                {
+                    double t = sp[5];
+                    double coreR = t > 0.9 ? 1.0 : 1.6;                  // tail tapers
+                    bool vert = sp[4] >= nextVert;
+                    if (vert) nextVert = sp[4] + 4;
+                    double rr2 = vert ? coreR + 1.2 : coreR;
+                    for (int x = (int)(sp[0] - rr2); x <= (int)(sp[0] + rr2); x++)
+                        for (int z = (int)(sp[1] - rr2); z <= (int)(sp[1] + rr2); z++)
+                            for (int y = (int)(sp[2] - rr2); y <= (int)(sp[2] + rr2); y++)
+                            {
+                                double d = Math.Sqrt((x - sp[0]) * (x - sp[0]) + (y - sp[2]) * (y - sp[2]) + (z - sp[1]) * (z - sp[1]));
+                                if (d > rr2) continue;
+                                Set(x, y, z, bone);
+                            }
+                    // dorsal ridge glow every few vertebrae
+                    if (vert && glowB != 0 && Hash01((int)sp[0], (int)sp[1]) < 0.5)
+                        Set((int)sp[0], (int)(sp[2] + rr2 + 1), (int)sp[1], glowB);
+
+                    // ribs: paired arcs sweeping up and over the coil
+                    if (sp[4] >= nextRib && t > 0.10 && t < 0.78)
+                    {
+                        nextRib = sp[4] + 7;
+                        double nx = Math.Cos(sp[3]), nz2 = Math.Sin(sp[3]);
+                        double ribR = 11 + Hash01((int)sp[4], 7) * 4;
+                        for (int side = -1; side <= 1; side += 2)
+                            for (double ph = 0.1; ph < 2.4; ph += 0.07)
+                            {
+                                double outw = Math.Cos(ph) * ribR * side;
+                                double up = Math.Sin(ph) * ribR * 1.75;   // tall arches, 20+ blocks
+                                int x = (int)Math.Round(sp[0] + nx * outw);
+                                int z = (int)Math.Round(sp[1] + nz2 * outw);
+                                int y = (int)Math.Round(sp[2] + 1 + up);
+                                if (y > sea - 3) continue;                // stay underwater
+                                Set(x, y, z, bone);
+                                if (ph > 2.25 && glowB != 0) Set(x, y + 1, z, glowB);   // glowing rib tips
+                                else if (glowB != 0 && Hash01(x * 3, z * 3 + y) < 0.10) Set(x + (side > 0 ? 1 : -1), y, z, glowB);
+                            }
+                    }
+                }
+
+                // the skull, lying at the coil's heart, jaws open
+                var head = spine[spine.Count - 1];
+                double hx3 = head[0], hz3 = head[1];
+                double hAng = head[3] - Math.PI / 2;                      // facing along the final tangent
+                double hcx = Math.Cos(hAng), hcz = Math.Sin(hAng);
+                double hy3 = Ground((int)hx3, (int)hz3) + 4;
+                void BoneBlob(double lx3, double ly3, double lz3, double rx, double ry, double rz, double expn)
+                {
+                    double wxC = hx3 + lx3 * hcx - lz3 * hcz;
+                    double wzC = hz3 + lx3 * hcz + lz3 * hcx;
+                    for (int x = (int)(wxC - Math.Max(rx, rz) - 1); x <= (int)(wxC + Math.Max(rx, rz) + 1); x++)
+                        for (int z = (int)(wzC - Math.Max(rx, rz) - 1); z <= (int)(wzC + Math.Max(rx, rz) + 1); z++)
+                            for (int y = (int)(ly3 - ry); y <= (int)(ly3 + ry); y++)
+                            {
+                                double dx = x - hx3, dz = z - hz3;
+                                double lx4 = dx * hcx + dz * hcz, lz4 = -dx * hcz + dz * hcx;
+                                double e = Math.Pow(Math.Pow(Math.Abs((lx4 - lx3) / rx), expn) + Math.Pow(Math.Abs((y - ly3) / ry), expn) + Math.Pow(Math.Abs((lz4 - lz3) / rz), expn), 1.0 / expn);
+                                if (e <= 1.0) Set(x, y, z, bone);
+                            }
+                }
+                BoneBlob(2, hy3 + 3, 0, 6, 4, 4.5, 2.6);                  // cranium
+                BoneBlob(9, hy3 + 2, 0, 6, 2.2, 3, 2.4);                  // snout
+                BoneBlob(8, hy3 - 1, 0, 6, 1.2, 2.6, 2.4);                // lower jaw, dropped open
+                for (int i = 0; i < 5; i++)                               // teeth
+                {
+                    BoneBlob(5 + i * 2, hy3 + 0.5, 2.6, 0.5, 1.2, 0.5, 2);
+                    BoneBlob(5 + i * 2, hy3 + 0.5, -2.6, 0.5, 1.2, 0.5, 2);
+                }
+                for (int side = -1; side <= 1; side += 2)                 // swept horns
+                    for (int i = 0; i < 7; i++)
+                        BoneBlob(-1 - i * 1.1, hy3 + 5 + i * 0.9, side * (3 + i * 0.5), 1.1, 1.1, 1.1, 2);
+                // glowing eye sockets
+                if (glowG != 0)
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        int x = (int)Math.Round(hx3 + 5 * hcx - side * 3.6 * hcz);
+                        int z = (int)Math.Round(hz3 + 5 * hcz + side * 3.6 * hcx);
+                        Set(x, (int)hy3 + 4, z, 0);
+                        Set(x, (int)hy3 + 3, z, glowG);
+                    }
+
+                // the sunken ship the serpent curled around
+                double shAng = a0 + 2.6;
+                double shx = cx + Math.Cos(shAng) * R * 0.35, shz = cz + Math.Sin(shAng) * R * 0.35;
+                HullTube(shx, Ground((int)shx, (int)shz) + 3, shz, shAng + 1.2, 25, 22, 5, 4.5, 0.5);
+                break;
+            }
+
+            // ── THE CRATER FORGE ──────────────────────────────────────────
+            // Carves a real crater into the volcano cone, floods its throat
+            // with lava, and hangs a crucible forge over the melt on four
+            // colossal chains, reached by a catwalk from the rim.
+            case "forge":
+            {
+                int lava = Id("lava-still-7");
+                int ember = IdFirst("ember", "ember-cold");
+                int craterR = Math.Clamp(def.Size, 12, 40);
+                int gRim = 0;
+                for (int i = 0; i < 4; i++)
+                    gRim += Ground(cx + (int)(Math.Cos(i * 1.57) * craterR), cz + (int)(Math.Sin(i * 1.57) * craterR));
+                gRim /= 4;
+                int poolY = Math.Max(sea + 8, gRim - 32);
+
+                for (int x = cx - craterR - 1; x <= cx + craterR + 1; x++)
+                    for (int z = cz - craterR - 1; z <= cz + craterR + 1; z++)
+                    {
+                        double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
+                        if (d > craterR) continue;
+                        int wall = Math.Max(poolY - 4, gRim - (int)((craterR - d) * 2.4));
+                        int top2 = Ground(x, z) + 3;
+                        for (int y = wall + 1; y <= top2; y++) Set(x, y, z, 0);   // the crater bowl
+                        if (ember != 0 && wall < poolY + 5 && Hash01(x * 3, z * 5) < 0.25)
+                            Set(x, wall, z, ember);                               // glowing cinders
+                        if (lava != 0 && wall < poolY)
+                            for (int y = wall + 1; y <= poolY; y++) SetFluid(x, y, z, lava);  // the melt
+                    }
+
+                // the suspended crucible: a metal bowl full of lava
+                int crY = poolY + 13;
+                for (int x = cx - 8; x <= cx + 8; x++)
+                    for (int z = cz - 8; z <= cz + 8; z++)
+                    {
+                        double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
+                        for (int y = crY; y <= crY + 7; y++)
+                        {
+                            double f = (y - crY) / 7.0;
+                            double rr = 2.5 + f * 5.5;                            // the bowl widens upward
+                            if (d > rr + 0.4) continue;
+                            if (d > rr - 1.2) Set(x, y, z, y == crY + 7 ? plateB : Rust());
+                            else if (y >= crY + 5 && lava != 0) SetFluid(x, y, z, lava);  // molten heart
+                            else if (y < crY + 5) Set(x, y, z, Rust());
+                        }
+                        // the ring walkway around the crucible lip
+                        if (d > 8.4 && d <= 10.6) Set(x, crY + 7, z, plateA);
+                        if (d > 10.6 && d <= 11.8 && fenceNS != 0)
+                            Set(x, crY + 8, z, Math.Abs(x - cx) > Math.Abs(z - cz) ? fenceNS : fenceEW);
+                    }
+                Clutter(cx + 9, crY + 8, cz + 2, "gearhugemetal9", 0);
+                Clutter(cx - 9, crY + 8, cz - 3, "junktanksmall1", Math.PI / 2);
+                Clutter(cx + 2, crY + 8, cz - 10, "valve2-aged", 0);
+
+                // four chains up to the rim, and a catwalk in
+                for (int i = 0; i < 4; i++)
+                {
+                    double a2 = i * Math.PI / 2 + 0.4;
+                    double hx4 = cx + Math.Cos(a2) * 9.5, hz4 = cz + Math.Sin(a2) * 9.5;
+                    double rx2 = cx + Math.Cos(a2) * (craterR - 1), rz2 = cz + Math.Sin(a2) * (craterR - 1);
+                    ChainRun(hx4, crY + 7, hz4, rx2, Ground((int)rx2, (int)rz2) + 1, rz2, 0, 1.7);
+                }
+                double ca = 2.0;
+                double cx2 = cx + Math.Cos(ca) * (craterR - 1), cz3 = cz + Math.Sin(ca) * (craterR - 1);
+                int rimY2 = Ground((int)cx2, (int)cz3);
+                int steps2 = (int)(craterR * 1.3);
+                for (int k = 0; k <= steps2; k++)
+                {
+                    double f = k / (double)steps2;
+                    int x = (int)Math.Round(cx2 + (cx + Math.Cos(ca) * 10 - cx2) * f);
+                    int z = (int)Math.Round(cz3 + (cz + Math.Sin(ca) * 10 - cz3) * f);
+                    int y = (int)Math.Round(rimY2 + (crY + 7 - rimY2) * f);
+                    Set(x, y, z, plateA);
+                    Set(x + 1, y, z, plateA);
+                    if (fenceNS != 0 && k % 2 == 0) Set(x, y + 1, z, fenceNS);
+                }
+
+                // three frozen lava runs spilling down the outer cone
+                if (lava != 0)
+                    for (int i = 0; i < 3; i++)
+                    {
+                        double a3 = rand.NextDouble() * Math.PI * 2;
+                        double px3 = cx + Math.Cos(a3) * craterR, pz3 = cz + Math.Sin(a3) * craterR;
+                        for (int k = 0; k < 70; k++)
+                        {
+                            px3 += Math.Cos(a3) * 1.3; pz3 += Math.Sin(a3) * 1.3;
+                            int g2 = Ground((int)px3, (int)pz3);
+                            if (g2 < sea + 5) break;
+                            SetFluid((int)px3, g2, (int)pz3, lava);
+                            if (ember != 0 && Hash01((int)px3, (int)pz3) < 0.3)
+                                Set((int)px3 + (Hash01(k, i) < 0.5 ? 1 : -1), g2, (int)pz3, ember);
+                        }
+                    }
+                break;
+            }
+        }
+
+        ba.Commit();
+
+        if (clutterSpots.Count > 0)
+        {
+            int clutterId = Id("clutter-devastation");
+            if (clutterId != 0)
+            {
+                var wba = sapi.World.BlockAccessor;
+                var cpos = new BlockPos(0, 0, 0, job.Dim);
+                FieldInfo rotField = typeof(BEBehaviorShapeFromAttributes)
+                    .GetField("<rotateY>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+                foreach (var c in clutterSpots)
+                {
+                    cpos.Set(c.X, c.Y, c.Z);
+                    if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue;
+                    wba.SetBlock(clutterId, cpos);
+                    var beh = wba.GetBlockEntity(cpos)?.GetBehavior<BEBehaviorShapeFromAttributes>();
+                    if (beh != null)
+                    {
+                        beh.Type = c.Type;
+                        rotField?.SetValue(beh, c.Rot);
+                        beh.Blockentity.MarkDirty(true);
+                    }
+                    placed++;
+                }
             }
         }
         return placed;

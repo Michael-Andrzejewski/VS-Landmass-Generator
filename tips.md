@@ -583,3 +583,19 @@ culled at conversion time.
   capsized keel-up hulls (roll ~180, air pocket inside), gearhugemetal
   clutter as propellers. devastatedsoil-N silted into hull tear holes
   with devgrowth-{thorns,bush,shrike} on top reads as reclamation.
+
+- Megastructure kit (0.49.0, `struct` pass): Underwater Horrors ships
+  `underwaterhorrors:ghostlight-{green,blue}` (tiny glowing node, light
+  22); resolve mod-domain codes with a domain-aware AssetLocation and
+  skip gracefully when absent. Vanilla HAS real lava
+  (`lava-{still,n,ne,...}-{1..7}`, fluid layer like water), so genuine
+  volcanoes work. There is NO gold or steel cube block: armor plate is
+  metalblock-new-{plain,riveted}-rusty-iron and gold trim reads best as
+  ore-bountiful-quartz_nativegold-{rock} bands. Colossal chains are
+  hollow ellipse links (long axis ~4.5 along the path) alternating
+  perpendicular planes, one every ~3.3 blocks; they read as chain from
+  any distance and are walkable at linkR 2+. Giant statues are just a
+  part list of superellipsoids in pose-local space rotated by one yaw;
+  gold rims where |v| > 0.86 sell the plate-armor look. Serpent
+  skeletons: chalk spine spiral with vertebra bulges + rib arcs 1.75x
+  taller than wide, ghostlights at rib tips and eye sockets.
