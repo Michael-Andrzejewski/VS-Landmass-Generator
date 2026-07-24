@@ -3259,8 +3259,13 @@ storyloc devastationarea -2550 -8750
         {
             double dCx = x - job.Cx, dCz = z - job.Cz;
             double dC = Math.Sqrt(dCx * dCx + dCz * dCz);
-            if (dC < s.BasinR + 18)
-                basinY = job.SeaLevel - 2 - s.BasinDepth * Smooth(Math.Clamp((s.BasinR + 18 - dC) / 18.0, 0, 1))
+            // The fade scales with depth: an 18-block fade on a 95-deep
+            // basin was a sheer cylindrical pit wall (exact-preview find).
+            // Capped so the bowl never reaches past the build area, which
+            // would leave a square seam at the job boundary.
+            double bfade = Math.Max(18, Math.Min(s.BasinDepth * 1.2, job.W / 2.0 - s.BasinR - 6));
+            if (dC < s.BasinR + bfade)
+                basinY = job.SeaLevel - 2 - s.BasinDepth * Smooth(Math.Clamp((s.BasinR + bfade - dC) / bfade, 0, 1))
                     + (job.SurfNoise.Noise(x * 0.4, z * 0.4) - 0.5) * 4.0;
         }
 
@@ -5457,8 +5462,19 @@ storyloc devastationarea -2550 -8750
                             for (int gy = 0; gy <= 1; gy++)
                                 Set(cx + gx2, lampY + 1 + gy, cz + gz2, glow);  // the light
 
-                // the broken sister stump and its fallen, still-glowing lantern
-                double sAng = rand.NextDouble() * Math.PI * 2;
+                // the broken sister stump and its fallen, still-glowing lantern.
+                // Placed at the DEEPEST water on a 22-block ring: a random
+                // angle can land on a neighbouring islet's mound, which
+                // swallows the stump whole (found via the exact previewer).
+                double sBaseAng = rand.NextDouble() * Math.PI * 2;
+                double sAng = sBaseAng;
+                int bestG = int.MaxValue;
+                for (int k2 = 0; k2 < 16; k2++)
+                {
+                    double a2 = sBaseAng + k2 * Math.PI / 8;
+                    int g2 = Ground(cx + (int)(Math.Cos(a2) * 22), cz + (int)(Math.Sin(a2) * 22));
+                    if (g2 < bestG) { bestG = g2; sAng = a2; }
+                }
                 int sx = cx + (int)(Math.Cos(sAng) * 22), sz = cz + (int)(Math.Sin(sAng) * 22);
                 int sBase = Math.Clamp(Ground(sx, sz), sea - 26, sea - 4);
                 for (int y = sBase; y <= sea + 6; y++)

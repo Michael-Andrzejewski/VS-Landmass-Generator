@@ -372,8 +372,11 @@ function buildIsland(shape, diameter, domeHeight) {
     let basinY = null;
     if (shape.basinR > 0) {
       const dC = Math.hypot((gx - W / 2) * wpc, (gz - H / 2) * wpc);
-      if (dC < shape.basinR + 18)
-        basinY = -2 - shape.basinDepth * smooth(Math.min(1, Math.max(0, (shape.basinR + 18 - dC) / 18)));
+      // Depth-scaled fade, capped at the build area: mirrors ColumnSurface.
+      const jobW = Math.max(W, H) * wpc + 2 * oceanRing;
+      const bfade = Math.max(18, Math.min(shape.basinDepth * 1.2, jobW / 2 - shape.basinR - 6));
+      if (dC < shape.basinR + bfade)
+        basinY = -2 - shape.basinDepth * smooth(Math.min(1, Math.max(0, (shape.basinR + bfade - dC) / bfade)));
     }
     if (dLand > oceanRing) {
       if (basinY === null) return null;
