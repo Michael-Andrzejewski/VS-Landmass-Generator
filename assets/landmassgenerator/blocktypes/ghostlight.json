@@ -1,0 +1,31 @@
+{
+	"code": "ghostlight",
+	"variantgroups": [
+		{ "code": "color", "states": ["green", "blue"] }
+	],
+	"drawtype": "cube",
+	"textures": {
+		"all": { "base": "block/ghostlight-{color}" }
+	},
+	"attributes": {
+		"handbook": { "exclude": true }
+	},
+	"blockmaterial": "Glass",
+	"creativeinventory": { "general": ["*"], "decorative": ["*"] },
+	"replaceable": 300,
+	"resistance": 1,
+	"lightAbsorption": 0,
+	"sidesolid": { "all": true },
+	"sideopaque": { "all": false },
+	"vertexFlags": { "glowLevel": 255 },
+	"lightHsvByType": {
+		"*-green": [22, 7, 22],
+		"*-blue": [34, 7, 22]
+	},
+	"sounds": {
+		"place": "block/glass",
+		"break": "block/glass",
+		"hit": "block/glass",
+		"walk": "walk/glass"
+	}
+}
