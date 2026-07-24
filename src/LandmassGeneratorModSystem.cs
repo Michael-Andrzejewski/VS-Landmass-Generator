@@ -1246,7 +1246,7 @@ storyloc devastationarea -2550 -8750
     }
 
     // `struct <char> kind=... size=... seed=...`: one directive, many
-    // megastructures. Kinds: beacon (drowned lighthouse), chains (colossal
+    // megastructures. Kinds: lighthouse (drowned lighthouse), chains (colossal
     // anchor chains rising from the deep), colossus (a kneeling armored
     // giant, almost entirely submerged), serpent (a curled sea-serpent
     // skeleton with ghostlights), forge (a crater forge suspended over
@@ -1254,7 +1254,7 @@ storyloc devastationarea -2550 -8750
     private class StructDef
     {
         public string Kind = "";
-        public int Size = 60;       // per-kind: beacon height, chains/serpent radius, forge crater radius
+        public int Size = 60;       // per-kind: lighthouse height, chains/serpent radius, forge crater radius
         public int Seed = 1;
     }
 
@@ -4973,8 +4973,9 @@ storyloc devastationarea -2550 -8750
                 default: problems.Add($"struct: unknown key '{k}'"); break;
             }
         }
-        if (d.Kind != "beacon" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent" && d.Kind != "forge")
-            problems.Add($"struct: unknown kind '{d.Kind}' (beacon, chains, colossus, serpent, forge)");
+        if (d.Kind == "beacon") d.Kind = "lighthouse";
+        if (d.Kind != "lighthouse" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent" && d.Kind != "forge")
+            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge)");
         return d;
     }
 
@@ -5148,13 +5149,13 @@ storyloc devastationarea -2550 -8750
 
         switch (def.Kind)
         {
-            // ── THE DROWNED BEACON ─────────────────────────────────────────
+            // ── THE DROWNED LIGHTHOUSE ─────────────────────────────────────
             // A lighthouse whose keeper's islet sank: bottom third stands in
             // the sea with a flooded spiral stair, the waterline band is torn
             // and rusted, and the lamp room still glows. A broken sister
             // stump stands nearby, its fallen lantern cage aglow on the
             // seabed.
-            case "beacon":
+            case "lighthouse":
             {
                 int brick = Id("stonebricks-granite"), cracked = Id("crackedstonebricks-granite"), cobble = Id("cobblestone-granite");
                 int band = IdFirst("stonebricks-basalt", "stonebricks-andesite");

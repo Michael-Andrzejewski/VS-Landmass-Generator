@@ -1,13 +1,13 @@
 """
-Vertebrae Atoll: a ring of white chalk islets around a deep lagoon, and
-on the lagoon floor a colossal sea-serpent skeleton curled around a
-sunken ship, ribs arching 20+ blocks, entirely underwater. Ghostlight
-studs its edges and its eye sockets, so at night the whole coil glows up
-through the water. Struct pass 0.49.0, kind=serpent.
+Giant Serpent Skeleton: a ring of white chalk islets around a deep
+lagoon, and on the lagoon floor a colossal sea-serpent skeleton curled
+around a sunken ship, ribs arching 20+ blocks, entirely underwater.
+Ghostlight studs its edges and its eye sockets, so at night the whole
+coil glows up through the water. Struct pass, kind=serpent.
 
-    python tools/gen_vertebrae_atoll.py > shapes/vertebrae_atoll.txt
+    python tools/gen_giant_serpent_skeleton.py > shapes/giant_serpent_skeleton.txt
 
-Suggested: /genisland shape=vertebrae_atoll diameter=220 height=8 water=38
+Suggested: /genisland shape=giant_serpent_skeleton diameter=220 height=8 water=38
 """
 import math
 
@@ -39,11 +39,11 @@ def main():
 
     grid[55][55] = 'S'
 
-    print("# vertebrae_atoll - a chalk islet ring around a deep lagoon; on its")
-    print("# floor a colossal serpent skeleton curled around a sunken ship, ribs")
-    print("# arching 20+, ghostlights along every edge (struct pass, kind=serpent).")
-    print("# Regenerate: python tools/gen_vertebrae_atoll.py > shapes/vertebrae_atoll.txt")
-    print("# Suggested: /genisland shape=vertebrae_atoll diameter=220 height=8 water=38")
+    print("# giant_serpent_skeleton - a chalk islet ring around a deep lagoon; on")
+    print("# its floor a colossal serpent skeleton curled around a sunken ship,")
+    print("# ribs arching 20+, ghostlights along every edge (struct pass, kind=serpent).")
+    print("# Regenerate: python tools/gen_giant_serpent_skeleton.py > shapes/giant_serpent_skeleton.txt")
+    print("# Suggested: /genisland shape=giant_serpent_skeleton diameter=220 height=8 water=38")
     print()
     print("region v rock=chalk fertility=verylow surface=barren climate=dry wildgrass=0 stones=0.06 height=0.60 shore=2 rough=0.45")
     print("ocean plunge=8 basin=56 depth=38")

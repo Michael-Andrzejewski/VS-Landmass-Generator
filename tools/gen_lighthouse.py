@@ -1,14 +1,14 @@
 """
-Drowned Beacon: a lighthouse whose keeper's islet sank. The struct pass
-(0.49.0, kind=beacon) raises a 68-block tapered granite tower from the
+Lighthouse: a drowned lighthouse whose keeper's islet sank. The struct
+pass (kind=lighthouse) raises a 68-block tapered granite tower from the
 sea floor: bottom third underwater with a flooded spiral stair, torn
 rusted band at the waterline, glowing ghostlight lamp room at the top
 with a gallery rail and cone roof. A broken sister stump stands 22
 blocks away, its fallen lantern cage still glowing on the seabed.
 
-    python tools/gen_drowned_beacon.py > shapes/drowned_beacon.txt
+    python tools/gen_lighthouse.py > shapes/lighthouse.txt
 
-Suggested: /genisland shape=drowned_beacon diameter=120 height=6 water=40
+Suggested: /genisland shape=lighthouse diameter=120 height=6 water=40
 """
 import math
 
@@ -30,19 +30,19 @@ def main():
 
     blob(34, 30, 2.5, 2, 'r')          # the keeper's awash rock
     blob(25, 37, 1.8, 1.5, 'k')        # a skerry
-    grid[30][30] = 'B'                 # the beacon, standing in open water
+    grid[30][30] = 'B'                 # the lighthouse, standing in open water
 
-    print("# drowned_beacon - a lighthouse whose islet sank: bottom third in the")
-    print("# sea with a flooded spiral stair, torn rusty waterline band, a lamp")
+    print("# lighthouse - a drowned lighthouse whose islet sank: bottom third in")
+    print("# the sea with a flooded spiral stair, torn rusty waterline band, a lamp")
     print("# room that still glows, and a broken sister stump with its fallen")
-    print("# lantern aglow on the seabed (struct pass, kind=beacon).")
-    print("# Regenerate: python tools/gen_drowned_beacon.py > shapes/drowned_beacon.txt")
-    print("# Suggested: /genisland shape=drowned_beacon diameter=120 height=6 water=40")
+    print("# lantern aglow on the seabed (struct pass, kind=lighthouse).")
+    print("# Regenerate: python tools/gen_lighthouse.py > shapes/lighthouse.txt")
+    print("# Suggested: /genisland shape=lighthouse diameter=120 height=6 water=40")
     print()
     print("region r rock=granite fertility=verylow surface=barren climate=dry wildgrass=0 stones=0.05 height=0.30 shore=1 rough=0.40")
     print("region k rock=granite fertility=verylow surface=barren climate=dry wildgrass=0 stones=0.04 height=0.15 shore=1 rough=0.40")
     print("ocean plunge=16")
-    print("struct B kind=beacon size=68 seed=3")
+    print("struct B kind=lighthouse size=68 seed=3")
     print()
     print("map")
     for row in grid:

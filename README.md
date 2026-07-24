@@ -276,7 +276,8 @@ back to natural over 18 blocks past R.
 One directive, five set pieces (0.49.0). The marker can stand in open
 water; pair with `ocean basin=` when the piece needs guaranteed depth.
 
-- `kind=beacon` (size = tower height): the Drowned Beacon. A tapered
+- `kind=lighthouse` (size = tower height): the Drowned Lighthouse
+  (`beacon` still accepted as an alias). A tapered
   granite lighthouse rising from the sea floor: flooded spiral stair in
   the drowned third, torn rusty band at the waterline, a ghostlight lamp
   room with gallery rail and cone roof, and a broken sister stump whose
@@ -303,8 +304,8 @@ water; pair with `ocean basin=` when the piece needs guaranteed depth.
   colossal chains, with a railed catwalk from the rim and three frozen
   lava runs spilling down the outer slopes.
 
-Shapes: `drowned_beacon`, `chainfield`, `colossus_deep`,
-`vertebrae_atoll`, `forge_volcano` (see their gen scripts for the
+Shapes: `lighthouse`, `chainfield`, `colossus_deep`,
+`giant_serpent_skeleton`, `forge_volcano` (see their gen scripts for the
 suggested commands).
 
 ## Localhost previewer

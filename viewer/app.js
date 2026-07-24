@@ -818,7 +818,7 @@ function rebuild(shape, dia, hgt) {
     const wx = (st.gx + 0.5 - shape.W / 2) * wpc, wz = (st.gz + 0.5 - shape.H / 2) * wpc;
     const mat = new THREE.MeshLambertMaterial({ color: 0xb08a4a, transparent: true, opacity: 0.75 });
     const k = st.def.kind, sz = st.def.size;
-    if (k === 'beacon') {
+    if (k === 'lighthouse' || k === 'beacon') {
       // base near the local sea floor; schematic rises from -20
       const tower = new THREE.Mesh(new THREE.CylinderGeometry(3, 7, sz, 16), mat);
       tower.position.set(wx, sz / 2 - 20, wz);
