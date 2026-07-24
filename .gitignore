@@ -3,3 +3,4 @@ obj/
 *.user
 viewer/shots/
 viewer/data/
+export/

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Reflection;
+using System.Text;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
@@ -192,6 +194,13 @@ public class LandmassGeneratorModSystem : ModSystem
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, TryAutoRustfallSetup);
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
 
+        // Headless dump pipeline (tools/dumpgen.mjs): a dumpjobs.txt in the
+        // LandmassGenerator folder is consumed at boot, each line runs as a
+        // /genisland job in sequence, and the server stops itself when the
+        // last dump is written. Nothing reads the server console, so this
+        // file IS the console.
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, TryRunDumpJobs);
+
         // For checkbox worlds, force the ocean config BEFORE worldgen ever
         // reads it (SaveGameLoaded fires ahead of InitWorldGenerator). The
         // first spawn chunks then already generate as pure ocean, instead
@@ -327,6 +336,67 @@ public class LandmassGeneratorModSystem : ModSystem
                 Array.Clear(upheavelMap.Data, 0, upheavelMap.Data.Length);
             }
         }
+    }
+
+    private static Caller ConsoleCaller() => new Caller
+    {
+        Type = EnumCallerType.Console,
+        CallerPrivileges = new[] { "*" },
+        FromChatGroupId = GlobalConstants.GeneralChatGroup
+    };
+
+    // dumpjobs.txt: one /genisland option line per row (with or without the
+    // leading "/genisland"). The file is deleted before running so a crash
+    // mid-job cannot boot-loop the server.
+    private void TryRunDumpJobs()
+    {
+        string f = Path.Combine(shapeFolder, "dumpjobs.txt");
+        if (!File.Exists(f)) return;
+        var lines = new List<string>();
+        foreach (string raw in File.ReadAllLines(f))
+        {
+            string l = raw.Trim();
+            if (l.Length == 0 || l.StartsWith("#")) continue;
+            lines.Add(l);
+        }
+        try { File.Delete(f); } catch { /* best effort */ }
+        if (lines.Count == 0) return;
+
+        sapi.Logger.Notification("[dump] {0} dump job(s) queued", lines.Count);
+        sapi.Event.RegisterCallback(_ => RunDumpJob(lines, 0), 4000);
+    }
+
+    private void RunDumpJob(List<string> lines, int idx)
+    {
+        if (idx >= lines.Count)
+        {
+            sapi.Logger.Notification("[dump] all dump jobs finished, stopping the server");
+            sapi.Event.RegisterCallback(_ =>
+                sapi.ChatCommands.ExecuteUnparsed("/stop",
+                    new TextCommandCallingArgs { Caller = ConsoleCaller() }, r => { }), 2000);
+            return;
+        }
+
+        string cmd = lines[idx].StartsWith("/") ? lines[idx] : "/genisland " + lines[idx];
+        sapi.Logger.Notification("[dump] job {0} of {1}: {2}", idx + 1, lines.Count, cmd);
+        TextCommandResult res = null;
+        sapi.ChatCommands.ExecuteUnparsed(cmd, new TextCommandCallingArgs { Caller = ConsoleCaller() }, r => res = r);
+        if (res != null && res.Status != EnumCommandStatus.Success)
+        {
+            sapi.Logger.Error("[dump] job could not start: " + (res.StatusMessage ?? "no response"));
+            RunDumpJob(lines, idx + 1);
+            return;
+        }
+
+        // /genisland flips _islandBusy synchronously; poll until the island
+        // (and its dump, which runs inside the finish pass) is done.
+        long[] lid = { 0 };
+        lid[0] = sapi.Event.RegisterGameTickListener(dt =>
+        {
+            if (_islandBusy) return;
+            sapi.Event.UnregisterGameTickListener(lid[0]);
+            RunDumpJob(lines, idx + 1);
+        }, 500);
     }
 
     private void TryAutoRustfallSetup()
@@ -1350,6 +1420,11 @@ storyloc devastationarea -2550 -8750
         // same ore the world would have generated there.
         public bool NaturalDeposits;
 
+        // dump=1 (or dump=name): after the island fully finishes, write every
+        // block in the build volume to LandmassGenerator/dumps/<name>.lmd so
+        // the localhost previewer can render the REAL result block for block.
+        public string DumpName;
+
         public NormalizedSimplexNoise CoastNoise, SurfNoise, RockBlend;
         public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
 
@@ -1523,6 +1598,17 @@ storyloc devastationarea -2550 -8750
 
         int reach;
         string shapeName = OptStr(opt, "shape", null);
+
+        // dump=1 names the file after the shape (or "island" for radial);
+        // dump=<name> picks the file name outright.
+        if (opt.TryGetValue("dump", out string dumpVal) && !string.IsNullOrWhiteSpace(dumpVal) && dumpVal != "0")
+        {
+            string dn = dumpVal == "1" ? (shapeName ?? "island") : dumpVal;
+            var sb = new StringBuilder();
+            foreach (char ch in dn.ToLowerInvariant())
+                if (char.IsLetterOrDigit(ch) || ch == '_' || ch == '-') sb.Append(ch);
+            job.DumpName = sb.Length > 0 ? sb.ToString() : "island";
+        }
 
         if (shapeName != null)
         {
@@ -2614,8 +2700,128 @@ storyloc devastationarea -2550 -8750
         }
         finally
         {
+            // The dump runs even after a failed finish pass: the terrain is
+            // placed either way, and seeing the failure state in the viewer
+            // is exactly what the dump is for.
+            try { WriteDump(job); }
+            catch (Exception e)
+            {
+                sapi.Logger.Error(e);
+                ReportIsland(job, "Block dump FAILED: " + e.Message);
+            }
             _islandBusy = false;
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  dump=: write the finished island, block for block, for the previewer
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // Format (gzip around everything): "LMD1", int32 header length, UTF-8
+    // JSON header {ox,oy,oz,sx,sy,sz,sea,palette}, then RLE runs of
+    // uint32 count + uint16 palette index, x fastest, then z, then y.
+    // Palette index 0 is always air. Clutter blocks carry their shape type
+    // as "code|type" so the viewer can tell a pipe from a tank.
+    private void WriteDump(IslandJob job)
+    {
+        if (job.DumpName == null) return;
+
+        var ba = sapi.World.BlockAccessor;
+        int margin = 16;
+        int x0 = job.MinX - margin, z0 = job.MinZ - margin;
+        int sx = job.W + margin * 2, sz = job.H + margin * 2;
+        int y0 = 1, sy = Math.Min(sapi.WorldManager.MapSizeY - 1, job.SeaLevel + 150) - y0;
+
+        var codeToIdx = new Dictionary<string, ushort> { ["air"] = 0 };
+        var palette = new List<string> { "air" };
+        var idToIdx = new Dictionary<int, ushort> { [0] = 0 };
+        var pos = new BlockPos(0, 0, 0, 0);
+
+        string dir = Path.Combine(shapeFolder, "dumps");
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, job.DumpName + ".lmd");
+        string tmp = path + ".tmp";
+
+        long cells = 0;
+        using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write))
+        using (var gz = new GZipStream(fs, CompressionLevel.Fastest))
+        using (var bw = new BinaryWriter(gz))
+        {
+            // Header last-minute problem: the palette grows while scanning, so
+            // scan into memory runs first, then write header + runs.
+            var runs = new List<(uint Count, ushort Idx)>(1 << 16);
+            uint runLen = 0; ushort runIdx = 0; bool first = true;
+
+            for (int y = y0; y < y0 + sy; y++)
+            for (int dz = 0; dz < sz; dz++)
+            for (int dx = 0; dx < sx; dx++)
+            {
+                pos.Set(x0 + dx, y, z0 + dz);
+                Block b = ba.GetBlock(pos, BlockLayersAccess.SolidBlocks);
+                if (b == null || b.Id == 0) b = ba.GetBlock(pos, BlockLayersAccess.Fluid);
+
+                ushort idx;
+                if (b == null || b.Id == 0) idx = 0;
+                else if (!idToIdx.TryGetValue(b.Id, out idx))
+                {
+                    string code = b.Code?.ToString() ?? "air";
+                    if (!codeToIdx.TryGetValue(code, out idx))
+                    {
+                        idx = (ushort)palette.Count;
+                        palette.Add(code);
+                        codeToIdx[code] = idx;
+                    }
+                    idToIdx[b.Id] = idx;
+                }
+
+                // Clutter carries its real shape in the block entity, not the
+                // block code: resolve it so the viewer can size/color by type.
+                if (idx != 0 && palette[idx].Contains("clutter"))
+                {
+                    var beh = ba.GetBlockEntity(pos)?.GetBehavior<BEBehaviorShapeFromAttributes>();
+                    if (beh?.Type != null)
+                    {
+                        string ckey = palette[idToIdx[b.Id]].Split('|')[0] + "|" + beh.Type;
+                        if (!codeToIdx.TryGetValue(ckey, out idx))
+                        {
+                            idx = (ushort)palette.Count;
+                            palette.Add(ckey);
+                            codeToIdx[ckey] = idx;
+                        }
+                    }
+                }
+
+                cells++;
+                if (first) { runIdx = idx; runLen = 1; first = false; }
+                else if (idx == runIdx && runLen < uint.MaxValue) runLen++;
+                else { runs.Add((runLen, runIdx)); runIdx = idx; runLen = 1; }
+            }
+            if (!first) runs.Add((runLen, runIdx));
+
+            var hsb = new StringBuilder();
+            hsb.Append("{\"ox\":").Append(x0).Append(",\"oy\":").Append(y0).Append(",\"oz\":").Append(z0)
+               .Append(",\"sx\":").Append(sx).Append(",\"sy\":").Append(sy).Append(",\"sz\":").Append(sz)
+               .Append(",\"sea\":").Append(job.SeaLevel).Append(",\"cx\":").Append(job.Cx).Append(",\"cz\":").Append(job.Cz)
+               .Append(",\"palette\":[");
+            for (int i = 0; i < palette.Count; i++)
+            {
+                if (i > 0) hsb.Append(',');
+                hsb.Append('"').Append(palette[i].Replace("\\", "\\\\").Replace("\"", "\\\"")).Append('"');
+            }
+            hsb.Append("]}");
+            byte[] header = Encoding.UTF8.GetBytes(hsb.ToString());
+
+            bw.Write(Encoding.ASCII.GetBytes("LMD1"));
+            bw.Write(header.Length);
+            bw.Write(header);
+            foreach (var r in runs) { bw.Write(r.Count); bw.Write(r.Idx); }
+        }
+
+        if (File.Exists(path)) File.Delete(path);
+        File.Move(tmp, path);
+        string note = $"[dump] wrote {path} ({cells} cells, {palette.Count} palette entries)";
+        sapi.Logger.Notification(note);
+        ReportIsland(job, note);
     }
 
     private static bool HasForest(IslandJob job)
