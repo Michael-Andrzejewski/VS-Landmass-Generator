@@ -1045,6 +1045,7 @@ async function loadDump(name) {
 
     const solid = counts.reduce((a, c, i) => a + (i && klass[i] !== 2 ? c : 0), 0);
     rad = Math.max(rad, Math.max(sx, sz) * 1.05);
+    orbTarget.set(0, 0, 0);
     updateCam();
 
     // Legend: the most common blocks in view.
@@ -1071,8 +1072,17 @@ function applyClip() {
   render();
 }
 
-// ── orbit controls ────────────────────────────────────────────────────────
+// ── camera: orbit + freecam ───────────────────────────────────────────────
+// Orbit (the default): left-drag circles the target, scroll zooms.
+// Freecam: WASD or the arrow keys fly (Shift = fast, Space/C = up/down),
+// right-drag turns the view in place without moving the camera. Left-drag
+// after flying orbits around the point you are looking at.
 let az = 0.9, pol = 0.95, rad = 260;
+const orbTarget = new THREE.Vector3(0, 0, 0);
+const camPos = new THREE.Vector3();
+let yaw = 0, pitch = 0;
+let freeMode = false;
+
 // The window can report a 0-size viewport at load (embedded panes do this),
 // so every render self-heals the canvas size instead of trusting load time.
 function fitRenderer() {
@@ -1084,26 +1094,125 @@ function fitRenderer() {
   }
 }
 function render() { fitRenderer(); renderer.render(scene, camera); }
-function updateCam() {
-  const sp = Math.sin(pol);
-  camera.position.set(rad * sp * Math.cos(az), rad * Math.cos(pol), rad * sp * Math.sin(az));
-  camera.lookAt(0, 0, 0);
+function viewDir() {
+  return new THREE.Vector3(
+    Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw));
+}
+function applyCam() {
+  camera.position.copy(camPos);
+  const d = viewDir();
+  camera.lookAt(camPos.x + d.x, camPos.y + d.y, camPos.z + d.z);
   render();
 }
-let drag = false, px = 0, py = 0;
-renderer.domElement.addEventListener('pointerdown', (e) => { drag = true; px = e.clientX; py = e.clientY; });
-addEventListener('pointerup', () => { drag = false; });
+// Orbit entry point (also the scripted one): put the camera on the sphere
+// around orbTarget and look at it, syncing the freecam state to match.
+function updateCam() {
+  const sp = Math.sin(pol);
+  camPos.set(
+    orbTarget.x + rad * sp * Math.cos(az),
+    orbTarget.y + rad * Math.cos(pol),
+    orbTarget.z + rad * sp * Math.sin(az));
+  const d = orbTarget.clone().sub(camPos).normalize();
+  yaw = Math.atan2(d.z, d.x);
+  pitch = Math.asin(Math.max(-1, Math.min(1, d.y)));
+  freeMode = false;
+  applyCam();
+}
+// After flying, an orbit gesture pivots around the point rad ahead of the
+// camera, so the view never snaps back to the island center.
+function reanchorOrbit() {
+  orbTarget.copy(camPos).addScaledVector(viewDir(), rad);
+  const off = camPos.clone().sub(orbTarget);
+  az = Math.atan2(off.z, off.x);
+  pol = Math.acos(Math.max(-1, Math.min(1, off.y / Math.max(1e-6, off.length()))));
+  freeMode = false;
+}
+
+let dragBtn = -1, px = 0, py = 0;
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  dragBtn = e.button; px = e.clientX; py = e.clientY;
+});
+addEventListener('pointerup', () => { dragBtn = -1; });
 addEventListener('pointermove', (e) => {
-  if (!drag) return;
-  az += (e.clientX - px) * 0.006;
-  pol = Math.max(0.08, Math.min(3.06, pol - (e.clientY - py) * 0.006));
-  px = e.clientX; py = e.clientY; updateCam();
+  if (dragBtn < 0) return;
+  const dx = e.clientX - px, dy = e.clientY - py;
+  px = e.clientX; py = e.clientY;
+  if (dragBtn === 2) {
+    // look around in place
+    freeMode = true;
+    yaw += dx * 0.004;
+    pitch = Math.max(-1.55, Math.min(1.55, pitch - dy * 0.004));
+    applyCam();
+  } else {
+    if (freeMode) reanchorOrbit();
+    az += dx * 0.006;
+    pol = Math.max(0.08, Math.min(3.06, pol - dy * 0.006));
+    updateCam();
+  }
 });
 renderer.domElement.addEventListener('wheel', (e) => {
   e.preventDefault();
-  rad = Math.max(10, Math.min(1500, rad * (1 + Math.sign(e.deltaY) * 0.08)));
-  updateCam();
+  if (freeMode) {
+    // dolly along the view direction
+    camPos.addScaledVector(viewDir(), -Math.sign(e.deltaY) * Math.max(4, rad * 0.08));
+    applyCam();
+  } else {
+    rad = Math.max(10, Math.min(1500, rad * (1 + Math.sign(e.deltaY) * 0.08)));
+    updateCam();
+  }
 }, { passive: false });
+
+// WASD + arrows flight. Runs its own frame loop only while keys are held.
+const flyKeys = new Set();
+const KEYMAP = {
+  KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b',
+  KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
+  Space: 'u', KeyC: 'd',
+};
+let boost = false, lastFly = 0, flyTimer = 0;
+addEventListener('keydown', (e) => {
+  if (e.key === 'Shift') { boost = true; return; }
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+  const k = KEYMAP[e.code];
+  if (!k) return;
+  e.preventDefault();
+  freeMode = true;
+  // A plain interval instead of requestAnimationFrame: rAF stalls in
+  // embedded or throttled panes, and flight must not.
+  if (!flyTimer) {
+    lastFly = performance.now();
+    flyTimer = setInterval(() => flyTick(performance.now()), 16);
+  }
+  flyKeys.add(k);
+});
+addEventListener('keyup', (e) => {
+  if (e.key === 'Shift') boost = false;
+  const k = KEYMAP[e.code];
+  if (k) flyKeys.delete(k);
+});
+function flyTick(t) {
+  if (!flyKeys.size) {
+    if (flyTimer) { clearInterval(flyTimer); flyTimer = 0; }
+    return;
+  }
+  const dt = lastFly ? Math.min(0.05, (t - lastFly) / 1000) : 0.016;
+  lastFly = t;
+  const speed = (boost ? 4 : 1) * Math.max(30, rad * 0.6);   // blocks per second
+  const dir = viewDir();
+  const right = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+  const step = new THREE.Vector3();
+  if (flyKeys.has('f')) step.add(dir);
+  if (flyKeys.has('b')) step.sub(dir);
+  if (flyKeys.has('r')) step.add(right);
+  if (flyKeys.has('l')) step.sub(right);
+  if (flyKeys.has('u')) step.y += 1;
+  if (flyKeys.has('d')) step.y -= 1;
+  if (step.lengthSq() > 0) {
+    camPos.addScaledVector(step.normalize(), speed * dt);
+    applyCam();
+  }
+}
 addEventListener('resize', render);
 
 // ── UI wiring ─────────────────────────────────────────────────────────────
@@ -1121,6 +1230,7 @@ function refresh() {
   // the canvas forever; re-seed it from the island size instead.
   const fit = isFinite(stats.size) ? stats.size * 1.1 : 260;
   rad = isFinite(rad) ? Math.max(rad, fit) : fit;
+  orbTarget.set(0, 0, 0);
   updateCam();
   info.textContent = `${sel.value}: ${stats.columns.toLocaleString()} columns`
     + (stats.caveMouths
