@@ -35,11 +35,6 @@
 168,
 115
 ],
-"game:aquaticplant-irishmoss": [
-46,
-110,
-70
-],
 "game:bed-woodaged-feet-east": [
 119,
 102,
@@ -425,11 +420,6 @@
 100,
 88
 ],
-"game:clutter|bookshelves/large-book-closed": [
-115,
-100,
-88
-],
 "game:clutter|bookshelves/large-book-standing6": [
 115,
 100,
@@ -446,11 +436,6 @@
 88
 ],
 "game:clutter|bookshelves/scrollrack-full3": [
-115,
-100,
-88
-],
-"game:clutter|bookshelves/scrollrack-ruined2": [
 115,
 100,
 88
@@ -2487,11 +2472,6 @@
 68,
 66
 ],
-"game:lava-d-1": [
-255,
-120,
-20
-],
 "game:lava-d-6": [
 255,
 120,
@@ -2602,11 +2582,6 @@
 120,
 20
 ],
-"game:lava-ne-7": [
-255,
-120,
-20
-],
 "game:lava-nw-1": [
 255,
 120,
@@ -2637,12 +2612,7 @@
 120,
 20
 ],
-"game:lava-nw-7": [
-255,
-120,
-20
-],
-"game:lava-s-1": [
+"game:lava-s-3": [
 255,
 120,
 20
@@ -2662,12 +2632,27 @@
 120,
 20
 ],
+"game:lava-s-7": [
+255,
+120,
+20
+],
 "game:lava-se-1": [
 255,
 120,
 20
 ],
+"game:lava-se-2": [
+255,
+120,
+20
+],
 "game:lava-se-3": [
+255,
+120,
+20
+],
+"game:lava-se-4": [
 255,
 120,
 20
@@ -2682,32 +2667,12 @@
 120,
 20
 ],
-"game:lava-se-7": [
-255,
-120,
-20
-],
 "game:lava-still-6": [
 255,
 120,
 20
 ],
 "game:lava-still-7": [
-255,
-120,
-20
-],
-"game:lava-sw-1": [
-255,
-120,
-20
-],
-"game:lava-sw-2": [
-255,
-120,
-20
-],
-"game:lava-sw-3": [
 255,
 120,
 20
@@ -3476,6 +3441,11 @@
 163,
 163
 ],
+"game:ore-poor-quartz_nativesilver-slate": [
+162,
+163,
+163
+],
 "game:ore-poor-rhodochrosite-chert": [
 87,
 55,
@@ -3921,6 +3891,11 @@
 183,
 161
 ],
+"game:saltpeter-nsu": [
+193,
+183,
+161
+],
 "game:saltpeter-nsw": [
 193,
 183,
@@ -4060,12 +4035,6 @@
 140,
 110
 ],
-"game:saltwater-e-2": [
-30,
-80,
-140,
-110
-],
 "game:saltwater-e-3": [
 30,
 80,
@@ -4144,12 +4113,6 @@
 140,
 110
 ],
-"game:saltwater-ne-2": [
-30,
-80,
-140,
-110
-],
 "game:saltwater-ne-3": [
 30,
 80,
@@ -4222,12 +4185,6 @@
 140,
 110
 ],
-"game:saltwater-s-1": [
-30,
-80,
-140,
-110
-],
 "game:saltwater-s-2": [
 30,
 80,
@@ -4259,18 +4216,6 @@
 110
 ],
 "game:saltwater-s-7": [
-30,
-80,
-140,
-110
-],
-"game:saltwater-se-1": [
-30,
-80,
-140,
-110
-],
-"game:saltwater-se-2": [
 30,
 80,
 140,
@@ -4318,12 +4263,6 @@
 140,
 110
 ],
-"game:saltwater-sw-1": [
-30,
-80,
-140,
-110
-],
 "game:saltwater-sw-2": [
 30,
 80,
@@ -4355,12 +4294,6 @@
 110
 ],
 "game:saltwater-sw-7": [
-30,
-80,
-140,
-110
-],
-"game:saltwater-w-1": [
 30,
 80,
 140,
@@ -4769,6 +4702,11 @@
 147
 ],
 "game:tapestry-east": [
+97,
+86,
+65
+],
+"game:tapestry-north": [
 97,
 86,
 65
