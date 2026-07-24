@@ -770,7 +770,7 @@ function rebuild(shape, dia, hgt) {
     const ringMat = new THREE.MeshLambertMaterial({ color: 0x8a4a2a, transparent: true, opacity: 0.35 });
     const titan = new THREE.Mesh(boxGeo, rustMat);
     // afloat at the (locally lowered, for the maelstrom divot) waterline
-    titan.position.set(wx + wk.def.radius * 0.18, wk.def.whirlpool ? -6 : -2, wz + wk.def.radius * 0.12);
+    titan.position.set(wx + wk.def.radius * 0.18, wk.def.whirlpool ? -18 : -2, wz + wk.def.radius * 0.12);
     titan.scale.set(60, 14, 16);
     titan.rotation.y = 0.6;
     group.add(titan);
@@ -778,11 +778,11 @@ function rebuild(shape, dia, hgt) {
     field.position.set(wx, 1.5, wz);
     group.add(field);
     if (wk.def.whirlpool) {
-      // a 13-deep divot pressed into the sea surface, not a drained pit
-      const fr = Math.max(20, Math.trunc(wk.def.radius * 0.45));
-      const cone = new THREE.Mesh(new THREE.CylinderGeometry(2, fr, 13, 32, 1, true),
+      // a vast 26-deep divot pressed into the sea surface, not a drained pit
+      const fr = Math.max(40, Math.trunc(wk.def.radius * 0.85));
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(2, fr, 26, 32, 1, true),
         new THREE.MeshLambertMaterial({ color: 0x2a6a9a, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
-      cone.position.set(wx, -6.5, wz);
+      cone.position.set(wx, -13, wz);
       group.add(cone);
     }
   }

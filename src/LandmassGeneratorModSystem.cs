@@ -4376,6 +4376,7 @@ storyloc devastationarea -2550 -8750
         int hullB = Id("metalblock-corroded-plain-rusty-iron");
         int hullC = Id("metalblock-corroded-riveted-iron");
         int drock = Id("drock");
+        int dsoil = Id("devastatedsoil-7");
         int fenceNS = Id("ironfence-base-ns"), fenceEW = Id("ironfence-base-ew");
         int[] spikes = {
             Id("locustnest-metalspike-tiny"), Id("locustnest-metalspike-small"),
@@ -4383,6 +4384,8 @@ storyloc devastationarea -2550 -8750
         int[] piles = {
             Id("metalpartpile-tiny"), Id("metalpartpile-small"),
             Id("metal-parts"), Id("metal-scraps") };
+        int[] thorns = {
+            Id("devgrowth-thorns"), Id("devgrowth-bush"), Id("devgrowth-shrike") };
         int clutterId = Id("clutter-devastation");
         if (hullA == 0) return 0;
         if (hullB == 0) hullB = hullA;
@@ -4390,12 +4393,13 @@ storyloc devastationarea -2550 -8750
 
         // Rusted pipework and machinery junk: the devastation clutter block
         // carries the real shapes (pipe junctions, broken ends, long runs,
-        // beams, hanging chains, tanks). One block id, many shapes: the shape
-        // name lives on the block entity, so these are recorded during the
-        // build and stamped through the live accessor after the bulk commit.
-        string[] pipeTypes = { "junkpipe1", "junkpipe2", "junkpipe3", "junkpipe4", "pipe1",
-            "pipelong2", "pipelong3", "pipelong4", "pipelong4bent",
+        // beams, hanging chains, tanks, giant gears). One block id, many
+        // shapes: the shape name lives on the block entity, so these are
+        // recorded during the build and stamped after the bulk commit.
+        // Long pipes only ever run along an axis; junctions sit at bends.
+        string[] longPipes = { "pipelong2", "pipelong3", "pipelong4", "pipelong4bent",
             "pipelong3-aged", "pipelong4-aged", "pipelong4bent-aged" };
+        string[] pipeJoints = { "junkpipe1", "junkpipe2", "junkpipe3", "junkpipe4", "pipe1" };
         string[] beamTypes = { "junkbeamstraight1", "junkbeamstraight2", "junkbeamstraight3",
             "junkbeamstraight4", "junkbeamcross1", "junkbeamcross2" };
         string[] chainTypes = { "junkchain1", "junkchain2", "junkchain3",
@@ -4452,7 +4456,8 @@ storyloc devastationarea -2550 -8750
         double Hash01(int a, int b) { uint h = Hash(a, b); h ^= h >> 13; h *= 1274126177u; return ((h ^ (h >> 16)) & 0xFFFFFF) / 16777216.0; }
 
         int R = def.Radius;
-        int funnelR = def.Whirlpool ? Math.Max(20, (int)(R * 0.45)) : 0;
+        // The maelstrom is VAST: most of the field spirals down into it.
+        int funnelR = def.Whirlpool ? Math.Max(40, (int)(R * 0.85)) : 0;
 
         // The whirlpool is a divot pressed into the open sea itself: no rim,
         // no drained pit. Each column inside it keeps the full ocean below and
@@ -4460,10 +4465,12 @@ storyloc devastationarea -2550 -8750
         // is real directional flowing water spiraling inward, so the whole
         // bowl visibly runs downhill into a 2x2 down-flow throat at the eye.
         // The steepest slope stays under one block per block, so the flowing
-        // staircase covers the surface with no exposed walls. Liquids only
-        // recompute on block updates, so the sculpted sea holds its shape.
+        // staircase covers the surface with no exposed walls. Rock tall enough
+        // to break the local surface is left standing and the swirl wraps
+        // around it. Liquids only recompute on block updates, so the sculpted
+        // sea holds its shape.
         double DivotDepth(double d) => !def.Whirlpool || d >= funnelR ? 0
-            : 13.0 * Math.Pow(1 - d / funnelR, 1.6);
+            : 26.0 * Math.Pow(1 - d / funnelR, 1.6);
         double DistC(double x, double z) => Math.Sqrt((x - cx) * (x - cx) + (z - cz) * (z - cz));
         int SurfY(double d) => sea - 1 - (int)Math.Round(DivotDepth(d));
         int WaterAt(double x, double z) => def.Whirlpool ? SurfY(DistC(x, z)) : sea - 1;
@@ -4477,14 +4484,21 @@ storyloc devastationarea -2550 -8750
                     if (d >= funnelR) continue;
                     int sy = SurfY(d);
                     if (sy >= sea - 1) continue;                  // fringe: the sea surface itself
-                    for (int y = sy + 1; y <= sea - 1; y++) Set(x, y, z, 0);
+                    int g = Ground(x, z);
+                    for (int y = Math.Max(sy + 1, g + 1); y <= sea - 1; y++) Set(x, y, z, 0);
+                    if (g >= sy)
+                    {
+                        // rock stands proud of the swirl; rust its crown
+                        if (g < sea && drock != 0 && Hash01(x * 7, z * 13) < 0.4) Set(x, g, z, drock);
+                        continue;
+                    }
                     double dx = x - cx, dz = z - cz;
                     double il = Math.Max(1.0, d);
                     double tx = -dz / il, tz = dx / il;           // counter-clockwise swirl
                     double fx = tx * 0.85 - dx / il * 0.55, fz = tz * 0.85 - dz / il * 0.55;
                     string code = (fz < -0.38 ? "n" : fz > 0.38 ? "s" : "") + (fx > 0.38 ? "e" : fx < -0.38 ? "w" : "");
                     if (code.Length == 0) code = "d";
-                    int lvl = Math.Max(3, 7 - (int)(DivotDepth(d) / 3));
+                    int lvl = Math.Max(3, 7 - (int)(DivotDepth(d) / 6));
                     int flow = Id($"saltwater-{code}-{lvl}");
                     if (flow != 0) SetFluid(x, sy, z, flow);
                 }
@@ -4493,14 +4507,16 @@ storyloc devastationarea -2550 -8750
             if (dn != 0)
                 for (int ex = 0; ex <= 1; ex++)
                     for (int ez = 0; ez <= 1; ez++)
-                        for (int y = SurfY(0); y >= SurfY(0) - 14; y--)
+                        for (int y = SurfY(0); y >= SurfY(0) - 20; y--)
                             SetFluid(cx + ex, y, cz + ez, dn);
         }
 
         // ── one hull: shared by the titan and every segment. Rolled frame:
         // the cross-section ellipse is rotated by rollDeg, so "deck sideways"
-        // is just roll ~80-100. Plating survives where the tear-noise allows;
-        // rib frames survive everywhere, so holes read as a torn rib cage.
+        // is just roll ~80-100 and "capsized keel-up" is roll ~180. Plating
+        // survives where the tear-noise allows; rib frames survive everywhere,
+        // so holes read as a torn rib cage. Devastated soil silts into some
+        // holes above the waterline, and thorny devastation growth climbs out.
         void Hull3(double hx, double hz, double hy, double yaw, double rollDeg,
             int len, double beamHalf, double depthHalf, double bowSharp, double decay, int waterTopY)
         {
@@ -4532,9 +4548,18 @@ storyloc devastationarea -2550 -8750
                         bool rib = PosMod((int)Math.Round((t + 1) * len / 2.0), 5) == 0;
                         if (e >= 0.78)
                         {
-                            // plating, torn open by coherent noise; ribs hold
                             double tear = Hash01(x * 5 + y * 3, z * 5 - y * 2);
-                            if (!rib && tear < decay) continue;
+                            if (!rib && tear < decay)
+                            {
+                                // a torn hole: some silt up and sprout growth
+                                if (y > waterTopY && tear > decay - 0.05 && dsoil != 0)
+                                {
+                                    Set(x, y, z, dsoil);
+                                    int th = thorns[(int)(Hash01(x + y, z - y) * thorns.Length) % thorns.Length];
+                                    if (th != 0 && Hash01(x - y, z + y) < 0.65) Set(x, y + 1, z, th);
+                                }
+                                continue;
+                            }
                             Set(x, y, z, Hull());
                             // spiky metal along torn edges and top surfaces
                             if (y > waterTopY + 1 && rand.NextDouble() < 0.05 && spikes[3] != 0)
@@ -4555,53 +4580,140 @@ storyloc devastationarea -2550 -8750
                 }
         }
 
+        // ── recognizable ship parts ──────────────────────────────────────
+        // A mast: a tilted pole with a yard crossbeam and chains off its tips.
+        void Mast(double mx, double mz, double my, double dirYaw, double upTilt, int mlen)
+        {
+            double ux = Math.Cos(dirYaw) * Math.Cos(upTilt), uz = Math.Sin(dirYaw) * Math.Cos(upTilt);
+            double uy = Math.Sin(upTilt);
+            for (int k = 0; k < mlen; k++)
+            {
+                int x = (int)Math.Round(mx + ux * k), y = (int)Math.Round(my + uy * k), z = (int)Math.Round(mz + uz * k);
+                Set(x, y, z, Hull());
+                if (k == (int)(mlen * 0.7))
+                {
+                    double px = -Math.Sin(dirYaw), pz = Math.Cos(dirYaw);
+                    for (int q = -4; q <= 4; q++)
+                    {
+                        int yx = (int)Math.Round(x + px * q), yz = (int)Math.Round(z + pz * q);
+                        Set(yx, y, yz, Hull());
+                        if (Math.Abs(q) == 4)
+                            Clutter(yx, y - 1, yz, chainTypes[(int)(rand.NextDouble() * chainTypes.Length)], dirYaw);
+                    }
+                }
+            }
+        }
+
+        // A bow section rising steeply out of the water: the sinking prow.
+        void Prow(double bx, double bz, double byaw)
+        {
+            int plen = 10 + (int)(rand.NextDouble() * 6);
+            double ux = Math.Cos(byaw), uz = Math.Sin(byaw);
+            double px = -uz, pz = ux;
+            for (int k = 0; k < plen; k++)
+            {
+                double frac = k / (double)plen;
+                double bw = 3.2 * (1 - frac) + 0.4;               // narrows to the stem
+                int y0 = (int)Math.Round(sea - 4 + k * 0.75);     // climbs out of the sea
+                int xx = (int)Math.Round(bx + ux * k), zz = (int)Math.Round(bz + uz * k);
+                for (double q = -bw; q <= bw; q += 1.0)
+                    for (int h = 0; h < 3; h++)
+                    {
+                        if (Math.Abs(q) < bw - 1 && h > 0) continue;  // open deck, hull sides
+                        int x = (int)Math.Round(xx + px * q), z = (int)Math.Round(zz + pz * q);
+                        if (Hash01(x * 5 + h, z * 5 + k) < 0.20) continue; // torn
+                        Set(x, y0 + h, z, Hull());
+                    }
+                if (k == plen - 1)
+                    for (int h = 0; h < 2; h++) Set(xx, y0 + 3 + h, zz, Hull()); // stem post
+            }
+        }
+
         // Tangle nodes: every floating ruin registers here, and the truss pass
         // then lashes each one to its neighbours so the whole field reads as
         // wreckage holding wreckage above the deep.
         var nodes = new List<double[]>();
 
         // ── the titan: rolled onto its side, half-submerged, afloat over the
-        // deep. In the maelstrom it lies inside the divot, decks in the flow.
+        // deep. In the maelstrom it lies deep inside the divot, decks in the
+        // flow. Two masts skim sideways just above the water (the ship is on
+        // its side), and a giant corroded gear at the stern is its propeller.
         double tYaw = rand.NextDouble() * Math.PI * 2;
         int tLen = Math.Min(64, R + 10);
         double tX = cx + Math.Cos(tYaw + 2.2) * R * 0.18, tZ = cz + Math.Sin(tYaw + 2.2) * R * 0.18;
         int tWater = WaterAt(tX, tZ);
         Hull3(tX, tZ, tWater - 1, tYaw, 80 + rand.NextDouble() * 25, tLen, 8, 7, 1.7, 0.30, tWater);
+        for (int mi = -1; mi <= 1; mi += 2)
+        {
+            double mmx = tX + Math.Cos(tYaw) * tLen * 0.18 * mi, mmz = tZ + Math.Sin(tYaw) * tLen * 0.18 * mi;
+            Mast(mmx, mmz, tWater + 2, tYaw + Math.PI / 2, 0.10 + rand.NextDouble() * 0.12, 12 + (int)(rand.NextDouble() * 5));
+        }
+        double stX = tX - Math.Cos(tYaw) * tLen * 0.52, stZ = tZ - Math.Sin(tYaw) * tLen * 0.52;
+        Clutter((int)stX, tWater + 2, (int)stZ, "gearhugemetal15", tYaw + Math.PI / 2);
+        Clutter((int)(stX - Math.Sin(tYaw) * 2), tWater + 1, (int)(stZ + Math.Cos(tYaw) * 2), "gearhugemetal9", tYaw + Math.PI / 2);
         nodes.Add(new[] { tX, tZ, (double)(tWater + 2) });
         nodes.Add(new[] { tX + Math.Cos(tYaw) * tLen * 0.35, tZ + Math.Sin(tYaw) * tLen * 0.35, (double)(tWater + 2) });
         nodes.Add(new[] { tX - Math.Cos(tYaw) * tLen * 0.35, tZ - Math.Sin(tYaw) * tLen * 0.35, (double)(tWater + 2) });
 
-        // ── shattered segments: bow cones and blunt hull rings. Most float in
-        // the tangle at the local waterline; the last two sank all the way to
-        // the deep floor for whoever dares dive under the field.
-        int segs = 8 + (int)(rand.NextDouble() * 4);
+        // ── shattered segments, doubled up: bow cones and blunt hull rings.
+        // Two thirds float in the tangle at the local waterline; every third
+        // sank and rests on whatever is below, the deep floor or the top of a
+        // submerged spire, so divers find whole wrecks under the field.
+        int segs = 16 + (int)(rand.NextDouble() * 6);
         for (int i = 0; i < segs; i++)
         {
             double ang = rand.NextDouble() * Math.PI * 2;
-            double rr = def.Whirlpool && i < 3
-                ? 5 + rand.NextDouble() * (funnelR - 8)           // dragged into the divot
-                : R * (0.30 + rand.NextDouble() * 0.60);
+            double rr = def.Whirlpool && i < 6
+                ? 6 + rand.NextDouble() * (funnelR - 10)          // dragged into the divot
+                : R * (0.25 + rand.NextDouble() * 0.65);
             double sx = cx + rr * Math.Cos(ang), sz = cz + rr * Math.Sin(ang);
             int len = 8 + (int)(rand.NextDouble() * 10);
             double beam = 3.5 + rand.NextDouble() * 2.5;
             int wTop = WaterAt(sx, sz);
-            bool sunk = i >= segs - 2;
+            bool sunk = i % 3 == 2;
             double sy = sunk
                 ? Ground((int)sx, (int)sz) + beam * 0.4
                 : wTop - 0.5 - rand.NextDouble() * 2.0;
             double bow = rand.NextDouble() < 0.4 ? 1.7 : 8.0;     // 8 = blunt ring section
             Hull3(sx, sz, sy, rand.NextDouble() * Math.PI * 2, rand.NextDouble() * 180,
                 len, beam, beam * 0.85, bow, 0.45 + rand.NextDouble() * 0.25, wTop);
-            if (!sunk) nodes.Add(new[] { sx, sz, (double)(wTop + 1) });
+            if (!sunk)
+            {
+                nodes.Add(new[] { sx, sz, (double)(wTop + 1) });
+                // some floating segments raise a leaning mast
+                if (rand.NextDouble() < 0.30)
+                    Mast(sx, sz, wTop + 1, rand.NextDouble() * Math.PI * 2,
+                        0.5 + rand.NextDouble() * 0.6, 8 + (int)(rand.NextDouble() * 5));
+            }
         }
 
-        // ── the shape's own rock spires: find their summits so the tangle can
-        // lash onto them at the waterline.
+        // ── standalone set pieces: two sinking prows climbing out of the sea
+        // and two capsized keels, hull-up domes with an air pocket inside.
+        for (int i = 0; i < 2; i++)
+        {
+            double ang = rand.NextDouble() * Math.PI * 2, rr = R * (0.3 + rand.NextDouble() * 0.5);
+            double sx2 = cx + rr * Math.Cos(ang), sz2 = cz + rr * Math.Sin(ang);
+            Prow(sx2, sz2, rand.NextDouble() * Math.PI * 2);
+            nodes.Add(new[] { sx2, sz2, (double)(WaterAt(sx2, sz2) + 2) });
+        }
+        for (int i = 0; i < 2; i++)
+        {
+            double ang = rand.NextDouble() * Math.PI * 2, rr = R * (0.3 + rand.NextDouble() * 0.55);
+            double sx2 = cx + rr * Math.Cos(ang), sz2 = cz + rr * Math.Sin(ang);
+            int wTop = WaterAt(sx2, sz2);
+            Hull3(sx2, sz2, wTop - 1.5, rand.NextDouble() * Math.PI * 2, 175 + rand.NextDouble() * 10,
+                14 + (int)(rand.NextDouble() * 7), 4.5, 5.5, 1.7, 0.22, wTop);
+            Clutter((int)(sx2 - 8), wTop + 2, (int)sz2, "gearhugemetal9", rand.NextDouble() * Math.PI * 2);
+            nodes.Add(new[] { sx2, sz2, (double)(wTop + 2) });
+        }
+
+        // ── the shape's own rock: find summits near or above the waterline so
+        // the tangle can lash onto them.
         var spireSeen = new List<double[]>();
         for (int x = cx - R; x <= cx + R; x += 3)
             for (int z = cz - R; z <= cz + R; z += 3)
             {
-                if (DistC(x, z) > R || Ground(x, z) < sea + 2) continue;
+                if (DistC(x, z) > R || Ground(x, z) < sea - 1) continue;
                 bool near = false;
                 foreach (var sp in spireSeen)
                     if ((sp[0] - x) * (sp[0] - x) + (sp[1] - z) * (sp[1] - z) < 100) { near = true; break; }
@@ -4610,10 +4722,11 @@ storyloc devastationarea -2550 -8750
                 nodes.Add(new[] { (double)x, (double)z, (double)(sea + 1) });
             }
 
-        // ── the tangle: trusses of hull metal, real rusted pipework and junk
-        // beams run between nodes at the waterline, sagging toward the middle.
-        // Chains hang below, spikes ride on top, and deliberate gaps keep it
-        // torn rather than built.
+        // ── the tangle: trusses between neighbouring nodes, sagging toward
+        // the middle. The path is an axis-aligned staircase, so pipe runs
+        // stay straight with junction pieces at every bend: rectilinear
+        // wreck plumbing, never diagonal strings of pipe. Chains hang below,
+        // spikes ride on top, and deliberate gaps keep it torn.
         var linked = new HashSet<long>();
         for (int i = 0; i < nodes.Count; i++)
         {
@@ -4626,7 +4739,7 @@ storyloc devastationarea -2550 -8750
                     order.Add((dd, j));
                 }
             order.Sort((a, b) => a.D.CompareTo(b.D));
-            int links = i == 0 ? 3 : 2;
+            int links = i == 0 ? 4 : 3;
             for (int L = 0; L < Math.Min(links, order.Count); L++)
             {
                 (double dd, int j) = order[L];
@@ -4635,30 +4748,43 @@ storyloc devastationarea -2550 -8750
                 if (!linked.Add(key)) continue;
 
                 double ax = nodes[i][0], az = nodes[i][1], ay = nodes[i][2];
-                double bx = nodes[j][0], bz = nodes[j][1], by = nodes[j][2];
-                double heading = Math.Atan2(bz - az, bx - ax);
+                double by = nodes[j][2];
                 double phase = Hash01(i * 31, j * 17) * 6.28;
-                int steps = (int)Math.Ceiling(dd);
-                for (int k = 0; k <= steps; k++)
+                int x = (int)Math.Round(ax), z = (int)Math.Round(az);
+                int gx2 = (int)Math.Round(nodes[j][0]), gz2 = (int)Math.Round(nodes[j][1]);
+                int total = Math.Abs(gx2 - x) + Math.Abs(gz2 - z);
+                bool lastAxisX = Math.Abs(gx2 - x) >= Math.Abs(gz2 - z);
+                int k = 0;
+                while ((x != gx2 || z != gz2) && k < 96)
                 {
-                    double f = k / (double)steps;
-                    int x = (int)Math.Round(ax + (bx - ax) * f);
-                    int z = (int)Math.Round(az + (bz - az) * f);
+                    double f = total == 0 ? 1 : k / (double)total;
                     int y = (int)Math.Round(ay + (by - ay) * f
                         - Math.Sin(f * Math.PI) * 1.5 + Math.Sin(k * 0.55 + phase) * 0.8);
+                    bool stepX = Math.Abs(gx2 - x) * (0.7 + Hash01(x, z) * 0.6) >= Math.Abs(gz2 - z);
+                    bool corner = k > 0 && stepX != lastAxisX;
+                    double axisRot = stepX ? 0.0 : Math.PI / 2;
                     double roll = Hash01(x * 3 + k, z * 5 - k);
-                    if (roll < 0.40) Set(x, y, z, Hull());
-                    else if (roll < 0.66) Clutter(x, y, z, pipeTypes[(int)(rand.NextDouble() * pipeTypes.Length)], heading);
-                    else if (roll < 0.76) Clutter(x, y, z, beamTypes[(int)(rand.NextDouble() * beamTypes.Length)], heading);
-                    else if (roll < 0.83) Set(x, y, z, rand.NextDouble() < 0.5 ? fenceNS : fenceEW);
-                    else continue;                                 // a torn gap
-                    if (Hash01(x, z + 77) < 0.16)
-                        Clutter(x, y - 1, z, chainTypes[(int)(rand.NextDouble() * chainTypes.Length)], heading);
-                    if (y > sea && Hash01(x + 5, z) < 0.06)
+                    if (corner && roll < 0.66)
+                        Clutter(x, y, z, pipeJoints[(int)(rand.NextDouble() * pipeJoints.Length)], axisRot);
+                    else if (roll < 0.38) Set(x, y, z, Hull());
+                    else if (roll < 0.62)
+                        Clutter(x, y, z, longPipes[(int)(rand.NextDouble() * longPipes.Length)], axisRot);
+                    else if (roll < 0.72)
+                        Clutter(x, y, z, beamTypes[(int)(rand.NextDouble() * beamTypes.Length)], axisRot);
+                    else if (roll < 0.80) Set(x, y, z, stepX ? fenceEW : fenceNS);
+                    if (roll < 0.80)
                     {
-                        int sp = spikes[(int)(rand.NextDouble() * 3)];
-                        if (sp != 0) Set(x, y + 1, z, sp);
+                        if (Hash01(x, z + 77) < 0.20)
+                            Clutter(x, y - 1, z, chainTypes[(int)(rand.NextDouble() * chainTypes.Length)], axisRot);
+                        if (y > sea && Hash01(x + 5, z) < 0.06)
+                        {
+                            int sp = spikes[(int)(rand.NextDouble() * 3)];
+                            if (sp != 0) Set(x, y + 1, z, sp);
+                        }
                     }
+                    lastAxisX = stepX;
+                    if (stepX) x += Math.Sign(gx2 - x); else z += Math.Sign(gz2 - z);
+                    k++;
                 }
             }
         }
@@ -4666,39 +4792,39 @@ storyloc devastationarea -2550 -8750
         // ── junk knots around every node: where ruins meet, debris jams up.
         foreach (var nd in nodes)
         {
-            int n = 3 + (int)(rand.NextDouble() * 5);
+            int n = 5 + (int)(rand.NextDouble() * 6);
             for (int q = 0; q < n; q++)
             {
-                int x = (int)(nd[0] + (rand.NextDouble() - 0.5) * 7);
-                int z = (int)(nd[1] + (rand.NextDouble() - 0.5) * 7);
+                int x = (int)(nd[0] + (rand.NextDouble() - 0.5) * 8);
+                int z = (int)(nd[1] + (rand.NextDouble() - 0.5) * 8);
                 int y = (int)(nd[2] + (rand.NextDouble() - 0.5) * 3);
                 double r0 = rand.NextDouble();
                 if (r0 < 0.40) Set(x, y, z, Hull());
-                else if (r0 < 0.70) Clutter(x, y, z, pipeTypes[(int)(rand.NextDouble() * pipeTypes.Length)], rand.NextDouble() * Math.PI * 2);
+                else if (r0 < 0.68) Clutter(x, y, z, pipeJoints[(int)(rand.NextDouble() * pipeJoints.Length)], rand.NextDouble() * Math.PI * 2);
                 else Clutter(x, y, z, junkTypes[(int)(rand.NextDouble() * junkTypes.Length)], rand.NextDouble() * Math.PI * 2);
             }
         }
 
-        // ── spire flanks: rust crust and shoreline litter where rock meets the
-        // water. The deep floor between spires stays empty dark water, apart
-        // from the couple of hulls that went all the way down.
+        // ── rock flanks: rust crust and litter wherever rock comes near the
+        // waterline, submerged spire tops included. The truly deep floor
+        // stays empty dark water apart from the sunken hulls.
         for (int x = cx - R; x <= cx + R; x++)
             for (int z = cz - R; z <= cz + R; z++)
             {
                 double d = DistC(x, z);
                 if (d > R) continue;
-                if (def.Whirlpool && d < funnelR + 2) continue;
                 int g = Ground(x, z);
-                if (g < sea - 8) continue;                         // waterline rock only
+                if (g < sea - 12) continue;                        // near-waterline rock only
+                if (def.Whirlpool && g < SurfY(d)) continue;       // under the swirl surface: leave it
                 if (drock != 0 && Hash01(x * 7, z * 13) < 0.35) Set(x, g, z, drock);
 
                 double roll = rand.NextDouble();
-                double p0 = 0.10 * Math.Pow(1 - d / (R + 1.0), 0.5) + 0.02;
+                double p0 = 0.16 * Math.Pow(1 - d / (R + 1.0), 0.5) + 0.03;
                 if (roll > p0) continue;
 
                 double kind = rand.NextDouble();
                 if (kind < 0.30)
-                    Clutter(x, g + 1, z, pipeTypes[(int)(rand.NextDouble() * pipeTypes.Length)], rand.NextDouble() * Math.PI * 2);
+                    Clutter(x, g + 1, z, pipeJoints[(int)(rand.NextDouble() * pipeJoints.Length)], rand.NextDouble() * Math.PI * 2);
                 else if (kind < 0.45)
                 {
                     // a jutting beam: a rising diagonal of hull metal

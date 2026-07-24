@@ -569,3 +569,17 @@ culled at conversion time.
   nothing is drained; liquids only recompute on block updates, so the
   sculpted sea holds until disturbed. (A truly DRAINED pit below sea
   level would still need the 0.46.0 sealed basin.)
+- 0.48.0 feedback round, all worth reusing: make the maelstrom VAST
+  (radius 85% of the field, 26 deep; a spectacle, not a feature at the
+  center) and let it wrap around any rock that breaks its local surface
+  instead of keeping the bowl clear. Rock formations low or submerged
+  beat tall spires for a wreck field: flood=3 regions make fully
+  submerged sheer columns whose tops sit a few blocks under the surface
+  (and inside a deep divot they re-EMERGE through the swirl). Long pipes
+  must NEVER run diagonally: walk trusses as axis-aligned staircases and
+  put junkpipe junction shapes at every bend. Ship parts sell "ship" far
+  better than more debris: masts with yards + chain rigging (a rolled
+  ship's masts skim sideways just above the water), sinking prows,
+  capsized keel-up hulls (roll ~180, air pocket inside), gearhugemetal
+  clutter as propellers. devastatedsoil-N silted into hull tear holes
+  with devgrowth-{thorns,bush,shrike} on top reads as reclamation.

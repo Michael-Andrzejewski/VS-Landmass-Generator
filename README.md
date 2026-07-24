@@ -204,8 +204,9 @@ dungeon slab box ignores the island clipping the real pass applies.
 
 ### Wreck fields (`wreck <char> ...`)
 
-A floating metallic wreckage field structure pass (reworked in 0.47.0):
-`wreck W radius=55 whirlpool=0 seed=7` plus a `W` at the field center.
+A floating metallic wreckage field structure pass (reworked in 0.47.0,
+densified in 0.48.0): `wreck W radius=55 whirlpool=0 seed=7` plus a `W`
+at the field center.
 Builds from corroded rusty-iron metal blocks, REAL rusted pipework and
 machinery junk (the devastation clutter shapes: junkpipe junctions, broken
 pipe ends, pipelong runs, junk beams, hanging chains, tanks, valves),
@@ -217,28 +218,42 @@ devastation rock. Meant for a shape of sheer rock spires over deep water
   and AFLOAT over the deep, plating torn open by coherent noise with the
   rib cage surviving, spiky metal along the torn edges, interior flooded
   below the local waterline.
-- 8-12 shattered segments (bow cones, open hull rings) floating at the
-  waterline; the last two sank all the way to the deep floor for divers.
+- 16-21 shattered segments (bow cones, open hull rings); two thirds float
+  at the waterline, every third sank and rests on whatever is below it,
+  the deep floor or the top of a submerged spire.
+- Recognizable ship parts (0.48.0): masts with yard crossbeams and chain
+  rigging (the titan's two masts skim sideways just above the water,
+  since the ship lies on its side), two sinking prows climbing steeply
+  out of the sea, two capsized keel-up hulls with air pockets inside,
+  and giant corroded gears as propellers at the sterns.
+- Devastated soil silts into some hull tear holes above the waterline and
+  thorny devastation growth (devgrowth-thorns/bush/shrike) climbs out.
 - The tangle: every floating ruin and every rock spire summit is a node,
   and sagging trusses of hull metal, pipework, junk beams and fence stubs
   run between neighbouring nodes at the waterline, with chains hanging
   below and spikes on top. The ruins visibly hold each other up; the deep
-  water underneath stays empty and dark.
+  water underneath stays empty and dark. Truss paths are axis-aligned
+  staircases (0.48.0), so long pipes only ever run straight along an
+  axis, with junction pieces (junkpipe shapes) at every bend: rectilinear
+  wreck plumbing, never diagonal strings of pipe.
 - Junk knots at every node, plus rust crust and shoreline litter on spire
   flanks near the waterline (`drock`, piles, spikes, jutting beams).
 - Clutter shapes live on a block entity, so the pass records them during
   the bulk build and stamps them through the live accessor after commit
   (type + rotateY on `BEBehaviorShapeFromAttributes`).
-- `whirlpool=1` (the maelstrom): a divot pressed into the open sea itself.
-  No rim, no drained pit: each column inside the funnel keeps the full
+- `whirlpool=1` (the maelstrom): a VAST divot pressed into the open sea
+  itself, radius ~85% of the field and 26 deep at the eye (0.48.0). No
+  rim, no drained pit: each column inside the funnel keeps the full
   ocean below and loses only the water above the local cone surface, and
   that surface block is REAL directional flowing water
   (`saltwater-{n,ne,e,...}-{level}`) spiraling inward, so the whole bowl
   visibly runs downhill into a 2x2 down-flow throat at the eye. The cone's
   slope stays under one block per block, so the flowing staircase covers
   it with no exposed walls. Wrecks inside ride the lowered surface, so the
-  streams pour into their torn hulls. Liquids only recompute on block
-  updates, so the sculpted sea holds its shape until a player disturbs it.
+  streams pour into their torn hulls, and rock tall enough to break the
+  local surface stands proud with the swirl wrapping around it. Liquids
+  only recompute on block updates, so the sculpted sea holds its shape
+  until a player disturbs it.
 
 ### Ocean plunge (`ocean plunge=N`)
 
