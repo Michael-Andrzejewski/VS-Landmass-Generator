@@ -149,6 +149,9 @@ function run(shapes) {
     clearTimeout(deadline);
     const missing = shapes.filter((n, i) => !fs.existsSync(expected[i]));
     if (missing.length) { console.error(`[dumpgen] server exited (${code}); missing dumps: ${missing.join(', ')}`); process.exit(1); }
+    log('refreshing viewer/blockcolors.json');
+    const py = spawnSync('python', [path.join(repo, 'tools', 'gen_blockcolors.py')], { stdio: 'inherit', timeout: 300000 });
+    if (py.status !== 0) console.error('[dumpgen] gen_blockcolors.py failed; dump colors may be stale');
     log(`done. Dumps in ${dumpDir}`);
     process.exit(0);
   });

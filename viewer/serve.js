@@ -30,6 +30,18 @@ http.createServer((req, res) => {
     return;
   }
 
+  // Exact block dumps (written by tools/dumpgen.mjs) for the dropdown.
+  if (req.url.startsWith('/dumplist')) {
+    let names = [];
+    try {
+      names = fs.readdirSync(path.join(ROOT, 'export', 'data', 'LandmassGenerator', 'dumps'))
+        .filter((f) => f.endsWith('.lmd'))
+        .map((f) => f.replace(/\.lmd$/, ''));
+    } catch (e) { /* no dumps yet */ }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(names));
+  }
+
   // Shape list for the dropdown.
   if (req.url.startsWith('/list')) {
     let names = [];

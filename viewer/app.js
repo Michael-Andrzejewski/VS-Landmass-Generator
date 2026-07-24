@@ -892,6 +892,175 @@ function applyToggles() {
   const wtr = document.getElementById('wtr').checked;
   for (const m of caveMats) { m.depthTest = !xray; m.needsUpdate = true; }
   if (group) group.traverse((o) => { if (o.name === 'water') o.visible = wtr; });
+  if (dumpGroup) dumpGroup.traverse((o) => { if (o.name === 'water') o.visible = wtr; });
+  render();
+}
+
+// ── exact dump mode ───────────────────────────────────────────────────────
+// Renders an .lmd block dump written by the headless pipeline
+// (tools/dumpgen.mjs). Every voxel here is a block the real generator
+// placed, read back out of a real world: this view cannot drift from the
+// game. Colors are texture averages from viewer/blockcolors.json.
+
+let dumpGroup = null;
+let dumpMats = [];
+let blockColors = null;
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e6);
+renderer.localClippingEnabled = true;
+
+function hideDump() {
+  if (!dumpGroup) return;
+  scene.remove(dumpGroup);
+  dumpGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  dumpGroup = null;
+  dumpMats = [];
+  document.getElementById('cliprow').style.display = 'none';
+}
+
+function jsHashColor(code) {
+  let h = 0;
+  for (const c of code) h = (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0;
+  return [90 + h % 90, 90 + (h >>> 8) % 90, 90 + (h >>> 16) % 90];
+}
+
+// 0 air, 1 solid, 2 water, 3 glow, 4 translucent
+function classify(code) {
+  if (code === 'air') return 0;
+  const c = code.split(':').pop();
+  if (/^(salt)?water|^boilingwater/.test(c)) return 2;
+  if (/ghostlight|^lava|glowworms|^ember/.test(c)) return 3;
+  if (/^glass|^lakeice|^spiderweb/.test(c)) return 4;
+  return 1;
+}
+
+async function loadDump(name) {
+  info.textContent = 'loading dump ' + name + '...';
+  hideDump();
+  try {
+    if (!blockColors) blockColors = await (await fetch('/viewer/blockcolors.json', { cache: 'no-store' })).json();
+    const res = await fetch('/export/data/LandmassGenerator/dumps/' + name + '.lmd', { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status);
+    const raw = await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    const dv = new DataView(raw);
+    if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== 'LMD1') throw new Error('bad magic');
+    const hlen = dv.getInt32(4, true);
+    const h = JSON.parse(new TextDecoder().decode(new Uint8Array(raw, 8, hlen)));
+    const { sx, sy, sz, ox, oy, oz, sea, cx, cz } = h;
+
+    // RLE -> flat volume, x fastest, then z, then y.
+    const vol = new Uint16Array(sx * sy * sz);
+    const counts = new Uint32Array(h.palette.length);
+    let p = 8 + hlen, at = 0;
+    while (p + 6 <= raw.byteLength && at < vol.length) {
+      const n = dv.getUint32(p, true), idx = dv.getUint16(p + 4, true);
+      p += 6;
+      counts[idx] += n;
+      if (idx !== 0) vol.fill(idx, at, at + n);
+      at += n;
+    }
+
+    const klass = h.palette.map(classify);
+    const cols = h.palette.map((code) => {
+      const c = blockColors[code] || jsHashColor(code);
+      return [c[0] / 255, c[1] / 255, c[2] / 255];
+    });
+
+    // One geometry per class: opaque (shaded), water + translucent
+    // (transparent), glow (full bright).
+    const shade = { px: 0.8, nx: 0.8, py: 1.0, ny: 0.45, pz: 0.66, nz: 0.66 };
+    const B = { 1: mkBuf(), 2: mkBuf(), 3: mkBuf(), 4: mkBuf() };
+    function mkBuf() { return { pos: [], col: [], idx: [], n: 0 }; }
+    const cell = (x, y, z) => (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) ? 0 : vol[(y * sz + z) * sx + x];
+
+    // A face shows against air, or where a solid meets water/translucent.
+    function faceVisible(self, other) {
+      if (other === 0) return true;
+      const ks = klass[self], ko = klass[other];
+      if (ks === ko) return false;
+      if (ks === 1 || ks === 3) return ko === 2 || ko === 4;
+      return false;
+    }
+
+    const X0 = ox - cx, Y0 = oy - sea, Z0 = oz - cz; // render space: island centre at 0, sea at 0
+    function quad(b, verts, rgb, s) {
+      const base = b.n;
+      for (const v of verts) { b.pos.push(v[0], v[1], v[2]); b.col.push(rgb[0] * s, rgb[1] * s, rgb[2] * s); }
+      b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      b.n += 4;
+    }
+
+    for (let y = 0; y < sy; y++)
+    for (let z = 0; z < sz; z++)
+    for (let x = 0; x < sx; x++) {
+      const v = vol[(y * sz + z) * sx + x];
+      if (v === 0) continue;
+      const k = klass[v];
+      const b = B[k];
+      const rgb = cols[v];
+      const wx = X0 + x, wy = Y0 + y, wz = Z0 + z;
+      const glow = k === 3;
+      if (faceVisible(v, cell(x, y + 1, z))) quad(b, [[wx, wy + 1, wz], [wx, wy + 1, wz + 1], [wx + 1, wy + 1, wz + 1], [wx + 1, wy + 1, wz]], rgb, glow ? 1 : shade.py);
+      if (faceVisible(v, cell(x, y - 1, z))) quad(b, [[wx, wy, wz], [wx + 1, wy, wz], [wx + 1, wy, wz + 1], [wx, wy, wz + 1]], rgb, glow ? 1 : shade.ny);
+      if (faceVisible(v, cell(x + 1, y, z))) quad(b, [[wx + 1, wy, wz], [wx + 1, wy + 1, wz], [wx + 1, wy + 1, wz + 1], [wx + 1, wy, wz + 1]], rgb, glow ? 1 : shade.px);
+      if (faceVisible(v, cell(x - 1, y, z))) quad(b, [[wx, wy, wz + 1], [wx, wy + 1, wz + 1], [wx, wy + 1, wz], [wx, wy, wz]], rgb, glow ? 1 : shade.nx);
+      if (faceVisible(v, cell(x, y, z + 1))) quad(b, [[wx + 1, wy, wz + 1], [wx + 1, wy + 1, wz + 1], [wx, wy + 1, wz + 1], [wx, wy, wz + 1]], rgb, glow ? 1 : shade.pz);
+      if (faceVisible(v, cell(x, y, z - 1))) quad(b, [[wx, wy, wz], [wx, wy + 1, wz], [wx + 1, wy + 1, wz], [wx + 1, wy, wz]], rgb, glow ? 1 : shade.nz);
+    }
+
+    dumpGroup = new THREE.Group();
+    const mats = {
+      1: new THREE.MeshBasicMaterial({ vertexColors: true, clippingPlanes: [clipPlane] }),
+      2: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.42, depthWrite: false, clippingPlanes: [clipPlane] }),
+      3: new THREE.MeshBasicMaterial({ vertexColors: true, clippingPlanes: [clipPlane] }),
+      4: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: [clipPlane] }),
+    };
+    for (const k of [1, 3, 4, 2]) {
+      const b = B[k];
+      if (!b.n) continue;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
+      g.setIndex(b.idx);
+      const mesh = new THREE.Mesh(g, mats[k]);
+      if (k === 2) mesh.name = 'water';
+      dumpGroup.add(mesh);
+      dumpMats.push(mats[k]);
+    }
+    if (group) group.visible = false;
+    scene.add(dumpGroup);
+
+    // Cutaway defaults to fully open; slider sweeps a z clipping plane.
+    dumpDims = { sz, Z0 };
+    document.getElementById('cliprow').style.display = '';
+    document.getElementById('clip').value = 100;
+    applyClip();
+    applyToggles();
+
+    const solid = counts.reduce((a, c, i) => a + (i && klass[i] !== 2 ? c : 0), 0);
+    rad = Math.max(rad, Math.max(sx, sz) * 1.05);
+    updateCam();
+
+    // Legend: the most common blocks in view.
+    const order = [...counts.keys()].filter((i) => i > 0 && klass[i] !== 2).sort((a, b) => counts[b] - counts[a]).slice(0, 12);
+    legend.innerHTML = '';
+    for (const i of order) {
+      const c = cols[i].map((v) => Math.round(v * 255));
+      legend.innerHTML += `<span class="sw" style="background:rgb(${c[0]},${c[1]},${c[2]})"></span>`
+        + `${h.palette[i].split(':').pop()}: ${counts[i].toLocaleString()}<br>`;
+    }
+    info.textContent = `${name} (exact dump): ${sx}x${sy}x${sz}, sea y=${sea}`
+      + `\n${solid.toLocaleString()} non-water blocks, ${h.palette.length} block types`
+      + `\nevery voxel = a real generated block`;
+  } catch (e) {
+    info.textContent = 'failed to load dump ' + name + ': ' + e.message;
+  }
+}
+
+let dumpDims = null;
+function applyClip() {
+  if (!dumpDims) return;
+  const v = parseInt(document.getElementById('clip').value, 10) / 100;
+  clipPlane.constant = v >= 1 ? 1e6 : dumpDims.Z0 + 1 + v * (dumpDims.sz - 1);
   render();
 }
 
@@ -966,6 +1135,8 @@ function refresh() {
 
 async function load(name) {
   info.textContent = 'loading ' + name + '...';
+  hideDump();
+  if (group) group.visible = true;
   try {
     const res = await fetch('/shapes/' + name + '.txt');
     if (!res.ok) throw new Error(res.status);
@@ -978,15 +1149,46 @@ async function load(name) {
   }
 }
 
-sel.addEventListener('change', () => load(sel.value));
+function openSelection() {
+  const v = sel.value;
+  if (v.startsWith('dump:')) loadDump(v.slice(5));
+  else load(v);
+}
+sel.addEventListener('change', openSelection);
+document.getElementById('reload').addEventListener('click', async () => {
+  blockColors = null; // colors may have been regenerated alongside new dumps
+  await refreshDumpList();
+  openSelection();
+});
 document.getElementById('dia').addEventListener('change', refresh);
 document.getElementById('hgt').addEventListener('change', refresh);
 document.getElementById('xray').addEventListener('change', applyToggles);
 document.getElementById('wtr').addEventListener('change', applyToggles);
+document.getElementById('clip').addEventListener('input', applyClip);
+
+async function refreshDumpList() {
+  const dumps = await (await fetch('/dumplist', { cache: 'no-store' })).json();
+  let og = document.getElementById('dumpgroup');
+  if (!og) {
+    og = document.createElement('optgroup');
+    og.id = 'dumpgroup';
+    og.label = 'exact dumps (block for block)';
+    sel.appendChild(og);
+  }
+  const have = new Set([...og.children].map((o) => o.value));
+  for (const n of dumps) {
+    if (have.has('dump:' + n)) continue;
+    const o = document.createElement('option');
+    o.value = 'dump:' + n;
+    o.textContent = n;
+    og.appendChild(o);
+  }
+}
 
 (async () => {
   const names = await (await fetch('/list')).json();
   for (const n of names) { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); }
+  await refreshDumpList();
   const start = names.includes('starter_island') ? 'starter_island' : names[0];
   sel.value = start;
   updateCam();

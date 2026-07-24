@@ -209,6 +209,17 @@ public class LandmassGeneratorModSystem : ModSystem
         api.Event.SaveGameLoaded += () =>
         {
             var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
+            // A pending dumpjobs.txt marks the headless dump world: force the
+            // same pure ocean a Rustfall world gets (serverconfig.json world
+            // overrides are ignored at world creation), but skip the full
+            // Rustfall story setup.
+            if (File.Exists(Path.Combine(shapeFolder, "dumpjobs.txt")))
+            {
+                wc.SetString("landcover", "0");
+                wc.SetString("upheavelCommonness", "0");
+                wc.SetBool("lgPureOcean", true);
+                sapi.Logger.Notification("[dump] dump world detected, forcing pure ocean config");
+            }
             if (!wc.GetBool("rustfallWorld", false)) return;
             wc.SetString("landcover", "0");
             wc.SetString("upheavelCommonness", "0");

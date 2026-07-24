@@ -27,6 +27,10 @@
     <div class="row">
       <label><input id="xray" type="checkbox" checked> x-ray caves</label>
       <label><input id="wtr" type="checkbox" checked> water</label>
+      <button id="reload" title="re-fetch the current selection">reload</button>
+    </div>
+    <div class="row" id="cliprow" style="display:none">
+      <label>cutaway <input id="clip" type="range" min="0" max="100" value="100" style="width:150px;vertical-align:middle"></label>
     </div>
     <div id="info">loading...</div>
     <div id="legend"></div>
