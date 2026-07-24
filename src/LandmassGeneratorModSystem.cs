@@ -5582,66 +5582,89 @@ storyloc devastationarea -2550 -8750
                             if (Hash01(x + y * 3, z - y) < 0.2) continue;
                             Set(x, y, z, frame ? band : glass != 0 ? glass : 0);
                         }
-                if (glow != 0) Set(lx2, lb + 2, lz2, glow);
+                Glow(lx2, lb + 2, lz2, glow);
                 break;
             }
 
-            // ── THE CHAINFIELD ────────────────────────────────────────────
-            // No island. Colossal anchor chains rise taut out of the deep at
-            // angles, some sagging between two anchors, some carrying wrecks
-            // still hooked mid-air. The links are wide enough to walk.
+            // ── THE SEALED ORB ────────────────────────────────────────────
+            // Something eldritch was shelled in devastated rock, chained to
+            // the mantle, and rose to the surface anyway. The orb floats
+            // half-out of the sea, thorned and overgrown, its shell cracked
+            // and leaking green light; the chains run taut from its hide
+            // straight down through the water and into the rock below.
             case "chains":
             {
-                int n = 12;
+                int drockId = drock != 0 ? drock : rustA;
+                int dsoil = IdFirst("devastatedsoil-3", "devastatedsoil-1", "devastatedsoil-6");
+                int[] growth = {
+                    Id("devgrowth-thorns"), Id("devgrowth-thorns"), Id("devgrowth-shard"),
+                    Id("devgrowth-shrike"), Id("devgrowth-bush") };
+                int glowG2 = IdFirst("landmassgenerator:ghostlight-green", "underwaterhorrors:ghostlight-green");
+                if (dsoil == 0) dsoil = drockId;
+
+                double orbR = Math.Clamp(def.Size * 0.3, 12, 24);      // size=60 -> 18
+                double oy = sea + orbR * 0.25;                          // stuck floating, most of it out
+
+                // crack planes: two great-circle slashes across the upper shell
+                double ca1 = rand.NextDouble() * Math.PI, ca2 = ca1 + 1.1 + rand.NextDouble() * 0.9;
+                double n1x = Math.Cos(ca1), n1z = Math.Sin(ca1);
+                double n2x = Math.Cos(ca2), n2z = Math.Sin(ca2);
+
+                for (int x = (int)(cx - orbR - 1); x <= (int)(cx + orbR + 1); x++)
+                    for (int z = (int)(cz - orbR - 1); z <= (int)(cz + orbR + 1); z++)
+                        for (int y = (int)(oy - orbR - 1); y <= (int)(oy + orbR + 1); y++)
+                        {
+                            double dx = x - cx, dy = y - oy, dz = z - cz;
+                            double d3 = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                            if (d3 > orbR + 0.4) continue;
+                            if (d3 > orbR - 3.0)
+                            {
+                                bool crack = y > sea + 1
+                                    && (Math.Abs(dx * n1x + dz * n1z) < 1.1 || Math.Abs(dx * n2x + dz * n2z) < 1.1)
+                                    && Hash01(x * 3 + y, z * 3 - y) < 0.8;
+                                if (crack) { Set(x, y, z, 0); continue; }
+                                double mn = Hash01(x * 5 + y * 3, z * 5 - y * 2);
+                                Set(x, y, z, mn < 0.35 ? dsoil : drockId);
+                            }
+                            else
+                            {
+                                // sealed hollow: dry dark, a glowing heart
+                                bool heart = Math.Abs(dx) <= 1 && Math.Abs(dy) <= 1 && Math.Abs(dz) <= 1;
+                                if (heart) Glow(x, y, z, glowG2);
+                                Set(x, y, z, 0);
+                            }
+                        }
+
+                // devastation growth crusting the dry hide
+                for (int i = 0; i < 90; i++)
+                {
+                    double ga = Hash01(i * 7, def.Seed) * Math.PI * 2;
+                    double gp = Hash01(i * 13, def.Seed * 3) * 1.15;        // upper hemisphere bias
+                    double gx3 = Math.Cos(ga) * Math.Cos(gp), gy3 = Math.Sin(gp), gz3 = Math.Sin(ga) * Math.Cos(gp);
+                    int px = (int)Math.Round(cx + gx3 * (orbR - 0.6));
+                    int py = (int)Math.Round(oy + gy3 * (orbR - 0.6));
+                    int pz = (int)Math.Round(cz + gz3 * (orbR - 0.6));
+                    if (py + 1 <= sea + 1) continue;
+                    int g2 = growth[(int)(Hash01(i, 29) * growth.Length) % growth.Length];
+                    if (g2 == 0) continue;
+                    Set(px, py, pz, dsoil);                                 // growth roots in devastated soil
+                    Set(px, py + 1, pz, g2);
+                }
+
+                // the chains: taut from the hide straight down into the rock.
+                // The block writer refuses anything below y=5, so "the mantle"
+                // is y=6 here; the run still carves through the whole seabed.
+                int n = 9;
                 for (int i = 0; i < n; i++)
                 {
-                    double a0 = i * Math.PI * 2 / n + rand.NextDouble() * 0.5;
-                    double r0 = R * (0.5 + rand.NextDouble() * 0.45);
-                    double ax = cx + Math.Cos(a0) * r0, az = cz + Math.Sin(a0) * r0;
-                    int ag = Ground((int)ax, (int)az);
-                    // anchor plate on the seabed
-                    for (int x = (int)ax - 3; x <= (int)ax + 3; x++)
-                        for (int z = (int)az - 3; z <= (int)az + 3; z++)
-                            for (int y = ag; y <= ag + 2; y++)
-                                if (Hash01(x, z + y) < 0.85) Set(x, y, z, Rust());
-
-                    if (rand.NextDouble() < 0.6)
-                    {
-                        // taut riser: through the field's heart and up into the
-                        // sky-fog, ending in torn air
-                        double bxT = cx + Math.Cos(a0 + Math.PI + (rand.NextDouble() - 0.5) * 0.8) * R * 0.3;
-                        double bzT = cz + Math.Sin(a0 + Math.PI + (rand.NextDouble() - 0.5) * 0.8) * R * 0.3;
-                        double topY2 = sea + 42 + rand.NextDouble() * 26;
-                        ChainRun(ax, ag + 2, az, bxT, topY2, bzT, 0, 2.2);
-                        if (i % 4 == 1)
-                        {
-                            // a wreck still hooked on, dangling above the sea
-                            double f = 0.45 + rand.NextDouble() * 0.2;
-                            double wx2 = ax + (bxT - ax) * f, wz2 = az + (bzT - az) * f;
-                            double wy2 = (ag + 2) + (topY2 - ag - 2) * f;
-                            if (wy2 < sea + 6) wy2 = sea + 6;
-                            HullTube(wx2, wy2, wz2, rand.NextDouble() * Math.PI * 2,
-                                60 + rand.NextDouble() * 60, 10 + (int)(rand.NextDouble() * 5), 3.5, 3.0, 0.45);
-                            ChainRun(wx2, wy2 - 2, wz2, wx2 + 2, wy2 - 10, wz2 + 1, 0, 1.6); // torn tail below
-                        }
-                    }
-                    else
-                    {
-                        // slack span between two seabed anchors, dipping near
-                        // the surface at the middle: the walkable ones
-                        double a1 = a0 + 1.6 + rand.NextDouble() * 1.6;
-                        double r1 = R * (0.5 + rand.NextDouble() * 0.45);
-                        double bx2 = cx + Math.Cos(a1) * r1, bz2 = cz + Math.Sin(a1) * r1;
-                        int bg = Ground((int)bx2, (int)bz2);
-                        for (int x = (int)bx2 - 3; x <= (int)bx2 + 3; x++)
-                            for (int z = (int)bz2 - 3; z <= (int)bz2 + 3; z++)
-                                for (int y = bg; y <= bg + 2; y++)
-                                    if (Hash01(x, z + y) < 0.85) Set(x, y, z, Rust());
-                        double peak = sea + 14 + rand.NextDouble() * 10;
-                        double mx = (ax + bx2) / 2, mz = (az + bz2) / 2;
-                        ChainRun(ax, ag + 2, az, mx, peak, mz, 3, 2.2);
-                        ChainRun(mx, peak, mz, bx2, bg + 2, bz2, 3, 2.2);
-                    }
+                    double a0 = i * Math.PI * 2 / n + rand.NextDouble() * 0.35;
+                    double tilt = 0.55 + rand.NextDouble() * 0.5;           // rad below horizontal
+                    double ax = cx + Math.Cos(a0) * Math.Cos(tilt) * (orbR - 1);
+                    double ay = oy - Math.Sin(tilt) * (orbR - 1);
+                    double az = cz + Math.Sin(a0) * Math.Cos(tilt) * (orbR - 1);
+                    double gr = R * (0.55 + rand.NextDouble() * 0.4);
+                    double gxE = cx + Math.Cos(a0) * gr, gzE = cz + Math.Sin(a0) * gr;
+                    ChainRun(ax, ay, az, gxE, 6, gzE, 0, 2.0);
                 }
                 break;
             }
