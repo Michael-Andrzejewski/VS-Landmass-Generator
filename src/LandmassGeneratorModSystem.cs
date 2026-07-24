@@ -5670,32 +5670,33 @@ storyloc devastationarea -2550 -8750
             }
 
             // ── THE KNEELING COLOSSUS ─────────────────────────────────────
-            // A 110-block armored giant kneeling on the deep floor, falx arm
-            // outstretched, shield tucked at the chest. Only the crown of the
-            // great helm and the falx blade break the surface. Steel plate
-            // with gold trim; the deep half is corroding.
+            // A 110-block giant kneeling on the deep floor, carved from the
+            // local rock with rusted-iron highlights: iron-edged part rims,
+            // corroded plate courses, a rusted blade, ghostlight eyes behind
+            // the visor and glowing crown studs. No ore, no gold, nothing
+            // shiny. Only the crown and the blade break the surface.
             case "colossus":
             {
-                int gold = IdFirst(
-                    "ore-bountiful-quartz_nativegold-granite", "ore-rich-quartz_nativegold-granite",
-                    "ore-bountiful-quartz_nativegold-andesite", "ore-rich-quartz_nativegold-andesite");
+                int body = job.StoneId;
+                int glowEye = IdFirst("landmassgenerator:ghostlight-green", "underwaterhorrors:ghostlight-green");
+                int glowStud = IdFirst("landmassgenerator:ghostlight-blue", "underwaterhorrors:ghostlight-blue");
+                int trim = rustB != 0 ? rustB : rustA;
                 double yaw = rand.NextDouble() * Math.PI * 2;
                 double cyw = Math.Cos(yaw), syw = Math.Sin(yaw);
                 int y0 = Ground(cx, cz) - 2;
 
                 int Armor(int x, int y, int z, double v)
                 {
-                    if (Math.Abs(v) > 0.86 && gold != 0) return gold;               // gilded part rims
+                    if (Math.Abs(v) > 0.86) return trim;                            // iron-edged part rims
                     double nz = Hash01(x * 3 + y * 7, z * 3 - y * 5);
-                    if (y < y0 + 34 && nz < 0.30) return Rust();                    // the deep corrodes
-                    if (nz < 0.10) return rustB != 0 ? rustB : plateA;
-                    if (((y - y0) / 6) % 2 == 0 && nz < 0.45) return plateB;        // riveted courses
-                    return plateA;
+                    if (y < y0 + 34 && nz < 0.30) return Rust();                    // the deep rusts hardest
+                    if (((y - y0) / 6) % 2 == 0 && nz < 0.35) return Rust();        // rusted plate courses
+                    return body;                                                     // the carved rock
                 }
 
                 // A superellipsoid part in colossus-local space (+X forward),
-                // rotated to world by the pose yaw. mode 0 armor, 1 gold,
-                // 2 mail (riveted), 3 blade iron.
+                // rotated to world by the pose yaw. mode 0 carved rock with
+                // iron, 1 iron trim, 2 mail (rust mix), 3 blade (rust mix).
                 void Blob(double lxC, double lyC, double lzC, double rx, double ry, double rz, double expn, int mode)
                 {
                     double wxC = cx + lxC * cyw - lzC * syw;
@@ -5713,45 +5714,48 @@ storyloc devastationarea -2550 -8750
                                 double v = (y - lyC) / ry;
                                 double e = Math.Pow(Math.Pow(Math.Abs(u), expn) + Math.Pow(Math.Abs(v), expn) + Math.Pow(Math.Abs(w), expn), 1.0 / expn);
                                 if (e > 1.0) continue;
-                                int m = mode == 1 && gold != 0 ? gold
-                                    : mode == 2 ? (Hash01(x + y, z - y) < 0.7 ? plateB : plateA)
-                                    : mode == 3 ? plateA
+                                int m = mode == 1 ? trim
+                                    : mode == 2 || mode == 3 ? Rust()
                                     : Armor(x, y, z, v);
                                 Set(x, y, z, m);
                             }
                         }
                 }
 
+                // Everything is built from high-exponent superellipsoids: at
+                // expn 9 they are rectangular boxes with barely-eased corners,
+                // the blocky Minecraft-statue look, not ball joints.
                 // legs: left planted forward, right kneeling, shin along the floor
-                Blob(18, y0 + 3, -10, 7, 3.5, 5, 2.4, 0);     // left foot
-                Blob(17, y0 + 15, -10, 5, 12, 5, 2.4, 0);     // left shin
-                Blob(12, y0 + 30, -9, 5.5, 9, 5, 2.4, 0);     // left thigh lower
-                Blob(5, y0 + 38, -7, 5.5, 8, 5, 2.4, 0);      // left thigh upper
-                Blob(8, y0 + 10, 10, 5.5, 6.5, 5.5, 2.2, 0);  // right knee
-                Blob(0, y0 + 7, 11, 5, 4.5, 4.5, 2.4, 0);     // right shin (lying)
-                Blob(-8, y0 + 6, 12, 5, 4, 4.5, 2.4, 0);
-                Blob(-16, y0 + 5, 13, 6, 3.5, 4, 2.4, 0);     // right foot, toes down
-                Blob(4, y0 + 26, 9, 5.5, 11, 5, 2.4, 0);      // right thigh
+                Blob(18, y0 + 3, -10, 7, 3.5, 5, 9, 0);       // left foot
+                Blob(17, y0 + 15, -10, 5, 12, 5, 9, 0);       // left shin
+                Blob(12, y0 + 30, -9, 5.5, 9, 5, 9, 0);       // left thigh lower
+                Blob(5, y0 + 38, -7, 5.5, 8, 5, 9, 0);        // left thigh upper
+                Blob(8, y0 + 10, 10, 5.5, 6.5, 5.5, 9, 0);    // right knee
+                Blob(0, y0 + 7, 11, 5, 4.5, 4.5, 9, 0);       // right shin (lying)
+                Blob(-8, y0 + 6, 12, 5, 4, 4.5, 9, 0);
+                Blob(-16, y0 + 5, 13, 6, 3.5, 4, 9, 0);       // right foot, toes down
+                Blob(4, y0 + 26, 9, 5.5, 11, 5, 9, 0);        // right thigh
                 // hips, mail skirt, torso
-                Blob(0, y0 + 35, 0, 9, 7, 12, 2.2, 2);        // mail skirt
-                Blob(0, y0 + 44, 0, 10, 8, 13, 2.4, 0);       // pelvis
-                Blob(1, y0 + 58, 0, 11, 11, 14, 2.4, 0);      // lower torso
-                Blob(3, y0 + 74, 0, 12, 11, 16, 2.4, 0);      // chest
-                Blob(3, y0 + 84, -18, 7, 6, 7, 2.0, 0);       // left pauldron
-                Blob(3, y0 + 84, 18, 7, 6, 7, 2.0, 0);        // right pauldron
+                Blob(0, y0 + 35, 0, 9, 7, 12, 9, 2);          // mail skirt
+                Blob(0, y0 + 44, 0, 10, 8, 13, 9, 0);         // pelvis
+                Blob(1, y0 + 58, 0, 11, 11, 14, 9, 0);        // lower torso
+                Blob(3, y0 + 74, 0, 12, 11, 16, 9, 0);        // chest
+                Blob(4, y0 + 88, 0, 5.5, 5, 6.5, 9, 0);       // neck: joins chest to helm
+                Blob(3, y0 + 84, -18, 7, 6, 7, 9, 0);         // left pauldron
+                Blob(3, y0 + 84, 18, 7, 6, 7, 9, 0);          // right pauldron
                 // left arm hugging the shield to the chest
-                Blob(6, y0 + 74, -17, 4.5, 9, 4.5, 2.2, 0);
-                Blob(12, y0 + 63, -11, 4, 8, 4, 2.2, 0);
-                Blob(16, y0 + 57, -6, 3, 3, 3, 2.0, 0);       // hand
-                Blob(20, y0 + 63, -6, 2, 15, 11, 3.2, 0);     // the shield, tucked in
-                Blob(22, y0 + 63, -6, 1.5, 3, 3, 2.0, 1);     // gold boss
-                // right arm outstretched with the falx
-                Blob(5, y0 + 87, 24, 4.5, 4.5, 8, 2.2, 0);
-                Blob(10, y0 + 92, 32, 4, 4, 6, 2.2, 0);
-                Blob(13, y0 + 95, 38, 3, 3, 3, 2.0, 0);       // hand
+                Blob(6, y0 + 74, -17, 4.5, 9, 4.5, 9, 0);
+                Blob(12, y0 + 63, -11, 4, 8, 4, 9, 0);
+                Blob(16, y0 + 57, -6, 3, 3, 3, 9, 0);         // hand
+                Blob(20, y0 + 63, -6, 2, 15, 11, 9, 0);       // the shield, tucked in
+                Blob(22, y0 + 63, -6, 1.5, 3, 3, 9, 1);       // gold boss
+                // right arm raised with the greatsword
+                Blob(5, y0 + 87, 24, 4.5, 4.5, 8, 9, 0);
+                Blob(10, y0 + 92, 32, 4, 4, 6, 9, 0);
+                Blob(13, y0 + 95, 38, 3, 3, 3, 9, 0);         // hand
                 // the great helm; the crown breaks the surface
-                Blob(5, y0 + 103, 0, 8.5, 11, 8.5, 3.2, 0);
-                Blob(5, y0 + 113, 0, 7.5, 2, 7.5, 3.2, 1);    // gilded crown band
+                Blob(5, y0 + 103, 0, 8.5, 11, 8.5, 9, 0);
+                Blob(5, y0 + 113, 0, 7.5, 2, 7.5, 9, 1);      // iron crown band
 
                 // eye slit: carved through the front of the helm
                 for (int sz2 = -5; sz2 <= 5; sz2++)
@@ -5762,25 +5766,37 @@ storyloc devastationarea -2550 -8750
                             int z = (int)Math.Round(cz + sx2 * syw + sz2 * cyw);
                             Set(x, y0 + 103 + sy2, z, 0);
                         }
+                // ghostlight eyes burning at the back of the slit, and
+                // glowing studs around the crown band
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    int x = (int)Math.Round(cx + 10 * cyw - side * 3 * syw);
+                    int z = (int)Math.Round(cz + 10 * syw + side * 3 * cyw);
+                    Glow(x, y0 + 103, z, glowEye);
+                }
+                for (int k = 0; k < 8; k++)
+                {
+                    double ca2 = k * Math.PI / 4;
+                    double lx3 = 5 + Math.Cos(ca2) * 7.0, lz3 = Math.Sin(ca2) * 7.0;
+                    int x = (int)Math.Round(cx + lx3 * cyw - lz3 * syw);
+                    int z = (int)Math.Round(cz + lx3 * syw + lz3 * cyw);
+                    Glow(x, y0 + 113, z, glowStud);
+                }
 
-                // the falx: a gold ferrule, then an iron blade arcing up and
-                // forward, its last third above the waves
-                for (int i = 0; i <= 6; i++)
-                    Blob(13 + i * 0.3, y0 + 95 + i, 38 + i * 0.15, 1.6, 1.2, 1.6, 2.0, i < 2 ? 1 : 0);
-                int blen = 30;
+                // the greatsword: SOLID and straight, all rectangles. An iron
+                // pommel and crossguard at the raised hand, then a rusted
+                // blade rising point-up out of the sea, built from densely
+                // overlapping boxes so there is not one floating block in it.
+                Blob(12, y0 + 92.5, 38, 1.8, 1.8, 1.8, 9, 1);            // pommel
+                Blob(13.6, y0 + 97, 38, 2.2, 1.6, 5.5, 9, 1);            // crossguard
+                int blen = 32;
                 for (int i = 0; i <= blen; i++)
                 {
                     double f = i / (double)blen;
-                    double lx2 = 15 + 26 * f * f * 0.9 + 6 * f;
-                    double ly2 = y0 + 101 + 26 * f - 9 * f * f;
-                    double lz2 = 39 - 4 * f;
-                    int hgt = 3 - (int)(f * 2.2);
-                    for (int h = 0; h < Math.Max(1, hgt); h++)
-                    {
-                        int x = (int)Math.Round(cx + lx2 * cyw - lz2 * syw);
-                        int z = (int)Math.Round(cz + lx2 * syw + lz2 * cyw);
-                        Set(x, (int)Math.Round(ly2) + h, z, plateA);
-                    }
+                    double lx2 = 14 + i * 0.52;                          // forward...
+                    double ly2 = y0 + 98.5 + i * 0.85;                   // ...and up, dead straight
+                    double wHalf = f > 0.86 ? 2.6 * (1.0 - f) / 0.14 + 0.6 : 2.6;   // tip taper only
+                    Blob(lx2, ly2, 38, 1.6, 1.4, Math.Max(0.9, wHalf), 9, 3);
                 }
                 break;
             }
