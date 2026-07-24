@@ -17,6 +17,14 @@ Rules for working here:
   serves http://localhost:5184, rendering any shape file with exact cave
   paths. Iterate there first; his screenshots are for what the previewer
   cannot show (block textures, tint, feel).
+- For structures and anything block-level, use the EXACT pipeline instead of
+  the approximate shape preview: `node tools/dumpgen.mjs <shape>` boots a
+  throwaway headless server, generates the island for real, and writes a
+  block dump the previewer renders voxel for voxel (dropdown group "exact
+  dumps"). This is the ground truth; verify there before asking Michael.
+  DLL change: `dotnet build -c Release` first. The headless server uses its
+  own data folder under export/ and its own port; it never touches the real
+  game data or a running client.
 - Shape files (`shapes/*.txt`, copied to `%APPDATA%\VintagestoryData\LandmassGenerator\`)
   are read fresh at command time: no rebuild, no restart. DLL changes need
   `dotnet build -c Release` (auto-deploys the zip) AND a world restart.

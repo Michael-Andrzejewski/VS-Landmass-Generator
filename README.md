@@ -325,6 +325,35 @@ guard SKIPS those, so a dark section means that part of the cave will not
 exist. The info panel counts them; pick a different `seed=` on the cave line
 until the layout stays clean.
 
+## Exact previews (block dumps)
+
+The shape-file preview approximates terrain and only sketches structures.
+For a preview that CANNOT differ from the game, generate a block dump:
+
+    node tools/dumpgen.mjs lighthouse chainfield ...
+    node tools/dumpgen.mjs all               (every shape with a Suggested line)
+    node tools/dumpgen.mjs --reset ...       (recreate the throwaway world)
+
+The script boots a throwaway headless dedicated server (data folder
+`export/data`, its own port, pure-ocean world; your real game data is never
+touched), builds each island there with the current DLL and shape files
+using each shape's `# Suggested:` command line, and writes every block to
+`export/data/LandmassGenerator/dumps/<shape>.lmd`. The previewer's dropdown
+lists dumps under "exact dumps": every voxel on screen is a block the real
+generator placed, including vanilla worldgen (natural seabed, deposits,
+cave systems, ruins). Colors are averaged from the actual game textures
+(`tools/gen_blockcolors.py`, run automatically). The water checkbox and the
+cutaway slider expose underwater and interior work; ghostlight, lava and
+other glow blocks render full bright.
+
+Under the hood: `/genisland ... dump=1` (or `dump=<name>`) writes the dump
+when the island finishes, from any world. The headless server runs the
+commands from `LandmassGenerator/dumpjobs.txt` at boot because the server
+console ignores piped stdin, and stops itself after the last job. A world
+with a pending dumpjobs.txt forces the pure-ocean config at load. After a
+DLL change, `dotnet build -c Release` then rerun dumpgen; shape-file edits
+need no rebuild.
+
 ## Story world commands
 
 For custom worlds that place the vanilla story locations deliberately

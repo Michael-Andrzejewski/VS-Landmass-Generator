@@ -599,3 +599,19 @@ culled at conversion time.
   gold rims where |v| > 0.86 sell the plate-armor look. Serpent
   skeletons: chalk spine spiral with vertebra bulges + rib arcs 1.75x
   taller than wide, ghostlights at rib tips and eye sockets.
+
+- Exact previews (0.50.0): NEVER judge structure work in the schematic
+  preview again; run `node tools/dumpgen.mjs <shape>` and view the block
+  dump ("exact dumps" in the previewer dropdown). Same DLL, real worldgen,
+  every voxel real: the first run immediately exposed that the "pure
+  ocean" export world was a desert continent. Pipeline lessons:
+  serverconfig.json WorldConfig.WorldConfiguration overrides are IGNORED
+  at world creation, so the mod forces the ocean config at SaveGameLoaded
+  whenever a dumpjobs.txt is pending; the dedicated server console reads
+  nothing from piped stdin, so commands go through dumpjobs.txt (consumed
+  at RunGame, deleted before running so a crash cannot boot-loop); keep
+  the relative 'Mods' entry in ModPaths, it is the game install's own
+  folder holding the base game/survival/creative systems; set
+  PassTimeWhenEmpty true or a playerless server may not tick the island
+  builder. Ground truth caveat: the dump world runs ONLY LandmassGenerator
+  + UnderwaterHorrors, so mods that alter worldgen are absent from dumps.
