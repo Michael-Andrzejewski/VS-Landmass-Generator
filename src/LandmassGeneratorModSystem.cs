@@ -5812,28 +5812,43 @@ storyloc devastationarea -2550 -8750
                 int glowG = Id("underwaterhorrors:ghostlight-green");
                 if (bone == 0) break;
 
+                // The omega pose: a straight head/neck leg, a half-circle
+                // body, a straight tapering tail leg. Not tangled, just one
+                // clean Omega lying on the lagoon floor. size= is the
+                // half-circle radius, so size=62 is a 330-block skeleton.
                 double a0 = rand.NextDouble() * Math.PI * 2;
-                var spine = new List<double[]>();     // x, z, y, tangentAngle
-                double arc = 0, lastX = 0, lastZ = 0;
-                for (double t = 0; t <= 1.0001; t += 0.004)
-                {
-                    double ang = a0 + t * 4.4 * Math.PI;                 // 2.2 turns
-                    double rr = R - t * (R - 8);
-                    double px2 = cx + Math.Cos(ang) * rr, pz2 = cz + Math.Sin(ang) * rr;
-                    if (t > 0) arc += Math.Sqrt((px2 - lastX) * (px2 - lastX) + (pz2 - lastZ) * (pz2 - lastZ));
-                    lastX = px2; lastZ = pz2;
-                    double py2 = Ground((int)px2, (int)pz2) + 3.5;
-                    spine.Add(new[] { px2, pz2, py2, ang + Math.PI / 2, arc, t });
-                }
+                double rotC = Math.Cos(a0), rotS = Math.Sin(a0);
+                double Rc = Math.Max(30, R);
+                double neckLen = Rc * 0.85, tailLen = Rc * 1.25;
+                double arcLen = Math.PI * Rc;
+                double totalLen = neckLen + arcLen + tailLen;
 
-                double nextVert = 0, nextRib = 10;
+                var spine = new List<double[]>();     // wx, wz, y, normalAngle, arcPos, t
+                void AddPt(double lx, double lz, double headingL, double arcPos)
+                {
+                    double wx = cx + lx * rotC - lz * rotS;
+                    double wz = cz + lx * rotS + lz * rotC;
+                    // clamped below the surface: a leg that crosses an islet
+                    // slope must not breach the waves
+                    double py = Math.Min(Ground((int)wx, (int)wz) + 3.0, sea - 6.0);
+                    spine.Add(new[] { wx, wz, py, headingL + a0 + Math.PI / 2, arcPos, arcPos / totalLen });
+                }
+                double step2 = 1.5;
+                for (double sN = 0; sN < neckLen; sN += step2)
+                    AddPt(Rc, -neckLen + sN, Math.PI / 2, sN);           // the neck, dead straight
+                for (double phA = 0; phA <= Math.PI + 1e-6; phA += step2 / Rc)
+                    AddPt(Rc * Math.Cos(phA), Rc * Math.Sin(phA), phA + Math.PI / 2, neckLen + phA * Rc);
+                for (double sT = 0; sT <= tailLen; sT += step2)
+                    AddPt(-Rc, -sT, -Math.PI / 2, neckLen + arcLen + sT); // the tail, dead straight
+
+                double nextVert = 0, nextRib = neckLen * 0.35;
                 foreach (var sp in spine)
                 {
-                    double t = sp[5];
-                    double coreR = t > 0.9 ? 1.0 : 1.6;                  // tail tapers
+                    double tailFrac = Math.Max(0, (sp[4] - neckLen - arcLen) / tailLen);
+                    double coreR = 1.7 - 1.1 * tailFrac;                 // tail thins to its tip
                     bool vert = sp[4] >= nextVert;
                     if (vert) nextVert = sp[4] + 4;
-                    double rr2 = vert ? coreR + 1.2 : coreR;
+                    double rr2 = vert ? coreR + 1.1 : coreR;             // distinct vertebra bulges
                     for (int x = (int)(sp[0] - rr2); x <= (int)(sp[0] + rr2); x++)
                         for (int z = (int)(sp[1] - rr2); z <= (int)(sp[1] + rr2); z++)
                             for (int y = (int)(sp[2] - rr2); y <= (int)(sp[2] + rr2); y++)
@@ -5843,36 +5858,54 @@ storyloc devastationarea -2550 -8750
                                 Set(x, y, z, bone);
                             }
                     // dorsal ridge glow every few vertebrae
-                    if (vert && glowB != 0 && Hash01((int)sp[0], (int)sp[1]) < 0.5)
-                        Set((int)sp[0], (int)(sp[2] + rr2 + 1), (int)sp[1], glowB);
+                    if (vert && Hash01((int)sp[0], (int)sp[1]) < 0.4)
+                        Glow((int)sp[0], (int)(sp[2] + rr2 + 1), (int)sp[1], glowB);
 
-                    // ribs: paired arcs sweeping up and over the coil
-                    if (sp[4] >= nextRib && t > 0.10 && t < 0.78)
+                    // the ribcage: paired arcs all along the body, biggest
+                    // amidships, none on the skull end or the thin tail tip
+                    bool inBody = sp[4] > neckLen * 0.35 && tailFrac < 0.45;
+                    if (sp[4] >= nextRib && inBody)
                     {
-                        nextRib = sp[4] + 7;
+                        nextRib = sp[4] + 6;
                         double nx = Math.Cos(sp[3]), nz2 = Math.Sin(sp[3]);
-                        double ribR = 11 + Hash01((int)sp[4], 7) * 4;
+                        double bodySpan = totalLen - neckLen * 0.35 - tailLen * 0.55;
+                        double bodyF = Math.Sin(Math.PI * Math.Clamp((sp[4] - neckLen * 0.35) / bodySpan, 0, 1));
+                        double ribR = 6.5 + 6.5 * bodyF + Hash01((int)sp[4], 7) * 1.5;
                         for (int side = -1; side <= 1; side += 2)
-                            for (double ph = 0.1; ph < 2.4; ph += 0.07)
+                        {
+                            // the tall pair, arching up and over the spine
+                            for (double ph = 0.15; ph < 2.35; ph += 0.06)
                             {
                                 double outw = Math.Cos(ph) * ribR * side;
-                                double up = Math.Sin(ph) * ribR * 1.75;   // tall arches, 20+ blocks
+                                double up = Math.Sin(ph) * ribR * 1.6;
                                 int x = (int)Math.Round(sp[0] + nx * outw);
                                 int z = (int)Math.Round(sp[1] + nz2 * outw);
                                 int y = (int)Math.Round(sp[2] + 1 + up);
                                 if (y > sea - 3) continue;                // stay underwater
                                 Set(x, y, z, bone);
-                                if (ph > 2.25 && glowB != 0) Set(x, y + 1, z, glowB);   // glowing rib tips
-                                else if (glowB != 0 && Hash01(x * 3, z * 3 + y) < 0.10) Set(x + (side > 0 ? 1 : -1), y, z, glowB);
+                                if (ph > 2.28 && Hash01(x, z) < 0.35) Glow(x, y + 1, z, glowB);  // glowing rib tips
                             }
+                            // the splayed pair, extending out the other way:
+                            // low wide ribs lying toward the lagoon floor
+                            for (double ph = 0.15; ph < 1.75; ph += 0.06)
+                            {
+                                double outw = Math.Sin(ph) * ribR * 1.35 * side;
+                                double up = Math.Sin(Math.Min(Math.PI, ph * 1.8)) * ribR * 0.45;
+                                int x = (int)Math.Round(sp[0] + nx * outw);
+                                int z = (int)Math.Round(sp[1] + nz2 * outw);
+                                int y = (int)Math.Round(sp[2] + up);
+                                if (y > sea - 3) continue;
+                                Set(x, y, z, bone);
+                            }
+                        }
                     }
                 }
 
-                // the skull, lying at the coil's heart, jaws open
-                var head = spine[spine.Count - 1];
-                double hx3 = head[0], hz3 = head[1];
-                double hAng = head[3] - Math.PI / 2;                      // facing along the final tangent
+                // the skull, thrust forward off the straight neck
+                var head = spine[0];
+                double hAng = a0 - Math.PI / 2;                           // facing away down the neck line
                 double hcx = Math.Cos(hAng), hcz = Math.Sin(hAng);
+                double hx3 = head[0] + hcx * 5, hz3 = head[1] + hcz * 5;
                 double hy3 = Ground((int)hx3, (int)hz3) + 4;
                 void BoneBlob(double lx3, double ly3, double lz3, double rx, double ry, double rz, double expn)
                 {
@@ -5906,13 +5939,36 @@ storyloc devastationarea -2550 -8750
                         int x = (int)Math.Round(hx3 + 5 * hcx - side * 3.6 * hcz);
                         int z = (int)Math.Round(hz3 + 5 * hcz + side * 3.6 * hcx);
                         Set(x, (int)hy3 + 4, z, 0);
-                        Set(x, (int)hy3 + 3, z, glowG);
+                        Glow(x, (int)hy3 + 3, z, glowG);
                     }
 
-                // the sunken ship the serpent curled around
-                double shAng = a0 + 2.6;
-                double shx = cx + Math.Cos(shAng) * R * 0.35, shz = cz + Math.Sin(shAng) * R * 0.35;
-                HullTube(shx, Ground((int)shx, (int)shz) + 3, shz, shAng + 1.2, 25, 22, 5, 4.5, 0.5);
+                // the kill, at the heart of the half-circle: a LARGE ship,
+                // torn in two, the halves listing opposite ways with masts
+                // and debris strewn across the tear
+                double shipLz = Rc * 0.45;
+                double shx = cx - shipLz * rotS, shz = cz + shipLz * rotC;
+                double shipA = a0 + 0.7;
+                double gapX = Math.Cos(shipA), gapZ = Math.Sin(shipA);
+                int shipG = Ground((int)shx, (int)shz);
+                HullTube(shx + gapX * 17, shipG + 5, shz + gapZ * 17, shipA, 18, 26, 6.5, 5.5, 0.35);        // bow half
+                HullTube(shx - gapX * 15, shipG + 4, shz - gapZ * 15, shipA + 0.3, -38, 24, 6.5, 5.5, 0.45); // stern half
+                int mast = IdFirst("planks-veryaged-we", "planks-aged-we");
+                for (int mi = 0; mi < 2; mi++)
+                {
+                    double mA = shipA + 1.2 + mi * 0.9;
+                    double mx0 = shx + (mi == 0 ? 4 : -6) * gapX, mz0 = shz + (mi == 0 ? 4 : -6) * gapZ;
+                    for (int k = 0; k < 16 + mi * 6; k++)
+                    {
+                        int x = (int)Math.Round(mx0 + Math.Cos(mA) * k), z = (int)Math.Round(mz0 + Math.Sin(mA) * k);
+                        if (mast != 0) Set(x, Ground(x, z) + 1 + k / 9, z, mast);   // fallen masts
+                    }
+                }
+                for (int i = 0; i < 60; i++)
+                {
+                    double da = Hash01(i * 3, 41) * Math.PI * 2, dr2 = Hash01(i * 5, 43) * 14;
+                    int x = (int)Math.Round(shx + Math.Cos(da) * dr2), z = (int)Math.Round(shz + Math.Sin(da) * dr2);
+                    Set(x, Ground(x, z) + 1, z, Hash01(i, 47) < 0.7 ? Rust() : bone);
+                }
                 break;
             }
 
