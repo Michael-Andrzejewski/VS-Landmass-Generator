@@ -32,7 +32,7 @@ function fbm(x, z, seed) { // 3 octaves, 0..1
 
 // ── shape file parsing ────────────────────────────────────────────────────
 function parseShape(text) {
-  const s = { regions: {}, markers: [], blocks: [], caves: [], bastions: [], wrecks: [], rows: [], suggested: {} };
+  const s = { regions: {}, markers: [], blocks: [], caves: [], bastions: [], wrecks: [], rows: [], suggested: {}, oceanPlunge: 2 };
   let inMap = false;
   const caveDefs = {}, treeChars = {}, blockChars = {}, bastionChars = {}, wreckChars = {};
   for (const raw of text.split(/\r?\n/)) {
@@ -124,6 +124,12 @@ function parseShape(text) {
         else if (k === 'seed') d.seed = Math.trunc(parseFloat(v) || 1);
       }
       wreckChars[tok[1][0]] = d;
+    } else if (/^ocean$/i.test(tok[0]) && tok.length >= 2) {
+      for (let i = 1; i < tok.length; i++) {
+        const eq = tok[i].indexOf('='); if (eq <= 0) continue;
+        const k = tok[i].slice(0, eq).toLowerCase(), v = tok[i].slice(eq + 1);
+        if (k === 'plunge') s.oceanPlunge = Math.min(60, Math.max(2, Math.trunc(parseFloat(v) || 2)));
+      }
     }
   }
 
@@ -351,7 +357,7 @@ function buildIsland(shape, diameter, domeHeight) {
     const dLand = (bilinear(distToLand, W, H, ccx, ccz) + over) * wpc;
     if (dLand > oceanRing) return null;
     const naturalY = -8;
-    const deep = -2 - water * smooth(dLand / (oceanRing * 0.45));
+    const deep = -(shape.oceanPlunge || 2) - water * smooth(dLand / (oceanRing * 0.45));
     const back = smooth((dLand - oceanRing * 0.55) / (oceanRing * 0.45));
     const topY = Math.round(lerp(deep, naturalY, back));
     return { topY, waterTop: topY < 0 ? -1 : -1000, mat: topY >= -4 ? 'sand' : 'rock', reg: null, cell: '.' };
@@ -763,7 +769,8 @@ function rebuild(shape, dia, hgt) {
     const rustMat = new THREE.MeshLambertMaterial({ color: 0x8a4a2a, transparent: true, opacity: 0.8 });
     const ringMat = new THREE.MeshLambertMaterial({ color: 0x8a4a2a, transparent: true, opacity: 0.35 });
     const titan = new THREE.Mesh(boxGeo, rustMat);
-    titan.position.set(wx + wk.def.radius * 0.18, wk.def.whirlpool ? -8 : -2, wz + wk.def.radius * 0.12);
+    // afloat at the (locally lowered, for the maelstrom divot) waterline
+    titan.position.set(wx + wk.def.radius * 0.18, wk.def.whirlpool ? -6 : -2, wz + wk.def.radius * 0.12);
     titan.scale.set(60, 14, 16);
     titan.rotation.y = 0.6;
     group.add(titan);
@@ -771,11 +778,11 @@ function rebuild(shape, dia, hgt) {
     field.position.set(wx, 1.5, wz);
     group.add(field);
     if (wk.def.whirlpool) {
+      // a 13-deep divot pressed into the sea surface, not a drained pit
       const fr = Math.max(20, Math.trunc(wk.def.radius * 0.45));
-      const cone = new THREE.Mesh(new THREE.CylinderGeometry(3, fr + 2, 22, 32, 1, true),
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(2, fr, 13, 32, 1, true),
         new THREE.MeshLambertMaterial({ color: 0x2a6a9a, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
-      cone.position.set(wx, -10, wz);
-      cone.rotation.x = Math.PI;
+      cone.position.set(wx, -6.5, wz);
       group.add(cone);
     }
   }

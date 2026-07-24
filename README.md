@@ -204,28 +204,50 @@ dungeon slab box ignores the island clipping the real pass applies.
 
 ### Wreck fields (`wreck <char> ...`)
 
-A drowned metallic wreckage field structure pass (0.46.0): `wreck W
-radius=55 whirlpool=0 seed=7` plus a `W` at the field center. Builds from
-corroded rusty-iron metal blocks, metal chutes (rusted pipes), locust-nest
-metal spikes (they really hurt), iron fences, part piles and devastation
-rock:
+A floating metallic wreckage field structure pass (reworked in 0.47.0):
+`wreck W radius=55 whirlpool=0 seed=7` plus a `W` at the field center.
+Builds from corroded rusty-iron metal blocks, REAL rusted pipework and
+machinery junk (the devastation clutter shapes: junkpipe junctions, broken
+pipe ends, pipelong runs, junk beams, hanging chains, tanks, valves),
+locust-nest metal spikes (they really hurt), iron fences, part piles and
+devastation rock. Meant for a shape of sheer rock spires over deep water
+(`ocean plunge=20`, see below):
 
-- One TITANIC hull (up to 64 blocks) rolled onto its side and half-sunk,
-  plating torn open by coherent noise with the rib cage surviving, spiky
-  metal along the torn edges, interior flooded below the waterline.
-- 8-12 shattered segments (bow cones, open hull rings) beached on banks or
-  adrift half-sunk, strewn as if a whirlpool gathered them.
-- A debris carpet fading with distance: runs of rusted pipe, rising jutting
-  beams, part piles, spikes, fence stubs, lone hull blocks, and a drock
-  rust crust creeping over every bank surface.
-- `whirlpool=1` (the maelstrom): a sealed draining funnel at the center,
-  rimmed by a jagged lip of jammed rust just above sea. Inside, open air
-  descends to a pool 12 below the surface, three spiral streams of REAL
-  flowing-water blocks run down the walls, a 2x2 down-flow throat churns at
-  the middle, and several wrecks lie in the pit. The rim is sealed on
-  purpose: a live ocean breach would let liquid physics slowly refill the
-  pit. Pair with lowered bank heights so the whole field feels dragged
-  down (see gen_wreckage_field.py, which emits both variants).
+- One TITANIC hull (up to 64 blocks) rolled onto its side, half-submerged
+  and AFLOAT over the deep, plating torn open by coherent noise with the
+  rib cage surviving, spiky metal along the torn edges, interior flooded
+  below the local waterline.
+- 8-12 shattered segments (bow cones, open hull rings) floating at the
+  waterline; the last two sank all the way to the deep floor for divers.
+- The tangle: every floating ruin and every rock spire summit is a node,
+  and sagging trusses of hull metal, pipework, junk beams and fence stubs
+  run between neighbouring nodes at the waterline, with chains hanging
+  below and spikes on top. The ruins visibly hold each other up; the deep
+  water underneath stays empty and dark.
+- Junk knots at every node, plus rust crust and shoreline litter on spire
+  flanks near the waterline (`drock`, piles, spikes, jutting beams).
+- Clutter shapes live on a block entity, so the pass records them during
+  the bulk build and stamps them through the live accessor after commit
+  (type + rotateY on `BEBehaviorShapeFromAttributes`).
+- `whirlpool=1` (the maelstrom): a divot pressed into the open sea itself.
+  No rim, no drained pit: each column inside the funnel keeps the full
+  ocean below and loses only the water above the local cone surface, and
+  that surface block is REAL directional flowing water
+  (`saltwater-{n,ne,e,...}-{level}`) spiraling inward, so the whole bowl
+  visibly runs downhill into a 2x2 down-flow throat at the eye. The cone's
+  slope stays under one block per block, so the flowing staircase covers
+  it with no exposed walls. Wrecks inside ride the lowered surface, so the
+  streams pour into their torn hulls. Liquids only recompute on block
+  updates, so the sculpted sea holds its shape until a player disturbs it.
+
+### Ocean plunge (`ocean plunge=N`)
+
+By default the reshaped sea floor starts 2 blocks below sea right at a
+drawn coastline, which makes a wading shelf and a visible sand ring around
+every land mass. The standalone shape line `ocean plunge=20` starts the
+floor 20 below sea instead: coasts drop sheer into deep water with no
+shelf and no ring. Pair with `stone=`/`sand=` command options matching the
+island's rock so the reshaped ocean floor is not default granite.
 
 ## Localhost previewer
 

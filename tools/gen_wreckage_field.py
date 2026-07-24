@@ -1,27 +1,28 @@
 """
-Wreckage Field: a drowned metallic graveyard. Low dead basalt banks, most
-of them just under or barely above the surface, littered by the mod's
-wreck structure pass (0.46.0): one titanic hull rolled onto its side and
-half-sunk, shattered bow and hull segments strewn as if a whirlpool
-gathered them, a debris carpet of rusted pipes (chutes), jutting beams,
-metal spikes, part piles and iron fence stubs, and a drock rust crust
-creeping over every bank.
+Wreckage Field: a floating metallic graveyard over deep dead water. Sheer
+devastated basalt spires jut straight out of the ocean (ocean plunge=20:
+no sandy shelf ring, the rock drops sheer into ~70-deep water), and the
+wreck structure pass (0.47.0) fills the water between them: one titanic
+hull rolled onto its side and half-submerged, shattered bow and hull
+segments AFLOAT at the waterline, all lashed to each other and to the
+spires by a sagging tangle of hull metal, real rusted pipework (the
+devastation clutter junkpipe/pipelong shapes), junk beams, hanging chains
+and metal spikes. The ruins hold each other up; under them the water is
+empty and dark except for the two hulls that sank all the way down.
 
 Two variants from this one script, identical except for the maelstrom:
 
     python tools/gen_wreckage_field.py > shapes/wreckage_field.txt
     python tools/gen_wreckage_field.py whirlpool > shapes/wreckage_maelstrom.txt
 
-The maelstrom variant sinks every bank lower, marks the wreck line
-whirlpool=1, and the structure pass then sculpts a sealed draining funnel
-at the center: a jagged rust-and-metal rim just above sea, a cone of open
-air descending to a pool 12 below the surface, three spiral streams of
-real flowing water running down the walls, a 2x2 down-flow throat, and
-wrecks lying in the pit. The rim is sealed on purpose: a live ocean
-breach would let liquid physics slowly fill the pit back up.
+The maelstrom variant marks the wreck line whirlpool=1: a divot pressed
+into the open sea itself. No rim, no drained pit: the cone's surface is
+real directional flowing water spiraling inward and down into a 2x2
+down-flow throat at the eye, and the wrecks inside ride the lowered
+surface so the streams pour into their torn hulls.
 
-Suggested: /genisland shape=wreckage_field diameter=240 height=6 water=35
-           /genisland shape=wreckage_maelstrom diameter=240 height=6 water=35
+Suggested: /genisland shape=wreckage_field diameter=240 height=30 water=70 stone=rock-basalt sand=sand-basalt
+           /genisland shape=wreckage_maelstrom diameter=240 height=30 water=70 stone=rock-basalt sand=sand-basalt
 """
 import math
 import sys
@@ -31,26 +32,26 @@ WHIRLPOOL = len(sys.argv) > 1 and sys.argv[1].lower().startswith('whirl')
 W = H = 120
 CX = CZ = 60.0
 
-# Banks: (cx, cz, rx, rz, kind). 'u' = drowned (flood=1, just under the
-# surface), 'b' = barely above, 'r' = the few real islets. The center is one
-# broad drowned shoal the titan grounds on.
-BANKS = [
-    (60, 60, 26, 22, 'u'),
-    (60, 52, 10, 7, 'b'),
-    (48, 68, 8, 6, 'b'),
-    (30, 40, 9, 7, 'b'),
-    (88, 42, 10, 7, 'u'),
-    (92, 74, 8, 6, 'b'),
-    (72, 92, 11, 8, 'u'),
-    (38, 90, 8, 6, 'b'),
-    (24, 66, 7, 5, 'u'),
-    (80, 24, 8, 6, 'r'),
-    (44, 22, 7, 5, 'b'),
-    (20, 92, 6, 5, 'r'),
-    (100, 58, 7, 5, 'u'),
+# Spires: (cx, cz, rx, rz, kind). 's' = tall spike (full height), 'm' = mid
+# spire, 't' = low stub barely clearing the water. The center 16 cells stay
+# open so the maelstrom's funnel spins in clear water. Cells are ~2 blocks.
+SPIRES = [
+    (60, 38, 3, 4, 's'),
+    (76, 44, 3, 3, 'm'),
+    (84, 60, 4, 3, 's'),
+    (78, 76, 3, 3, 't'),
+    (64, 84, 3, 4, 's'),
+    (46, 80, 3, 3, 'm'),
+    (38, 64, 4, 3, 's'),
+    (42, 46, 3, 3, 't'),
+    (52, 30, 2, 3, 'm'),
+    (88, 36, 3, 3, 't'),
+    (94, 74, 3, 4, 'm'),
+    (70, 94, 3, 3, 't'),
+    (34, 88, 3, 4, 's'),
+    (26, 52, 3, 3, 't'),
+    (72, 26, 3, 3, 's'),
 ]
-# Deep dead flats between banks ('d', flood=3 basalt sand): drawn as wide
-# skirts around every bank so the field reads as one drowned shoal system.
 
 
 def main():
@@ -69,34 +70,29 @@ def main():
                     cells.append((c, r))
         return cells
 
-    # skirts first, banks overwrite
-    for i, (cx, cz, rx, rz, kind) in enumerate(BANKS):
-        for (c, r) in blob(cx, cz, rx * 1.8, rz * 1.8, 0.15, i * 1.7):
-            if grid[r][c] == '.':
-                grid[r][c] = 'd'
-    for i, (cx, cz, rx, rz, kind) in enumerate(BANKS):
-        for (c, r) in blob(cx, cz, rx, rz, 0.22, i * 2.3):
+    for i, (cx, cz, rx, rz, kind) in enumerate(SPIRES):
+        for (c, r) in blob(cx, cz, rx, rz, 0.35, i * 2.3):
             grid[r][c] = kind
 
     grid[60][60] = 'W'
 
     name = 'wreckage_maelstrom' if WHIRLPOOL else 'wreckage_field'
-    hb = 0.20 if WHIRLPOOL else 0.55   # banks sink in the maelstrom variant
-    hr = 0.55 if WHIRLPOOL else 1.0
-    print(f"# {name} - a drowned metallic graveyard: dead basalt shoals under a")
-    print("# titanic capsized hull, shattered ship segments, rusted pipes, jutting")
-    print("# beams, metal spikes and a drock rust crust (wreck structure pass).")
+    print(f"# {name} - a floating metallic graveyard: devastated basalt spires")
+    print("# drop sheer into deep dead water; between them a titanic capsized hull")
+    print("# and shattered segments float at the waterline, tangled to the rock and")
+    print("# to each other by hull metal, rusted pipework, junk beams and chains")
+    print("# (wreck structure pass).")
     if WHIRLPOOL:
-        print("# MAELSTROM variant: banks sunk lower, and the wreck line carries")
-        print("# whirlpool=1: a sealed draining funnel with flowing spiral streams")
-        print("# and a down-flow throat, wrecks lying in the pit.")
+        print("# MAELSTROM variant: the wreck line carries whirlpool=1, a divot")
+        print("# pressed into the open sea whose surface is real flowing water")
+        print("# spiraling down into a down-flow throat, wrecks riding the cone.")
     print("# Regenerate: python tools/gen_wreckage_field.py" + (" whirlpool" if WHIRLPOOL else "") + f" > shapes/{name}.txt")
-    print(f"# Suggested: /genisland shape={name} diameter=240 height=6 water=35")
+    print(f"# Suggested: /genisland shape={name} diameter=240 height=30 water=70 stone=rock-basalt sand=sand-basalt")
     print()
-    print(f"region b rock=basalt fertility=verylow surface=barren climate=arid devastation=0.05 wildgrass=0 stones=0.03 height={hb} shore=6 rough=0.20")
-    print(f"region r rock=basalt fertility=verylow surface=barren climate=arid devastation=0.06 wildgrass=0 stones=0.04 height={hr} shore=5 rough=0.28")
-    print("region u rock=basalt surface=rock climate=arid flood=1 height=0.30 shore=2 rough=0.25")
-    print("region d rock=basalt sand=sand-basalt surface=sand climate=arid flood=3 height=0.12 shore=3 rough=0.10")
+    print("region s rock=basalt fertility=verylow surface=barren climate=arid devastation=0.10 wildgrass=0 stones=0.05 height=1.0 shore=1 rough=0.55")
+    print("region m rock=basalt fertility=verylow surface=barren climate=arid devastation=0.08 wildgrass=0 stones=0.04 height=0.55 shore=1 rough=0.50")
+    print("region t rock=basalt fertility=verylow surface=barren climate=arid devastation=0.06 wildgrass=0 stones=0.03 height=0.26 shore=1 rough=0.45")
+    print("ocean plunge=20")
     print(f"wreck W radius=55 whirlpool={1 if WHIRLPOOL else 0} seed=7")
     print()
     print("map")
