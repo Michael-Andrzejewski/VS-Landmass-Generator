@@ -491,3 +491,16 @@ recreating its world every run (dumpgen default). In the REAL world, when
 iterating a struct/wreck shape at the same coordinates, expect remnants;
 a clean regen needs /wgen delr on the area first (or a proper
 clear-struct-bounds pass, not built yet).
+
+## `ocean basin=` used to RAISE the outer seabed (fixed in 0.51.0)
+
+Symptom: every basin structure (chainfield, colossus, serpent lagoon)
+stood inside a huge raised plateau ring with vertical cliff walls down
+to the natural ocean floor, and tiny land blobs inside the bowl were
+extruded as sheer rock towers. Cause: the basin fade curve started at
+sea-2 and OVERWROTE naturally deeper columns upward, and the bowl won
+over the coast carve right at the shoreline. Fixed: basin is carve-only
+(skips columns already deeper) and fades in over the first 30 blocks off
+shore. If an old island was generated before 0.51.0, rebuilding it in
+place will NOT remove the old plateau ring beyond OceanRing of land
+(see the open-water rebuild papercut); /wgen delr first.

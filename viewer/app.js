@@ -379,14 +379,18 @@ function buildIsland(shape, diameter, domeHeight) {
         basinY = -2 - shape.basinDepth * smooth(Math.min(1, Math.max(0, (shape.basinR + bfade - dC) / bfade)));
     }
     if (dLand > oceanRing) {
-      if (basinY === null) return null;
+      // Carve-only: the basin never raises a naturally deeper floor
+      // (mirrors ColumnSurface; the old fill built a plateau ring).
+      if (basinY === null || basinY >= -8 - 3) return null;
       return { topY: Math.round(basinY), waterTop: -1, mat: 'rock', reg: null, cell: '.' };
     }
     const naturalY = -8;
     const deep = -(shape.oceanPlunge || 2) - water * smooth(dLand / (oceanRing * 0.45));
     const back = smooth((dLand - oceanRing * 0.55) / (oceanRing * 0.45));
     let topY = Math.round(lerp(deep, naturalY, back));
-    if (basinY !== null && basinY < topY) topY = Math.round(basinY);
+    // Basin fades in over the first 30 blocks off shore (mirrors ColumnSurface).
+    if (basinY !== null && basinY < topY)
+      topY = Math.round(lerp(topY, basinY, smooth(Math.min(1, dLand / 30))));
     return { topY, waterTop: topY < 0 ? -1 : -1000, mat: topY >= -4 ? 'sand' : 'rock', reg: null, cell: '.' };
   }
 

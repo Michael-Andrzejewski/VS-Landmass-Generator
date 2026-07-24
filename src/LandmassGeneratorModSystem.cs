@@ -3271,7 +3271,13 @@ storyloc devastationarea -2550 -8750
 
         if (dLand > job.OceanRing)
         {
-            if (basinY == double.MaxValue) return false; // leave the open ocean alone
+            // The basin only ever CARVES. Filling up to its fade curve raised
+            // every naturally-deeper column to sea-2, building a plateau ring
+            // with cliff walls around the whole site (exact-preview find).
+            // The 3-block margin beats the fade's own +-2 noise: without it,
+            // boundary columns flickered between carved and natural and left
+            // single rock chips hovering in the water (exact-preview find).
+            if (basinY == double.MaxValue || basinY >= naturalY - 3) return false;
             topY = (int)Math.Round(basinY);
             underwater = true;
             waterTopY = job.SeaLevel - 1;
@@ -3283,7 +3289,12 @@ storyloc devastationarea -2550 -8750
         double deep = job.SeaLevel - (job.Shape?.OceanPlunge ?? 2) - job.Water * Smooth(dLand / (job.OceanRing * 0.45));
         double back = Smooth((dLand - job.OceanRing * 0.55) / (job.OceanRing * 0.45));
         topY = (int)Math.Round(Lerp(deep, naturalY, back));
-        if (basinY != double.MaxValue && basinY < topY) topY = (int)Math.Round(basinY);
+        // The basin fades in over the first 30 blocks off shore, so land
+        // standing inside a deep basin descends into it instead of dropping
+        // off a sheer tower flank (exact-preview find: the chainfield islets
+        // and colossus stubs rendered as vertical rock columns).
+        if (basinY != double.MaxValue && basinY < topY)
+            topY = (int)Math.Round(Lerp(topY, basinY, Smooth(Math.Min(1.0, dLand / 30.0))));
         underwater = topY < job.SeaLevel;
         waterTopY = underwater ? job.SeaLevel - 1 : -1;
         topMat = topY >= job.SeaLevel - 4 ? SurfSand : SurfRock;
