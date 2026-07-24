@@ -1,10 +1,10 @@
 """
-Lighthouse: a drowned lighthouse whose keeper's islet sank. The struct
-pass (kind=lighthouse) raises a 68-block tapered granite tower from the
-sea floor: bottom third underwater with a flooded spiral stair, torn
-rusted band at the waterline, glowing ghostlight lamp room at the top
-with a gallery rail and cone roof. A broken sister stump stands 22
-blocks away, its fallen lantern cage still glowing on the seabed.
+Lighthouse: a drowned lighthouse whose keeper's islet sank BENEATH it.
+The tower stands centered on a submerged granite shoal (flood-capped a
+few blocks under the surface), so it clearly rises from a landmass, not
+from open water. The struct pass (kind=lighthouse) raises the tower:
+interior spiral stair through planked room floors, hollow glass lamp
+room with a baked ghostlight, broken sister stump on the same shoal.
 
     python tools/gen_lighthouse.py > shapes/lighthouse.txt
 
@@ -28,17 +28,19 @@ def main():
                 if d <= lim:
                     grid[r][c] = kind
 
-    blob(34, 30, 2.5, 2, 'r')          # the keeper's awash rock
+    blob(30, 30, 15, 14, 'u', jag=0.22, ph=1.0)  # the drowned shoal, centered under the tower
+    blob(34, 30, 2.5, 2, 'r')          # the keeper's awash rock at the tower foot
     blob(25, 37, 1.8, 1.5, 'k')        # a skerry
-    grid[30][30] = 'B'                 # the lighthouse, standing in open water
+    grid[30][30] = 'B'                 # the lighthouse, dead center on the shoal
 
-    print("# lighthouse - a drowned lighthouse whose islet sank: bottom third in")
-    print("# the sea with a flooded spiral stair, torn rusty waterline band, a lamp")
-    print("# room that still glows, and a broken sister stump with its fallen")
-    print("# lantern aglow on the seabed (struct pass, kind=lighthouse).")
+    print("# lighthouse - a drowned lighthouse centered on its sunken keeper's shoal:")
+    print("# interior spiral stair through planked room floors, hollow glass lamp room")
+    print("# with a baked ghostlight, torn rusty waterline band, and a broken sister")
+    print("# stump on the same shoal (struct pass, kind=lighthouse).")
     print("# Regenerate: python tools/gen_lighthouse.py > shapes/lighthouse.txt")
     print("# Suggested: /genisland shape=lighthouse diameter=120 height=6 water=40")
     print()
+    print("region u rock=granite surface=rock climate=dry flood=3 height=0.20 shore=2 rough=0.30")
     print("region r rock=granite fertility=verylow surface=barren climate=dry wildgrass=0 stones=0.05 height=0.30 shore=1 rough=0.40")
     print("region k rock=granite fertility=verylow surface=barren climate=dry wildgrass=0 stones=0.04 height=0.15 shore=1 rough=0.40")
     print("ocean plunge=16")

@@ -5287,6 +5287,17 @@ storyloc devastationarea -2550 -8750
         uint Hash(int a, int b) => (uint)(a * 374761393 + b * 668265263 + def.Seed * 2246822519L);
         double Hash01(int a, int b) { uint h = Hash(a, b); h ^= h >> 13; h *= 1274126177u; return ((h ^ (h >> 16)) & 0xFFFFFF) / 16777216.0; }
 
+        // Light emitters are held back and placed through the world accessor
+        // AFTER the bulk commit, the same way the Underwater Horrors ruins
+        // place theirs, so their light is baked into the chunks immediately.
+        var glowSpots = new List<(int X, int Y, int Z, int Id)>();
+        void Glow(int x, int y, int z, int id)
+        {
+            if (id == 0 || !InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
+            glowSpots.Add((x, y, z, id));
+            job.TouchedCols.Add(((long)x << 32) | (uint)z);
+        }
+
         var clutterSpots = new List<(int X, int Y, int Z, string Type, float Rot)>();
         void Clutter(int x, int y, int z, string type, double heading)
         {
@@ -5383,95 +5394,155 @@ storyloc devastationarea -2550 -8750
         switch (def.Kind)
         {
             // ── THE DROWNED LIGHTHOUSE ─────────────────────────────────────
-            // A lighthouse whose keeper's islet sank: bottom third stands in
-            // the sea with a flooded spiral stair, the waterline band is torn
-            // and rusted, and the lamp room still glows. A broken sister
-            // stump stands nearby, its fallen lantern cage aglow on the
-            // seabed.
+            // A lighthouse whose keeper's islet sank beneath it: the tower
+            // stands centered on the drowned shoal, an interior spiral stair
+            // climbs through planked room floors (flooded below the sea,
+            // furnished above it), and the top is a hollow glass lamp room
+            // around a still-glowing ghostlight. A broken sister stump
+            // stands nearby, its fallen lantern cage aglow on the shoal.
             case "lighthouse":
             {
                 int brick = Id("stonebricks-granite"), cracked = Id("crackedstonebricks-granite"), cobble = Id("cobblestone-granite");
                 int band = IdFirst("stonebricks-basalt", "stonebricks-andesite");
                 int glass = IdFirst("glass-plain", "glass");
-                int glow = IdFirst("underwaterhorrors:ghostlight-green", "underwaterhorrors:ghostlight-blue");
+                int glow = IdFirst("landmassgenerator:ghostlight-green", "underwaterhorrors:ghostlight-green", "underwaterhorrors:ghostlight-blue");
+                int planksA = IdFirst("planks-aged-we", "planks-aged-ns");
+                int planksB = IdFirst("planks-veryaged-we", "planks-veryaged-ns");
                 if (brick == 0) break;
                 if (cracked == 0) cracked = brick;
                 if (cobble == 0) cobble = brick;
                 if (band == 0) band = cracked;
+                if (planksA == 0) planksA = band;
+                if (planksB == 0) planksB = planksA;
+                int[] roomStuff = {
+                    Id("lootvessel-food"), Id("lootvessel-tool"), Id("lootvessel-seed"),
+                    Id("stationarybasket-north"), Id("stationarybasket-east"),
+                    Id("loosegears-1"), Id("loosegears-4") };
                 int Wall2()
                 {
                     double r0 = rand.NextDouble();
                     return r0 < 0.55 ? brick : r0 < 0.82 ? cracked : cobble;
                 }
+                double Wrap(double a)
+                {
+                    while (a > Math.PI) a -= Math.PI * 2;
+                    while (a < -Math.PI) a += Math.PI * 2;
+                    return a;
+                }
 
                 int H = Math.Clamp(def.Size, 40, 110);
-                int baseY = Math.Clamp(Ground(cx, cz), sea - 26, sea - 4);   // bottom third drowned
+                int baseY = Math.Clamp(Ground(cx, cz), sea - 26, sea - 4);   // standing ON the drowned shoal
                 int topY = baseY + H;
                 int lampY = topY - 7;
+                double WallR(int y) => 8.5 - 4.0 * (y - baseY) / (double)H;
 
-                for (int y = baseY; y <= topY; y++)
+                for (int y = baseY; y <= lampY - 2; y++)
                 {
-                    double frac = (y - baseY) / (double)H;
-                    double rr = 7.5 - 4.3 * frac;
+                    double rr = WallR(y);
                     bool waterBand = y >= sea - 3 && y <= sea + 4;
-                    for (int x = cx - 9; x <= cx + 9; x++)
-                        for (int z = cz - 9; z <= cz + 9; z++)
+                    int room = (y - baseY) / 8;
+                    // one plank floor every 8 blocks; the stair passes through a
+                    // gap left in each floor
+                    bool floorLevel = y > baseY && (y - baseY) % 8 == 0 && y < lampY - 6;
+                    double slitA = Hash01(room * 31 + 5, def.Seed * 7) * Math.PI * 2;
+                    double stairWant = (y - baseY) * 0.45;
+                    for (int x = cx - 10; x <= cx + 10; x++)
+                        for (int z = cz - 10; z <= cz + 10; z++)
                         {
                             double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
                             if (d > rr + 0.4) continue;
+                            double ang = Math.Atan2(z - cz, x - cx);
                             if (d > rr - 1.3)
                             {
                                 // the wall ring; torn open around the waterline
                                 if (waterBand && Hash01(x * 3 + y, z * 3 - y) < 0.34) { Set(x, y, z, 0); continue; }
                                 bool doorway = y >= baseY + 1 && y <= baseY + 4 && Math.Abs(z - cz) <= 1 && x > cx;
                                 bool breach = y >= sea + 2 && y <= sea + 5 && Math.Abs(x - cx) <= 1 && z > cz;
-                                if (doorway || breach) { Set(x, y, z, 0); continue; }
+                                // two window slits per room, opposite each other
+                                bool window = y > sea + 5 && ((y - baseY) % 8 == 4 || (y - baseY) % 8 == 5)
+                                    && (Math.Abs(Wrap(ang - slitA)) < 0.16 || Math.Abs(Wrap(ang - slitA - Math.PI)) < 0.16);
+                                if (doorway || breach || window) { Set(x, y, z, 0); continue; }
                                 int m = (y - baseY) % 12 == 0 ? band : Wall2();
                                 if (waterBand && drock != 0 && Hash01(x + y, z * 7) < 0.25) m = drock;
                                 Set(x, y, z, m);
                             }
                             else
                             {
-                                // hollow core, flooded below the sea; a spiral
-                                // stair winds up the inside wall
-                                double ang = Math.Atan2(z - cz, x - cx);
-                                double want = (y - baseY) * 0.45;
-                                double diff = ang - want;
-                                while (diff > Math.PI) diff -= Math.PI * 2;
-                                while (diff < -Math.PI) diff += Math.PI * 2;
-                                bool tread = d > rr - 3.4 && Math.Abs(diff) < 0.55;
-                                if (tread && y < lampY - 1) Set(x, y, z, brick);
+                                // the interior: a spiral stair hugging the wall,
+                                // plank floors, flooded below the sea
+                                double diff = Wrap(ang - stairWant);
+                                bool tread = d > rr - 3.6 && Math.Abs(diff) < 0.55;
+                                bool stairGap = d > rr - 3.6 && Math.Abs(diff) < 1.0;
+                                if (tread) Set(x, y, z, brick);
+                                else if (floorLevel && !stairGap)
+                                {
+                                    double pn = Hash01(x * 7 + y, z * 7 - y);
+                                    if (pn < 0.10)                                       // rotted-away plank
+                                    {
+                                        if (y <= sea - 1) SetFluid(x, y, z, job.SaltWaterId);
+                                        else Set(x, y, z, 0);
+                                    }
+                                    else Set(x, y, z, pn < 0.6 ? planksA : planksB);
+                                }
                                 else if (y <= sea - 1) SetFluid(x, y, z, job.SaltWaterId);
                                 else Set(x, y, z, 0);
                             }
                         }
                 }
 
-                // the lamp room: pillars, glass, the light itself, a rail and
-                // a conical roof
-                double lr = 4.2;
-                for (int x = cx - 6; x <= cx + 6; x++)
-                    for (int z = cz - 6; z <= cz + 6; z++)
+                // sparse furnishings in the dry rooms
+                for (int fy = baseY + 8; fy < lampY - 6; fy += 8)
+                {
+                    if (fy <= sea + 1) continue;                          // flooded rooms stay bare
+                    int nItems = 1 + (int)(Hash01(fy, 91) * 2.99);
+                    for (int it = 0; it < nItems; it++)
+                    {
+                        int idB = roomStuff[(int)(Hash01(fy * 3 + it * 13, 17) * roomStuff.Length) % roomStuff.Length];
+                        if (idB == 0) continue;
+                        double ia = Hash01(fy + it * 7, 33) * Math.PI * 2;
+                        double ir2 = Math.Max(0.0, WallR(fy) - 4.6) * Hash01(fy, it + 3);
+                        Set(cx + (int)(Math.Cos(ia) * ir2), fy + 1, cz + (int)(Math.Sin(ia) * ir2), idB);
+                    }
+                }
+
+                // the lamp room: a hollow glass-walled room with a gallery
+                // walkway, corner pillars, the ghostlight on its pedestal, a
+                // rail and a conical roof
+                double lr = 4.6;
+                double arriveA = (lampY - 1 - baseY) * 0.45;
+                for (int x = cx - 7; x <= cx + 7; x++)
+                    for (int z = cz - 7; z <= cz + 7; z++)
                     {
                         double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
-                        if (d <= lr + 0.4) Set(x, lampY - 1, z, band);          // lamp floor
+                        double ang = Math.Atan2(z - cz, x - cx);
+                        if (d <= lr + 1.6)
+                        {
+                            bool stairHole = d > lr - 2.4 && d <= lr - 0.4 && Math.Abs(Wrap(ang - arriveA)) < 0.7;
+                            Set(x, lampY - 1, z, stairHole ? 0 : band);         // lamp floor + gallery deck
+                        }
                         if (d > lr - 0.8 && d <= lr + 0.4)
                         {
                             bool pillar = (Math.Abs(x - cx) > 2.5 && Math.Abs(z - cz) > 2.5);
                             for (int y = lampY; y <= lampY + 3; y++)
                                 Set(x, y, z, pillar ? brick : glass != 0 ? glass : 0);
                         }
-                        if (d > lr + 0.4 && d <= lr + 1.6 && fenceNS != 0)
+                        else if (d <= lr - 0.8)
+                            for (int y = lampY; y <= lampY + 3; y++)
+                                Set(x, y, z, 0);                                // the room is a ROOM
+                        if (d > lr + 0.6 && d <= lr + 1.6 && fenceNS != 0)
                             Set(x, lampY, z, Math.Abs(x - cx) > Math.Abs(z - cz) ? fenceNS : fenceEW); // gallery rail
                         double roofFrac = 1.0 - d / (lr + 1.5);
                         if (roofFrac > 0)
                             Set(x, lampY + 4 + (int)(roofFrac * 3), z, band);   // cone roof
                     }
-                if (glow != 0)
-                    for (int gx2 = 0; gx2 <= 1; gx2++)
-                        for (int gz2 = 0; gz2 <= 1; gz2++)
-                            for (int gy = 0; gy <= 1; gy++)
-                                Set(cx + gx2, lampY + 1 + gy, cz + gz2, glow);  // the light
+                // the light itself: a pedestal and a baked ghostlight cluster
+                for (int gx2 = 0; gx2 <= 1; gx2++)
+                    for (int gz2 = 0; gz2 <= 1; gz2++)
+                    {
+                        Set(cx + gx2, lampY, cz + gz2, band);
+                        Glow(cx + gx2, lampY + 1, cz + gz2, glow);
+                        Glow(cx + gx2, lampY + 2, cz + gz2, glow);
+                    }
 
                 // the broken sister stump and its fallen, still-glowing lantern.
                 // Placed at the DEEPEST water on a 22-block ring: a random
@@ -5903,6 +5974,18 @@ storyloc devastationarea -2550 -8750
         }
 
         ba.Commit();
+
+        if (glowSpots.Count > 0)
+        {
+            var gba = sapi.World.BlockAccessor;
+            var gpos = new BlockPos(0, 0, 0, job.Dim);
+            foreach (var g in glowSpots)
+            {
+                gpos.Set(g.X, g.Y, g.Z);
+                gba.SetBlock(g.Id, gpos);
+                placed++;
+            }
+        }
 
         if (clutterSpots.Count > 0)
         {
