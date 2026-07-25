@@ -5544,12 +5544,30 @@ storyloc devastationarea -2550 -8750
                             else
                             {
                                 // the interior: a spiral stair hugging the wall,
-                                // plank floors, flooded below the sea
+                                // plank floors, flooded below the sea. Every
+                                // tread carves 3 blocks of headroom above
+                                // itself, THROUGH the plank floors, so the
+                                // climb is never blocked.
+                                // Each tread owns exactly the [0, 0.45) slice of
+                                // the helix, the per-block advance, so wedges
+                                // TILE instead of overlapping: the next tread is
+                                // never directly on top of this one. The three
+                                // slices behind are cleared for headroom.
+                                bool inStairRing = d > rr - 3.6;
                                 double diff = Wrap(ang - stairWant);
-                                bool tread = d > rr - 3.6 && Math.Abs(diff) < 0.55;
-                                bool stairGap = d > rr - 3.6 && Math.Abs(diff) < 1.0;
+                                // treads stop 1.55 short of the wall face: the
+                                // wall tapers inward with height, and the
+                                // outermost tread column otherwise finds wall
+                                // two blocks above its head
+                                bool tread = inStairRing && d <= rr - 1.55 && diff >= 0 && diff < 0.45;
+                                bool headroom = inStairRing && diff >= -1.35 && diff < 0;
                                 if (tread) Set(x, y, z, brick);
-                                else if (floorLevel && !stairGap)
+                                else if (headroom)
+                                {
+                                    if (y <= sea - 1) SetFluid(x, y, z, job.SaltWaterId);
+                                    else Set(x, y, z, 0);
+                                }
+                                else if (floorLevel)
                                 {
                                     double pn = Hash01(x * 7 + y, z * 7 - y);
                                     if (pn < 0.10)                                       // rotted-away plank
@@ -5580,6 +5598,19 @@ storyloc devastationarea -2550 -8750
                     }
                 }
 
+                // a still-burning ghostlight sconce in every room, flooded ones
+                // included, so the whole shaft glows through the slits and
+                // tears at night
+                // set INTO the wall band, never the stair ring, so no tread
+                // loses its headroom to a lamp; from outside they read as
+                // lit windows
+                for (int fy = baseY + 4; fy < lampY - 4; fy += 8)
+                {
+                    double sa = Hash01(fy * 5, 57) * Math.PI * 2;
+                    double srr = WallR(fy) - 0.8;
+                    Glow(cx + (int)Math.Round(Math.Cos(sa) * srr), fy, cz + (int)Math.Round(Math.Sin(sa) * srr), glow);
+                }
+
                 // the lamp room: a hollow glass-walled room with a gallery
                 // walkway, corner pillars, the ghostlight on its pedestal, a
                 // rail and a conical roof
@@ -5592,7 +5623,9 @@ storyloc devastationarea -2550 -8750
                         double ang = Math.Atan2(z - cz, x - cx);
                         if (d <= lr + 1.6)
                         {
-                            bool stairHole = d > lr - 2.4 && d <= lr - 0.4 && Math.Abs(Wrap(ang - arriveA)) < 0.7;
+                            // the hole trails the arrival angle so the last
+                            // treads below keep their headroom through this floor
+                            bool stairHole = d > lr - 2.4 && d <= lr - 0.4 && Math.Abs(Wrap(ang - (arriveA - 0.4))) < 1.1;
                             Set(x, lampY - 1, z, stairHole ? 0 : band);         // lamp floor + gallery deck
                         }
                         if (d > lr - 0.8 && d <= lr + 0.4)
@@ -5617,6 +5650,7 @@ storyloc devastationarea -2550 -8750
                         Set(cx + gx2, lampY, cz + gz2, band);
                         Glow(cx + gx2, lampY + 1, cz + gz2, glow);
                         Glow(cx + gx2, lampY + 2, cz + gz2, glow);
+                        Glow(cx + gx2, lampY + 3, cz + gz2, glow);
                     }
 
                 // the broken sister stump and its fallen, still-glowing lantern.
