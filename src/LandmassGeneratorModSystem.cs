@@ -5812,14 +5812,28 @@ storyloc devastationarea -2550 -8750
                 double cyw = Math.Cos(yaw), syw = Math.Sin(yaw);
                 int y0 = Ground(cx, cz) - 2;
 
-                int Armor(int x, int y, int z, double v)
+                int Armor(int x, int y, int z, double v, double e)
                 {
-                    if (Math.Abs(v) > 0.86) return trim;                            // iron-edged part rims
+                    // ghostlight highlights across the outer skin, densest on
+                    // the deep lower body: seam studs along the part rims,
+                    // loose flecks in the carved rock
+                    bool skin = e > 0.90;
+                    double depthBoost = y < y0 + 40 ? 2.5 : 1.0;
+                    if (Math.Abs(v) > 0.86)
+                    {
+                        if (skin && Hash01(x * 11 + y * 5, z * 11 - y * 3) < 0.06 * depthBoost)
+                            Glow(x, y, z, Hash01(x + z, y) < 0.7 ? glowEye : glowStud);
+                        return trim;                                                // iron-edged part rims
+                    }
                     double nz = Hash01(x * 3 + y * 7, z * 3 - y * 5);
+                    if (skin && Hash01(x * 7 + y * 13, z * 7 + y * 5) < 0.012 * depthBoost)
+                        Glow(x, y, z, Hash01(x - z, y * 3) < 0.7 ? glowEye : glowStud);
                     if (y < y0 + 34 && nz < 0.30) return Rust();                    // the deep rusts hardest
                     if (((y - y0) / 6) % 2 == 0 && nz < 0.35) return Rust();        // rusted plate courses
                     return body;                                                     // the carved rock
                 }
+
+                var colTop = new Dictionary<long, int>();                            // topmost statue block per column
 
                 // A superellipsoid part in colossus-local space (+X forward),
                 // rotated to world by the pose yaw. mode 0 carved rock with
@@ -5843,8 +5857,10 @@ storyloc devastationarea -2550 -8750
                                 if (e > 1.0) continue;
                                 int m = mode == 1 ? trim
                                     : mode == 2 || mode == 3 ? Rust()
-                                    : Armor(x, y, z, v);
+                                    : Armor(x, y, z, v, e);
                                 Set(x, y, z, m);
+                                long ck = ((long)x << 32) | (uint)z;
+                                if (!colTop.TryGetValue(ck, out int ct) || y > ct) colTop[ck] = y;
                             }
                         }
                 }
@@ -5925,6 +5941,23 @@ storyloc devastationarea -2550 -8750
                     double wHalf = f > 0.86 ? 2.6 * (1.0 - f) / 0.14 + 0.6 : 2.6;   // tip taper only
                     Blob(lx2, ly2, 38, 1.6, 1.4, Math.Max(0.9, wHalf), 9, 3);
                 }
+
+                // devastation creeping over the statue: thorn growth rooted
+                // in small devastated-soil patches on its upward faces
+                int dsoilC = IdFirst("devastatedsoil-3", "devastatedsoil-1", "devastatedsoil-6");
+                int[] growthC = {
+                    Id("devgrowth-thorns"), Id("devgrowth-thorns"),
+                    Id("devgrowth-shard"), Id("devgrowth-bush") };
+                if (dsoilC != 0)
+                    foreach (var kv in colTop)
+                    {
+                        int x = (int)(kv.Key >> 32), z = (int)kv.Key;
+                        if (Hash01(x * 17 + kv.Value, z * 19) > 0.05) continue;
+                        int g2 = growthC[(int)(Hash01(x, z) * growthC.Length) % growthC.Length];
+                        if (g2 == 0) continue;
+                        Set(x, kv.Value, z, dsoilC);
+                        Set(x, kv.Value + 1, z, g2);
+                    }
                 break;
             }
 
