@@ -5726,7 +5726,11 @@ storyloc devastationarea -2550 -8750
                             double dx = x - cx, dy = y - oy, dz = z - cz;
                             double d3 = Math.Sqrt(dx * dx + dy * dy + dz * dz);
                             if (d3 > orbR + 0.4) continue;
-                            if (d3 > orbR - 3.0)
+                            // the hide is thickest around and under the
+                            // waterline so the animated waves never clip
+                            // through into the sealed hollow
+                            double shellTh = y <= sea + 3 ? 7.0 : 4.0;
+                            if (d3 > orbR - shellTh)
                             {
                                 bool crack = y > sea + 1
                                     && (Math.Abs(dx * n1x + dz * n1z) < 1.1 || Math.Abs(dx * n2x + dz * n2z) < 1.1)
@@ -5774,6 +5778,20 @@ storyloc devastationarea -2550 -8750
                     double gr = R * (0.55 + rand.NextDouble() * 0.4);
                     double gxE = cx + Math.Cos(a0) * gr, gzE = cz + Math.Sin(a0) * gr;
                     ChainRun(ax, ay, az, gxE, 6, gzE, 0, 2.0);
+
+                    // every third chain grew a deeper branch: hooked on a
+                    // quarter of the way down the main run, running further
+                    // out horizontally to its own anchor in the rock
+                    if (i % 3 == 0)
+                    {
+                        double bf = 0.25;
+                        double bx0 = ax + (gxE - ax) * bf;
+                        double by0 = ay + (6 - ay) * bf;
+                        double bz0 = az + (gzE - az) * bf;
+                        double bAng = a0 + (rand.NextDouble() - 0.5) * 0.9;
+                        double br2 = Math.Min(R * 1.5, gr * (1.7 + rand.NextDouble() * 0.4));
+                        ChainRun(bx0, by0, bz0, cx + Math.Cos(bAng) * br2, 6, cz + Math.Sin(bAng) * br2, 0, 1.8);
+                    }
                 }
                 break;
             }
