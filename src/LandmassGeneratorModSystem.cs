@@ -5277,8 +5277,8 @@ storyloc devastationarea -2550 -8750
         }
         if (d.Kind == "beacon") d.Kind = "lighthouse";
         if (d.Kind != "lighthouse" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent"
-            && d.Kind != "forge" && d.Kind != "divingbell")
-            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell)");
+            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary")
+            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary)");
         return d;
     }
 
@@ -6757,6 +6757,139 @@ storyloc devastationarea -2550 -8750
                 break;
             }
 
+            // ── THE HILL GRANARY ──────────────────────────────────────────
+            // What the terraces were farmed for, gone to ruin: a round silo
+            // with its top courses fallen away, a barn whose footings and
+            // roof timbers still stand, hay spilled through both, a cobbled
+            // threshing floor, and the tumbled remains of the yard wall.
+            case "granary":
+            {
+                string rockName = "granite";
+                var stoneBlock = sapi.World.GetBlock(job.StoneId);
+                if (stoneBlock?.Code?.Path != null && stoneBlock.Code.Path.StartsWith("rock-"))
+                    rockName = stoneBlock.Code.Path.Substring(5);
+                int brick = IdFirst($"stonebricks-{rockName}", "stonebricks-granite");
+                int cracked = IdFirst($"crackedstonebricks-{rockName}", "crackedstonebricks-granite", $"stonebricks-{rockName}");
+                int cobble = IdFirst($"cobblestone-{rockName}", "cobblestone-granite");
+                int mossy = IdFirst($"mossycobble-{rockName}", $"cobblestone-{rockName}", "cobblestone-granite");
+                int timber = IdFirst("log-placed-aged-ud", "planks-aged-ud");
+                int timberWE = IdFirst("log-placed-aged-we", "planks-aged-we");
+                int plank = IdFirst("planks-aged-we", "planks-veryaged-we");
+                int hay = IdFirst("hay-normal-ud", "hay-aged-ud");
+                int[] vessels = { Need("lootvessel-food"), Need("lootvessel-seed"), Need("lootvessel-tool") };
+                int basket = IdFirst("stationarybasket-n", "stationarybasket-e");
+                int quern = IdFirst($"quern-{rockName}", "quern-granite");
+                int grass2 = IdFirst("tallgrass-medium-free", "tallgrass-short-free");
+                if (brick == 0) break;
+                if (cobble == 0) cobble = brick;
+                if (mossy == 0) mossy = cobble;
+                if (hay == 0) hay = plank;
+                if (timber == 0) timber = plank;
+
+                double yaw3 = rand.NextDouble() * Math.PI * 2;
+                double cy3 = Math.Cos(yaw3), sy3 = Math.Sin(yaw3);
+                int g0 = Ground(cx, cz);
+                // Everything below is drawn in the compound's own frame:
+                // u runs along the barn, w across it, dy above the yard.
+                // The frame is rotated by yaw3, so every surface is rastered
+                // at half-block steps: a whole-block step in a rotated frame
+                // rounds into a lattice with holes in it.
+                void Put(double u, double w, int dy, int id)
+                {
+                    if (id == 0) return;
+                    Set((int)Math.Round(cx + u * cy3 - w * sy3), g0 + dy, (int)Math.Round(cz + u * sy3 + w * cy3), id);
+                }
+                int GroundAt(double u, double w)
+                    => Ground((int)Math.Round(cx + u * cy3 - w * sy3), (int)Math.Round(cz + u * sy3 + w * cy3));
+
+                // the silo, its rim fallen away toward one side
+                double siloU = -R * 0.42, siloW = 0;
+                double siloR = Math.Clamp(R * 0.22, 4.0, 6.5);
+                int siloH = (int)Math.Clamp(R * 0.85, 12, 22);
+                double fallAng = rand.NextDouble() * Math.PI * 2;
+                for (int dy = -3; dy <= siloH; dy++)
+                    for (double u = siloU - siloR - 1; u <= siloU + siloR + 1; u += 0.5)
+                        for (double w = siloW - siloR - 1; w <= siloW + siloR + 1; w += 0.5)
+                        {
+                            double du = u - siloU, dw = w - siloW;
+                            double d = Math.Sqrt(du * du + dw * dw);
+                            double ang = Math.Atan2(dw, du);
+                            int rimH = (int)(siloH - 3.5 * (Math.Cos(ang - fallAng) + 1)
+                                - Hash01((int)(u * 7), (int)(w * 11)) * 3);
+                            if (dy > rimH) continue;
+                            if (d > siloR - 1.15 && d <= siloR + 0.35)
+                            {
+                                if (dy >= 0 && dy <= 2 && Math.Abs(ang) < 0.42) continue;     // the doorway
+                                Put(u, w, dy, dy > rimH - 3 || Hash01((int)(u * 13) + dy, (int)(w * 17)) < 0.22 ? cracked : brick);
+                            }
+                            else if (d <= siloR - 1.15 && dy < 0) Put(u, w, dy, cobble);
+                            else if (d <= siloR - 1.15 && dy <= 3 && Hash01((int)(u * 3) + dy * 5, (int)(w * 7)) < 0.8)
+                                Put(u, w, dy, hay);                                          // the grain still in it
+                        }
+                for (int k = 0; k < 14; k++)
+                    Put(siloU + siloR + 0.5 + Hash01(k * 5, 3) * 5, siloW + (Hash01(k * 9, 7) - 0.5) * 5, 0,
+                        Hash01(k, 11) < 0.55 ? hay : cobble);
+
+                // the barn: footing walls, standing posts, surviving beams
+                double barnL = Math.Clamp(R * 0.45, 7, 12), barnW2 = Math.Clamp(R * 0.30, 4.5, 8);
+                double barnU = R * 0.28;
+                for (double u = -barnL; u <= barnL; u += 0.5)
+                    for (double w = -barnW2; w <= barnW2; w += 0.5)
+                    {
+                        bool edge = Math.Abs(Math.Abs(u) - barnL) < 0.5 || Math.Abs(Math.Abs(w) - barnW2) < 0.5;
+                        if (edge)
+                        {
+                            bool door = Math.Abs(w) < 1.6 && Math.Abs(u - barnL) < 0.5;
+                            int h2 = door ? -1 : 1 + (int)(Hash01((int)(u * 11), (int)(w * 13)) * 2);
+                            for (int dy = -2; dy <= h2; dy++)
+                                Put(barnU + u, w, dy, dy < 0 ? cobble
+                                    : (Hash01((int)(u * 7) + dy, (int)(w * 5)) < 0.35 ? mossy : cobble));
+                        }
+                        else Put(barnU + u, w, -1, Hash01((int)(u * 17), (int)(w * 19)) < 0.5 ? cobble : mossy);
+                    }
+                for (double u = -barnL; u <= barnL; u += 3)
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        if (Hash01((int)(u * 23), side) < 0.25) continue;      // some posts are gone
+                        int postH = 4 + (int)(Hash01((int)(u * 29), side * 3) * 2);
+                        for (int dy = 0; dy <= postH; dy++) Put(barnU + u, side * barnW2, dy, timber);
+                        if (Hash01((int)(u * 31), side * 5) < 0.55)
+                            for (double w = -barnW2; w <= barnW2; w += 0.5) Put(barnU + u, w, postH + 1, timberWE);
+                    }
+                for (double u = -barnL * 0.9; u <= -barnL * 0.15; u += 0.5)
+                    for (double w = -barnW2 + 1; w <= barnW2 - 1; w += 0.5)
+                        if (Hash01((int)(u * 37), (int)(w * 41)) < 0.7) Put(barnU + u, w, 7, plank);
+                Put(barnU - barnL * 0.6, -barnW2 + 2, 0, hay);
+                Put(barnU - barnL * 0.6, -barnW2 + 3, 0, hay);
+                Put(barnU - barnL * 0.55, -barnW2 + 2, 1, hay);
+                Put(barnU + barnL * 0.2, barnW2 - 2, 0, vessels[0]);
+                Put(barnU + barnL * 0.45, barnW2 - 3, 0, vessels[1]);
+                Put(barnU - barnL * 0.1, barnW2 - 2, 0, basket);
+                Put(barnU + barnL * 0.6, -barnW2 + 2, 0, quern);
+
+                // the threshing floor, and the yard wall tumbling around it all
+                double thU = -R * 0.05, thW = -R * 0.50, thR = Math.Clamp(R * 0.20, 3.5, 7);
+                for (double u = -thR; u <= thR; u += 0.5)
+                    for (double w = -thR; w <= thR; w += 0.5)
+                    {
+                        if (u * u + w * w > thR * thR) continue;
+                        int gh = GroundAt(thU + u, thW + w) - g0;
+                        if (Math.Abs(gh) > 3) continue;
+                        Put(thU + u, thW + w, gh, Hash01((int)(u * 43), (int)(w * 47)) < 0.25 ? mossy : cobble);
+                    }
+                for (int k = 0; k < 150; k++)
+                {
+                    double wa = k / 150.0 * Math.PI * 2;
+                    double wr = R * 0.78 * (1 + 0.12 * Math.Sin(wa * 3 + 1.2));
+                    double u = Math.Cos(wa) * wr, w = Math.Sin(wa) * wr;
+                    int gh = GroundAt(u, w) - g0;
+                    int wh = Hash01(k * 3, 5) < 0.35 ? 0 : 1 + (int)(Hash01(k * 7, 9) * 2);
+                    for (int dy = 0; dy <= wh; dy++)
+                        Put(u, w, gh + dy, Hash01(k + dy * 3, 13) < 0.4 ? mossy : cobble);
+                    if (grass2 != 0 && Hash01(k * 11, 17) < 0.25) Put(u + 1.4, w, gh + wh + 1, grass2);
+                }
+                break;
+            }
         }
 
         ba.Commit();
