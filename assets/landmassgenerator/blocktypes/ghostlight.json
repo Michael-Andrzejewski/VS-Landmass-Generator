@@ -16,7 +16,7 @@
 	"resistance": 1,
 	"lightAbsorption": 0,
 	"sidesolid": { "all": true },
-	"sideopaque": { "all": false },
+	"sideopaque": { "all": true },
 	"vertexFlags": { "glowLevel": 255 },
 	"lightHsvByType": {
 		"*-green": [22, 7, 22],

@@ -504,3 +504,17 @@ over the coast carve right at the shoreline. Fixed: basin is carve-only
 shore. If an old island was generated before 0.51.0, rebuilding it in
 place will NOT remove the old plateau ring beyond OceanRing of land
 (see the open-water rebuild papercut); /wgen delr first.
+
+## Ghostlight cubes emitted NO light (fixed in 0.52.0)
+
+Symptom: /genisland lighthouse looked right, but at night the whole
+tower was pitch black; the serpent, using Underwater Horrors chiseled
+ghostlights, baked its light fine in the same world. Cause: the
+0.51.0 full-cube ghostlight declared `sideopaque: { all: false }`
+(copied from UH's json-shape block). A CUBE drawtype declared
+non-opaque on all sides breaks the engine's light emission for that
+block. Both vanilla full-cube emitters (creativelight, paperlantern)
+set sideopaque all TRUE; matching them fixed it. Debug with the
+"[landmassgen] glow probe" server log line: the immediate read races
+the async relight thread and can print 0 even when the light is fine;
+trust the "(late)" line 1.5s later (should be ~22).

@@ -640,3 +640,12 @@ culled at conversion time.
   the same way clutter goes in. That bakes their light immediately, like
   the Underwater Horrors ruins; through the bulk accessor they can end
   up dark until a neighbor update.
+
+- Full-cube light blocks need `sideopaque: all true`. Both vanilla
+  full-cube emitters (creativelight, paperlantern) set it; our 0.51.0
+  ghostlight shipped with `all false` and its light did not bake in
+  Michael's world even though the UH json-shape ghostlights (sideopaque
+  false, but NOT full cubes) baked fine in the same run. A cube declared
+  non-opaque on all sides confuses the light propagation pass. The glow
+  probe log line ("[landmassgen] glow probe: block light N ...", written
+  after every struct glow pass) is the ground truth: N should be ~21-22.

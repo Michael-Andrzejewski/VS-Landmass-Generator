@@ -6155,6 +6155,23 @@ storyloc devastationarea -2550 -8750
                 gba.SetBlock(g.Id, gpos);
                 placed++;
             }
+            // ground truth that the light actually baked: read the block
+            // light right where the first emitter sits
+            var p0 = glowSpots[0];
+            gpos.Set(p0.X, p0.Y, p0.Z);
+            var pBlock = gba.GetBlock(gpos);
+            sapi.Logger.Notification(
+                "[landmassgen] glow probe: block light {0} at emitter {1}/{2}/{3} ({4} emitters, block {5}, LightHsv {6})",
+                gba.GetLightLevel(gpos, EnumLightLevelType.OnlyBlockLight),
+                p0.X, p0.Y, p0.Z, glowSpots.Count, pBlock.Code,
+                pBlock.LightHsv[0] + "," + pBlock.LightHsv[1] + "," + pBlock.LightHsv[2]);
+            // and once more after the relight queue has drained, since the
+            // immediate read can race the lighting thread
+            var probePos = new BlockPos(p0.X, p0.Y, p0.Z, job.Dim);
+            sapi.Event.RegisterCallback(dt2 => sapi.Logger.Notification(
+                "[landmassgen] glow probe (late): block light {0} at {1}/{2}/{3}",
+                sapi.World.BlockAccessor.GetLightLevel(probePos, EnumLightLevelType.OnlyBlockLight),
+                probePos.X, probePos.Y, probePos.Z), 1500);
         }
 
         if (clutterSpots.Count > 0)
