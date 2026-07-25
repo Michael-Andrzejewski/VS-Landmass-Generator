@@ -25,6 +25,11 @@
 86,
 85
 ],
+"game:altar-east": [
+92,
+80,
+78
+],
 "game:aquatic-kelp-section": [
 84,
 89,
@@ -90,25 +95,10 @@
 128,
 100
 ],
-"game:brickruin-irregular-brown": [
-99,
-81,
-56
-],
 "game:brickruin-irregular-gray": [
 63,
 60,
 53
-],
-"game:brickruin-irregular-red": [
-101,
-66,
-54
-],
-"game:brickruin-irregular-tan": [
-124,
-101,
-71
 ],
 "game:carvedlog-acacia-aged-bottom-fancy-we": [
 103,
@@ -535,6 +525,16 @@
 100,
 88
 ],
+"game:clutter|candlestubs-bunch2": [
+115,
+100,
+88
+],
+"game:clutter|candlestubs-bunch3": [
+115,
+100,
+88
+],
 "game:clutter|carcass-medium": [
 115,
 100,
@@ -646,6 +646,21 @@
 88
 ],
 "game:clutter|coatrack-full4": [
+115,
+100,
+88
+],
+"game:clutter|coffin-rot-ajar": [
+115,
+100,
+88
+],
+"game:clutter|coffin-rot-closed": [
+115,
+100,
+88
+],
+"game:clutter|coffin-rot-no-lid": [
 115,
 100,
 88
@@ -1895,6 +1910,11 @@
 218,
 178
 ],
+"game:crystal-milkyquartz-large2-north": [
+225,
+218,
+178
+],
 "game:crystal-milkyquartz-large2-up": [
 225,
 218,
@@ -3053,11 +3073,6 @@
 135,
 135
 ],
-"game:leaves-grown6-oak": [
-149,
-149,
-149
-],
 "game:leaves-grown6-pine": [
 131,
 131,
@@ -3267,11 +3282,6 @@
 96,
 76,
 59
-],
-"game:leavesbranchy-grown6-oak": [
-135,
-102,
-73
 ],
 "game:leavesbranchy-grown6-pine": [
 139,
@@ -3712,6 +3722,46 @@
 120,
 60
 ],
+"game:mushroom-dryadsaddle-normal-north": [
+159,
+141,
+112
+],
+"game:mushroom-dryadsaddle-normal-west": [
+159,
+141,
+112
+],
+"game:mushroom-shiitake-normal-east": [
+120,
+123,
+108
+],
+"game:mushroom-shiitake-normal-north": [
+120,
+123,
+108
+],
+"game:mushroom-tinderhoof-normal-east": [
+167,
+158,
+153
+],
+"game:mushroom-tinderhoof-normal-north": [
+167,
+158,
+153
+],
+"game:mushroom-tinderhoof-normal-south": [
+167,
+158,
+153
+],
+"game:mushroom-tinderhoof-normal-west": [
+167,
+158,
+153
+],
 "game:ore-anthracite-chalk": [
 70,
 69,
@@ -3982,6 +4032,11 @@
 52,
 25
 ],
+"game:ore-medium-emerald-basalt": [
+52,
+137,
+79
+],
 "game:ore-medium-emerald-limestone": [
 52,
 137,
@@ -4018,11 +4073,6 @@
 74
 ],
 "game:ore-medium-ilmenite-andesite": [
-51,
-35,
-30
-],
-"game:ore-medium-ilmenite-granite": [
 51,
 35,
 30
@@ -4101,11 +4151,6 @@
 92,
 100,
 56
-],
-"game:ore-medium-pentlandite-basalt": [
-72,
-59,
-31
 ],
 "game:ore-medium-pentlandite-granite": [
 72,
@@ -4242,6 +4287,11 @@
 35,
 30
 ],
+"game:ore-poor-ilmenite-basalt": [
+51,
+35,
+30
+],
 "game:ore-poor-limonite-shale": [
 60,
 22,
@@ -4296,11 +4346,6 @@
 147,
 91,
 59
-],
-"game:ore-poor-pentlandite-granite": [
-72,
-59,
-31
 ],
 "game:ore-poor-quartz_nativegold-shale": [
 196,
@@ -4431,11 +4476,6 @@
 147,
 91,
 59
-],
-"game:ore-rich-quartz_nativegold-granite": [
-196,
-156,
-62
 ],
 "game:ore-rich-quartz_nativegold-shale": [
 196,
@@ -5408,6 +5448,11 @@
 190,
 161
 ],
+"game:seashell-conch-seafoam": [
+182,
+193,
+181
+],
 "game:seashell-conch-turquoise": [
 140,
 170,
@@ -6224,6 +6269,12 @@
 110
 ],
 "game:water-ne-7": [
+30,
+80,
+140,
+110
+],
+"game:water-nw-5": [
 30,
 80,
 140,
