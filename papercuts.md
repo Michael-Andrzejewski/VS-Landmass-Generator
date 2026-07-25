@@ -518,3 +518,13 @@ set sideopaque all TRUE; matching them fixed it. Debug with the
 "[landmassgen] glow probe" server log line: the immediate read races
 the async relight thread and can print 0 even when the light is fine;
 trust the "(late)" line 1.5s later (should be ~22).
+
+## A dump census by SUBSTRING counted 54k blocks that were never there
+
+Checking the granary islands, "devastated" came out at 54,985 blocks on a
+150-wide island, which read as the devastation patches having eaten the
+whole farm. They had not: the census matched palette codes containing
+"drock", and `crackedrock-granite` contains it. The real devastation was
+127 soil blocks and 16 growths, i.e. too SMALL, the opposite diagnosis.
+Match full palette codes, or anchor the substring, before believing any
+dump statistic. Sibling of the count-by-full-code lesson in tips.md.

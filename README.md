@@ -273,8 +273,9 @@ back to natural over 18 blocks past R.
 
 ### Megastructures (`struct <char> kind=... size=... seed=...`)
 
-One directive, five set pieces (0.49.0). The marker can stand in open
-water; pair with `ocean basin=` when the piece needs guaranteed depth.
+One directive, seven set pieces (0.49.0, extended in 0.53.0). The marker
+can stand in open water; pair with `ocean basin=` when the piece needs
+guaranteed depth.
 
 - `kind=lighthouse` (size = tower height): the Drowned Lighthouse
   (`beacon` still accepted as an alias). A tapered granite lighthouse
@@ -314,9 +315,33 @@ water; pair with `ocean basin=` when the piece needs guaranteed depth.
   pairs it with a wide low island: soil flats a few blocks above the
   waterline, a terra preta ring, and a stepped basalt cone.
 
+- `kind=divingbell` (size = the works, ~0.6x its radius is the chamber):
+  the Diving Bell Mine. Opens a blue hole in the sea floor: a funnel
+  shaft down into a huge flooded chamber whose walls, floor and roof
+  bulge with patches of unusual ore in their own host rock (nickel,
+  fluorite, lapis lazuli, cinnabar, malachite, corundum, graphite,
+  olivine, sylvite, borax, kernite, diamond and more, every pair checked
+  against the game's allowedVariants). Corroded box girders cantilever
+  off the nearest shore on braced towers, walkable decks and railings on
+  top, and drop vast chains from their tips. Each chain ends in a
+  house-sized cast bell, hollow, clappered, lit by a ghostlight, and
+  holding a real pocket of AIR at depth, so a diver can surface inside
+  one; the bells hang at staggered depths from just under the waves to
+  the chamber floor. Older bells lie collapsed and torn open on the sea
+  bed and the chamber floor among scattered plate and junk machinery. If
+  no land is within reach the derrick stands on rock piers instead.
+- `kind=granary` (size = compound radius): the Hill Granary. A ruined
+  farm compound in the island's own rock: a round silo whose upper
+  courses have fallen away toward one side, grain still heaped inside
+  and spilled out of the doorway; a barn with footing walls, standing
+  timber posts, a few surviving roof beams and part of its plank roof,
+  holding hay, loot vessels, a basket and a quern; a cobbled threshing
+  floor; and a tumbled yard wall with grass growing through it.
+
 Shapes: `lighthouse`, `chainfield`, `colossus_deep`,
-`giant_serpent_skeleton`, `forge_volcano` (see their gen scripts for the
-suggested commands).
+`giant_serpent_skeleton`, `forge_volcano`, `divingbell_mine`,
+`granary_temperate` / `granary_arid` / `granary_lush` / `granary_cold`
+(see their gen scripts for the suggested commands).
 
 ## Localhost previewer
 

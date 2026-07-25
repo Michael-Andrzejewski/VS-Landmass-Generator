@@ -649,3 +649,37 @@ culled at conversion time.
   non-opaque on all sides confuses the light propagation pass. The glow
   probe log line ("[landmassgen] glow probe: block light N ...", written
   after every struct glow pass) is the ground truth: N should be ~21-22.
+
+- Ore patches must carry their own HOST ROCK. `ore-{grade}-{type}-{rock}`
+  (graded) and `ore-{type}-{rock}` (ungraded) exist only for the pairs in
+  the blocktype's `allowedVariants`, so a hand-placed seam is "a blob of
+  rock-X studded with ore-...-X", never ore floating in someone else's
+  stone. Pairs verified for 1.22 and used by the diving bell mine:
+  pentlandite (nickel) in peridotite/granite/andesite/basalt, fluorite in
+  limestone/slate/phyllite/chert, lapislazuli in limestone and the
+  marbles, cinnabar in basalt/slate/andesite, malachite in the marbles
+  and limestone, rhodochrosite + sphalerite + phosphorite in limestone,
+  corundum in whitemarble/peridotite/slate, graphite in phyllite/slate,
+  olivine and olivine_peridot in peridotite, sylvite in halite, borax in
+  chalk, kernite in claystone, emerald in limestone, diamond in
+  kimberlite. Two traps: graded and ungraded ores are DIFFERENT code
+  shapes (grade segment or not: cinnabar, fluorite, lapis, corundum,
+  graphite, olivine, sylvite, borax, kernite and quartz are ungraded),
+  and rich/bountiful do not exist for every rock, so resolve with a
+  fallback and log what fails.
+
+- A sealed dome of air below sea level STAYS air. Blocks written through
+  the bulk accessor never trigger a liquid update (the same rule that
+  lets the sculpted whirlpool hold its shape), so the hollow inside a
+  diving bell is a real breathing pocket at depth, not just scenery. The
+  exact dump proves it: the mine's topmost bell reads air from y100 to
+  y108 with sea level at 110 and water on every side. Put a ghostlight
+  inside and it is a lit air pocket.
+
+- A terrace and the rock lip at its edge want the SAME height. Region
+  heights are smoothed over ~5 cells, so a lip set halfway between two
+  terraces just blends the whole hillside into one ramp: the first
+  granary island (four terraces, three midpoint lips) measured a dead
+  uniform fall of one block per three blocks of radius, with no step
+  anywhere. Give each terrace and its lip one height so the platform is
+  genuinely flat, and let the entire drop happen between platforms.
