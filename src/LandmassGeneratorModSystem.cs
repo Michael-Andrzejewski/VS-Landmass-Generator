@@ -5361,19 +5361,18 @@ storyloc devastationarea -2550 -8750
         {
             long key = ((long)x << 24) ^ (uint)z;
             if (groundCache.TryGetValue(key, out int g)) return g;
-            if (ColumnSurface(job, x, z, sea, out int ty, out _, out _, out _, out _, out _)) g = ty;
-            else
-            {
-                // Outside the generator's own footprint there is no designed
-                // surface, and "sea - water" is only a guess. The real sea
-                // floor out there is whatever the world generated, often far
-                // deeper: the guess built the first diving bell chamber 50
-                // blocks too high and stood its shell out of the sea bed as
-                // a stepped mound (exact-dump find).
-                groundPos.Set(x, sea, z);
-                int th = sapi.World.BlockAccessor.GetTerrainMapheightAt(groundPos);
-                g = th > 1 ? th : sea - job.Water;
-            }
+            // The REAL terrain height has to come first, exactly as
+            // FillColumn does it. ColumnSurface takes it as an argument and
+            // uses it to decide whether `ocean basin=` may carve here, so
+            // passing sea level instead (the old code did) made the basin
+            // test always pass and handed back a phantom sea floor at
+            // sea-basin-depth for every open-water column. Anything built
+            // on that number came out as a crust floating over water, which
+            // is exactly what the first diving bell site looked like.
+            groundPos.Set(x, sea, z);
+            int nat = sapi.World.BlockAccessor.GetTerrainMapheightAt(groundPos);
+            if (nat <= 1) nat = sea - job.Water;
+            g = ColumnSurface(job, x, z, nat, out int ty, out _, out _, out _, out _, out _) ? ty : nat;
             groundCache[key] = g;
             return g;
         }
@@ -6385,144 +6384,182 @@ storyloc devastationarea -2550 -8750
             }
 
             // ── THE DIVING BELL MINE ──────────────────────────────────────
-            // A mine that works a drowned cavern. Corroded derrick beams
-            // cantilever off the island's shore, out and up over a blue hole
-            // in the seabed; vast chains drop from their tips down the shaft
-            // into a flooded chamber whose walls are veined with strange ore,
-            // and every chain ends in a house-sized diving bell that still
-            // holds its pocket of air and its ghostlight. Older bells lie
-            // collapsed on the floor among the wreckage of the works.
+            // A drowned mine over a rift. The sea floor here is a solid
+            // ridge field of rock, split by long narrow chasms that drop
+            // 40 to 70 blocks into it, with short caves running off their
+            // walls. The ore is IN those walls, ghostlights dot the rims
+            // and the faces, and the derrick standing on the island's shore
+            // lowers a house-sized diving bell into a widened bay of the
+            // nearest rift, each bell holding its own pocket of air.
             case "divingbell":
             {
                 int host = job.StoneId != 0 ? job.StoneId : IdFirst("rock-limestone", "rock-granite");
+                int host2 = IdFirst("rock-chert", "rock-shale", "rock-andesite");
                 int glowG = IdFirst("landmassgenerator:ghostlight-green", "underwaterhorrors:ghostlight-green");
                 int glowB = IdFirst("landmassgenerator:ghostlight-blue", "underwaterhorrors:ghostlight-blue");
+                int brine = job.SaltWaterId;
+                if (host2 == 0) host2 = host;
 
-                double caveR = Math.Clamp(R * 0.62, 30, 78);
-                double shaftR = Math.Clamp(R * 0.24, 12, 30);
+                double massifR = Math.Clamp(R * 0.74, 55, 104);
+                double massifSkirt = massifR * 0.60;
+                double peakY = sea - 16, troughY = sea - 60;
 
-                // 0. the bank. A blue hole is a hole in a SHELF, and the open
-                //    sea floor out here is whatever the world made of it,
-                //    often 80+ blocks down with no room under it for a
-                //    chamber. So the works stand on their own submarine
-                //    bank: rock raised from the real floor to a shelf depth,
-                //    with a long noisy skirt so it meets the sea bed as a
-                //    slope and never as a plateau wall.
-                int bankTop = sea - 28;
-                double bankR = caveR * 1.06, skirt = caveR * 0.95;
-                // The sea floor the whole works is measured against: the real
-                // one where it is already shallow enough, the bank's surface
-                // where the bank raised it. Everything below (shaft mouth,
-                // sea-bed ore, fallen bells, scrap) asks this, never Ground,
-                // because Ground caches the floor from BEFORE the bank.
-                int SeaFloor(int x, int z)
+                // 1. THE SEA MOUNT. Rippling ridges of solid rock, filled
+                //    from the real sea floor upward, so everything under the
+                //    works is stone and nothing is hollow. Ridged noise
+                //    (1 - |2n-1|) creases the crests instead of rounding
+                //    them, which is what makes it read as mountains rather
+                //    than dunes.
+                var massifCache = new Dictionary<long, int>();
+                int MassifY(int x, int z)
                 {
+                    long mkey = ((long)x << 24) ^ (uint)z;
+                    if (massifCache.TryGetValue(mkey, out int mv)) return mv;
                     int nat = Ground(x, z);
-                    double dx2 = x - cx, dz2 = z - cz;
-                    double d = Math.Sqrt(dx2 * dx2 + dz2 * dz2);
-                    if (nat >= bankTop || d > bankR + skirt) return nat;
-                    double f = d <= bankR ? 1.0 : Smooth((bankR + skirt - d) / skirt);
-                    // Both noise fields carry their own base frequency, so the
-                    // coordinate scale multiplies INTO it: 0.55 is ~40-block
-                    // swells and 1.6 is ~10-block roughness. The first cut
-                    // passed 0.035, which is a 600-block wavelength, and the
-                    // bank came out as a dead flat plate (exact-dump find).
-                    double n1 = job.SurfNoise.Noise(x * 0.55, z * 0.55) - 0.5;
-                    double n2 = job.RockBlend.Noise(x * 1.6, z * 1.6) - 0.5;
-                    return Math.Max(nat, (int)Math.Round(nat + (bankTop - nat) * f
-                        + (n1 * 14.0 + n2 * 5.0) * f));
+                    double mdx = x - cx, mdz = z - cz;
+                    double md = Math.Sqrt(mdx * mdx + mdz * mdz);
+                    int outv;
+                    if (md > massifR + massifSkirt || nat >= peakY) outv = nat;
+                    else
+                    {
+                        double n1 = job.SurfNoise.Noise(x * 0.30, z * 0.30);
+                        double n2 = job.RockBlend.Noise(x * 0.85, z * 0.85);
+                        double ridge = 1.0 - Math.Abs(n1 * 2 - 1);
+                        double topY = troughY + (peakY - troughY) * (Math.Pow(ridge, 0.72) * 0.80 + n2 * 0.20);
+                        double f = md <= massifR ? 1.0 : Smooth((massifR + massifSkirt - md) / massifSkirt);
+                        outv = Math.Max(nat, (int)Math.Round(nat + (topY - nat) * f));
+                    }
+                    massifCache[mkey] = outv;
+                    return outv;
                 }
 
-                int br0 = (int)(bankR + skirt) + 2;
-                for (int x = cx - br0; x <= cx + br0; x++)
-                    for (int z = cz - br0; z <= cz + br0; z++)
+                int mr = (int)(massifR + massifSkirt) + 2;
+                for (int x = cx - mr; x <= cx + mr; x++)
+                    for (int z = cz - mr; z <= cz + mr; z++)
                     {
-                        double dx2 = x - cx, dz2 = z - cz;
-                        if (Math.Sqrt(dx2 * dx2 + dz2 * dz2) > bankR + skirt) continue;
-                        int nat = Ground(x, z), target = SeaFloor(x, z);
-                        if (target <= nat) continue;
-                        for (int y = nat + 1; y <= target; y++) Set(x, y, z, host);
-                        // sand in drifts, not in a per-block checkerboard
-                        if (job.SandId != 0 && job.SurfNoise.Noise(x * 0.8 + 500, z * 0.8 - 300) > 0.52)
-                            Set(x, target, z, job.SandId);
+                        double mdx = x - cx, mdz = z - cz;
+                        if (Math.Sqrt(mdx * mdx + mdz * mdz) > massifR + massifSkirt) continue;
+                        int nat = Ground(x, z), topY = MassifY(x, z);
+                        for (int y = nat + 1; y <= topY; y++)
+                            Set(x, y, z, job.RockBlend.Noise(x * 0.5 + y * 0.13, z * 0.5) > 0.54 ? host2 : host);
                     }
 
-                int seabed = SeaFloor(cx, cz);
-                // The shaft has to be taller than a diving bell, or the bell
-                // hung in its throat sticks out of the sea floor.
-                int roofY = Math.Min(seabed - 22, sea - 30);
-                int floorY = Math.Max(10, roofY - (int)Math.Clamp(R * 0.28, 20, 36));
-                double caveH = Math.Max(12, roofY - floorY);
-                double midY = floorY + caveH * 0.5;
-
-                // The chamber is a wobbling lens: a domed roof over a flatter
-                // floor, its wall radius breathing with the island's own
-                // surface noise so nothing about it reads as a cylinder.
-                double WallR(double x, double z) => caveR * (0.80 + 0.40 * job.SurfNoise.Noise(x * 0.045, z * 0.045));
-                bool CaveAt(int x, int y, int z, out int cTop, out int cBot)
+                // 2. WHERE THE LAND IS. The rift is laid across the approach
+                //    from the island, so every bell can be lowered from a
+                //    beam that starts on the shore.
+                double shoreAng = 0, shoreDist = 1e9;
+                for (int i = 0; i < 96; i++)
                 {
-                    double dx2 = x - cx, dz2 = z - cz;
-                    double t = Math.Sqrt(dx2 * dx2 + dz2 * dz2) / Math.Max(1.0, WallR(x, z));
-                    cTop = cBot = (int)midY;
-                    if (t >= 1) return false;
-                    double hh = caveH * 0.5 * Math.Sqrt(1 - t * t);
-                    cTop = (int)Math.Round(midY + hh);
-                    cBot = (int)Math.Round(midY - hh * 0.82);
-                    return y >= cBot && y <= cTop;
+                    double a = i * Math.PI * 2 / 96;
+                    for (double dd = 40; dd < R * 2.6; dd += 4)
+                    {
+                        int gx = (int)(cx + Math.Cos(a) * dd), gz = (int)(cz + Math.Sin(a) * dd);
+                        if (Ground(gx, gz) > sea + 2)
+                        {
+                            if (dd < shoreDist) { shoreDist = dd; shoreAng = a; }
+                            break;
+                        }
+                    }
+                }
+                bool haveShore = shoreDist < 1e9;
+                if (!haveShore) { shoreAng = 0; shoreDist = massifR * 1.4; }
+                double runX = -Math.Sin(shoreAng), runZ = Math.Cos(shoreAng);   // along the shore
+
+                // 3. THE CHASMS. Each is a wobbling line in plan carved as a
+                //    vertical slot: the half width breathes with depth, so
+                //    the walls have ledges and overhangs like a cave instead
+                //    of standing as two flat planes. The front rift carries
+                //    widened bays where the bells go down.
+                var bays = new List<(double X, double Z, int Rim, int Floor)>();
+                var walls = new List<(double X, double Z, double Ux, double Uz, double Hw, int Rim, int Floor)>();
+                int nCh = 3;
+                for (int ci = 0; ci < nCh; ci++)
+                {
+                    double turn = (ci - 1) * 0.30 + (rand.NextDouble() - 0.5) * 0.16;
+                    double ux = runX * Math.Cos(turn) - runZ * Math.Sin(turn);
+                    double uz = runX * Math.Sin(turn) + runZ * Math.Cos(turn);
+                    double off = ci == 0 ? 0 : (ci == 1 ? -massifR * 0.62 : -massifR * 1.05);
+                    double ax = cx + Math.Cos(shoreAng) * off, az = cz + Math.Sin(shoreAng) * off;
+                    double len = massifR * (ci == 0 ? 2.0 : 1.45);
+                    double amp = 14 + rand.NextDouble() * 12;
+                    double ph = rand.NextDouble() * 6.283;
+                    int nBays = ci == 0 ? 5 : 1;
+                    int steps = (int)len;
+
+                    for (int s = 0; s <= steps; s++)
+                    {
+                        double t = s / (double)steps;
+                        double along = (t - 0.5) * len;
+                        double lat = amp * Math.Sin(t * 6.2831 * 1.3 + ph) + amp * 0.45 * Math.Sin(t * 6.2831 * 2.7 + ph * 1.7);
+                        double px = ax + ux * along - uz * lat;
+                        double pz = az + uz * along + ux * lat;
+
+                        double taper = Math.Pow(Math.Sin(Math.PI * Math.Clamp(t, 0, 1)), 0.45);
+                        double hw = (2.4 + 1.5 * Math.Sin(t * 21.0 + ci * 2.1)) * taper;
+                        int nearBay = -1;
+                        for (int b = 0; b < nBays; b++)
+                        {
+                            double tb = (b + 0.5) / nBays;
+                            double dt = (t - tb) / 0.055;
+                            hw += 8.5 * Math.Exp(-dt * dt) * taper;
+                            if (Math.Abs(t - tb) < 0.004) nearBay = b;
+                        }
+                        if (hw < 1.2) continue;
+
+                        int rim = MassifY((int)px, (int)pz);
+                        int deep = (int)(52 + 20 * Math.Sin(t * 9.3 + ci));
+                        int flr = Math.Max(12, rim - (int)(deep * taper) - 6);
+
+                        for (int y = flr; y <= rim + 1; y++)
+                        {
+                            double hwy = hw * (0.86 + 0.30 * job.SurfNoise.Noise(s * 0.30 + ci * 40, y * 0.42));
+                            for (double w = -hwy; w <= hwy; w += 0.5)
+                            {
+                                int wx = (int)Math.Round(px - uz * w), wz = (int)Math.Round(pz + ux * w);
+                                if (y > MassifY(wx, wz)) continue;
+                                SetFluid(wx, y, wz, brine);
+                            }
+                            // a lamp left burning against one wall, deep down
+                            if (s % 13 == 0 && y > flr + 4 && (y - flr) % 17 == (s / 13) % 17)
+                            {
+                                double hwy2 = hw * (0.86 + 0.30 * job.SurfNoise.Noise(s * 0.30 + ci * 40, y * 0.42));
+                                double side = (s / 13) % 2 == 0 ? 1 : -1;
+                                Glow((int)Math.Round(px - uz * (hwy2 - 1.6) * side), y,
+                                     (int)Math.Round(pz + ux * (hwy2 - 1.6) * side), (s % 26 == 0) ? glowG : glowB);
+                            }
+                        }
+
+                        // ghostlights dotting both rims, the way a worked
+                        // edge would be marked
+                        if (s % 8 == 0)
+                            for (int side = -1; side <= 1; side += 2)
+                            {
+                                double ex = px - uz * (hw * 1.12 + 1.2) * side, ez = pz + ux * (hw * 1.12 + 1.2) * side;
+                                int er = MassifY((int)ex, (int)ez);
+                                if (er > flr + 4) Glow((int)ex, er + 1, (int)ez, (s % 16 == 0) ? glowG : glowB);
+                            }
+
+                        if (s % 11 == 0) walls.Add((px, pz, ux, uz, hw, rim, flr));
+                        if (nearBay >= 0 && ci == 0) bays.Add((px, pz, rim, flr));
+                    }
                 }
 
-                // 1. the chamber, flooded, wrapped in a shell of the island's
-                //    own rock so it is one worked room even where the natural
-                //    seabed had voids of its own
-                int cr = (int)caveR + 5;
-                for (int x = cx - cr; x <= cx + cr; x++)
-                    for (int z = cz - cr; z <= cz + cr; z++)
-                    {
-                        double dx2 = x - cx, dz2 = z - cz;
-                        double d = Math.Sqrt(dx2 * dx2 + dz2 * dz2);
-                        if (d > caveR + 4) continue;
-                        double t = d / Math.Max(1.0, WallR(x, z));
-                        if (t >= 1.08) continue;
-                        double hh = t >= 1 ? 0 : caveH * 0.5 * Math.Sqrt(1 - t * t);
-                        int top = (int)Math.Round(midY + hh), bot = (int)Math.Round(midY - hh * 0.82);
-                        for (int y = bot - 3; y <= top + 3; y++)
-                        {
-                            if (y < 8) continue;
-                            if (t < 1 && y >= bot && y <= top) SetFluid(x, y, z, job.SaltWaterId);
-                            else Set(x, y, z, host);
-                        }
-                    }
-
-                // 2. the shaft: a collapse funnel from the sea floor down
-                //    through the roof, wider at the top, walls lined in rock
-                int sr0 = (int)(shaftR * 1.9);
-                for (int x = cx - sr0; x <= cx + sr0; x++)
-                    for (int z = cz - sr0; z <= cz + sr0; z++)
-                    {
-                        double dx2 = x - cx, dz2 = z - cz;
-                        double d = Math.Sqrt(dx2 * dx2 + dz2 * dz2);
-                        if (d > shaftR * 1.9) continue;
-                        int gs = SeaFloor(x, z);
-                        int hi = Math.Min(gs + 1, sea - 2);
-                        double span = Math.Max(1, hi - roofY);
-                        for (int y = roofY - 2; y <= hi; y++)
-                        {
-                            double f = (y - roofY) / span;
-                            double srr = shaftR * (0.78 + 0.50 * f)
-                                * (0.86 + 0.28 * job.SurfNoise.Noise(x * 0.06 + 91, z * 0.06 - 47));
-                            if (d < srr) SetFluid(x, y, z, job.SaltWaterId);
-                            else if (d < srr + 2.5 && y < gs) Set(x, y, z, host);
-                        }
-                    }
-
-                // 3. the reason anyone came: huge patches of unusual ore in
-                //    their own host rock, bulging out of the chamber walls,
-                //    floor and roof, and a few broken out on the open seabed.
-                //    Every pair below is checked against the game's own
-                //    allowedVariants list.
+                // 4. THE ORE, in the chasm walls where a diver can reach it.
+                //    Every ore-and-rock pair below exists in the game's own
+                //    allowedVariants list; a seam is a lens of its host rock
+                //    studded with its ore, set into the wall so it bulges a
+                //    little into the open slot.
                 (string Ore, string Rock)[] seams = {
-                    ("ore-medium-pentlandite-peridotite", "rock-peridotite"),
-                    ("ore-medium-pentlandite-granite", "rock-granite"),
+                    ("ore-medium-ilmenite-basalt", "rock-basalt"),               // titanium
+                    ("ore-rich-ilmenite-basalt", "rock-basalt"),
+                    ("ore-medium-ilmenite-peridotite", "rock-peridotite"),
+                    ("ore-medium-pentlandite-peridotite", "rock-peridotite"),    // nickel
+                    ("ore-rich-pentlandite-peridotite", "rock-peridotite"),
+                    ("ore-medium-chromite-peridotite", "rock-peridotite"),
+                    ("ore-rich-chromite-kimberlite", "rock-kimberlite"),
+                    ("ore-rich-uranium-slate", "rock-slate"),
+                    ("ore-medium-uranium-granite", "rock-granite"),
+                    ("ore-medium-bismuthinite-granite", "rock-granite"),
                     ("ore-fluorite-limestone", "rock-limestone"),
                     ("ore-fluorite-slate", "rock-slate"),
                     ("ore-fluorite-phyllite", "rock-phyllite"),
@@ -6531,20 +6568,20 @@ storyloc devastationarea -2550 -8750
                     ("ore-cinnabar-basalt", "rock-basalt"),
                     ("ore-cinnabar-slate", "rock-slate"),
                     ("ore-medium-malachite-greenmarble", "rock-greenmarble"),
-                    ("ore-rich-malachite-limestone", "rock-limestone"),
                     ("ore-medium-rhodochrosite-limestone", "rock-limestone"),
                     ("ore-corundum-whitemarble", "rock-whitemarble"),
                     ("ore-corundum-peridotite", "rock-peridotite"),
                     ("ore-graphite-phyllite", "rock-phyllite"),
                     ("ore-olivine-peridotite", "rock-peridotite"),
+                    ("ore-high-olivine_peridot-peridotite", "rock-peridotite"),
                     ("ore-sylvite-halite", "rock-halite"),
                     ("ore-borax-chalk", "rock-chalk"),
                     ("ore-kernite-claystone", "rock-claystone"),
-                    ("ore-phosphorite-limestone", "rock-limestone"),
+                    ("ore-medium-galena_nativesilver-limestone", "rock-limestone"),
                     ("ore-medium-sphalerite-limestone", "rock-limestone"),
                     ("ore-medium-diamond-kimberlite", "rock-kimberlite"),
                     ("ore-medium-emerald-limestone", "rock-limestone"),
-                    ("ore-high-olivine_peridot-peridotite", "rock-peridotite"),
+                    ("ore-medium-cassiterite-granite", "rock-granite"),
                 };
 
                 void Seam(double px, double py, double pz, double vr, int oreId, int rockId, double rate)
@@ -6552,113 +6589,116 @@ storyloc devastationarea -2550 -8750
                     if (rockId == 0) return;
                     for (int x = (int)(px - vr); x <= (int)(px + vr); x++)
                         for (int z = (int)(pz - vr); z <= (int)(pz + vr); z++)
-                            for (int y = (int)(py - vr); y <= (int)(py + vr); y++)
+                            for (int y = (int)(py - vr * 0.8); y <= (int)(py + vr * 0.8); y++)
                             {
                                 if (y < 8) continue;
                                 // lenticular, like a real ore bed: wide and low
                                 double ax2 = x - px, ay2 = (y - py) / 0.68, az2 = z - pz;
-                                double dd = Math.Sqrt(ax2 * ax2 + ay2 * ay2 + az2 * az2);
-                                if (dd > vr) continue;
-                                double sx = x - cx, sz = z - cz;
-                                // never plug the shaft the chains fall through
-                                if (y > roofY - 3 && Math.Sqrt(sx * sx + sz * sz) < shaftR * 2.4) continue;
-                                // only a little of the seam bulges into the room
-                                if (CaveAt(x, y, z, out _, out _) && dd > vr * 0.55) continue;
+                                if (Math.Sqrt(ax2 * ax2 + ay2 * ay2 + az2 * az2) > vr) continue;
                                 Set(x, y, z, Hash01(x * 7 + y * 3, z * 11 - y * 5) < rate && oreId != 0 ? oreId : rockId);
                             }
                 }
 
-                for (int i = 0; i < 30; i++)
-                {
-                    var sm = seams[(int)(Hash01(i * 31 + 5, def.Seed * 7) * seams.Length) % seams.Length];
-                    int oreId = Need(sm.Ore), rockId = Need(sm.Rock);
-                    if (rockId == 0) continue;
-                    double a = Hash01(i * 17, def.Seed) * Math.PI * 2;
-                    double vr = 6.5 + Hash01(i * 23, def.Seed * 3) * 7.5;
-                    double kind = Hash01(i * 41, def.Seed * 11);
-                    double px, py, pz;
-                    if (i >= 24)
+                if (walls.Count > 0)
+                    for (int i = 0; i < 34; i++)
                     {
-                        // broken out on the open sea floor, findable by a diver
-                        double dd = caveR * (1.15 + Hash01(i * 13, 7) * 0.45);
-                        px = cx + Math.Cos(a) * dd; pz = cz + Math.Sin(a) * dd;
-                        py = SeaFloor((int)px, (int)pz) + vr * 0.12;
+                        var wsp = walls[(int)(Hash01(i * 19 + 7, def.Seed) * walls.Count) % walls.Count];
+                        var sm = seams[(int)(Hash01(i * 31 + 5, def.Seed * 7) * seams.Length) % seams.Length];
+                        int oreId = Need(sm.Ore), rockId = Need(sm.Rock);
+                        if (rockId == 0) continue;
+                        double vr = 5.5 + Hash01(i * 23, def.Seed * 3) * 6.0;
+                        double side = Hash01(i * 41, 13) < 0.5 ? 1 : -1;
+                        double frac = 0.18 + Hash01(i * 53, 17) * 0.72;
+                        double sy = wsp.Floor + (wsp.Rim - wsp.Floor) * frac;
+                        double sxp = wsp.X - wsp.Uz * (wsp.Hw + vr * 0.70) * side;
+                        double szp = wsp.Z + wsp.Ux * (wsp.Hw + vr * 0.70) * side;
+                        Seam(sxp, sy, szp, vr, oreId, rockId, 0.34 + Hash01(i * 71, 9) * 0.22);
+                        // the light that was hung to work it
+                        Glow((int)Math.Round(wsp.X - wsp.Uz * (wsp.Hw - 1.5) * side), (int)sy + 1,
+                             (int)Math.Round(wsp.Z + wsp.Ux * (wsp.Hw - 1.5) * side), i % 2 == 0 ? glowG : glowB);
                     }
-                    else if (kind < 0.45)
+
+                // 5. SIDE CAVES off the chasm walls: short flooded tubes that
+                //    swell into a pocket at the end, with a seam in it, so
+                //    the rift is worth swimming into and not just looking at.
+                if (walls.Count > 0)
+                    for (int i = 0; i < 6; i++)
                     {
-                        double dd = WallR(cx + Math.Cos(a) * caveR, cz + Math.Sin(a) * caveR) * 0.94;
-                        px = cx + Math.Cos(a) * dd; pz = cz + Math.Sin(a) * dd;
-                        py = midY + (Hash01(i * 53, 3) - 0.5) * caveH * 0.55;
-                    }
-                    else
-                    {
-                        double dd = caveR * (0.15 + Hash01(i * 61, 5) * 0.62);
-                        px = cx + Math.Cos(a) * dd; pz = cz + Math.Sin(a) * dd;
-                        CaveAt((int)px, (int)midY, (int)pz, out int ct, out int cb);
-                        py = kind < 0.75 ? cb + vr * 0.45 : ct - vr * 0.45;
-                    }
-                    Seam(px, py, pz, vr, oreId, rockId, 0.34 + Hash01(i * 71, 9) * 0.22);
-                    // a worked face is a lit face. The lamp has to hang in
-                    // the open water JUST off the seam, not inside it, so it
-                    // steps out along the line back toward the chamber.
-                    if (Hash01(i * 83, 11) < 0.6)
-                    {
-                        int gid = Hash01(i, 5) < 0.5 ? glowG : glowB;
-                        if (i >= 24) Glow((int)px, (int)(py + vr + 1), (int)pz, gid);
-                        else
+                        var wsp = walls[(int)(Hash01(i * 61 + 3, def.Seed * 5) * walls.Count) % walls.Count];
+                        double side = Hash01(i * 29, 11) < 0.5 ? 1 : -1;
+                        double dirx = -wsp.Uz * side, dirz = wsp.Ux * side;
+                        double yaw = (Hash01(i * 37, 19) - 0.5) * 1.1;
+                        double dx3 = dirx * Math.Cos(yaw) - dirz * Math.Sin(yaw);
+                        double dz3 = dirx * Math.Sin(yaw) + dirz * Math.Cos(yaw);
+                        double frac = 0.25 + Hash01(i * 43, 23) * 0.55;
+                        double px = wsp.X + dirx * (wsp.Hw - 1), pz = wsp.Z + dirz * (wsp.Hw - 1);
+                        double py = wsp.Floor + (wsp.Rim - wsp.Floor) * frac;
+                        int runLen = 22 + (int)(Hash01(i * 47, 29) * 24);
+                        double dip = (Hash01(i * 59, 31) - 0.45) * 0.35;
+                        for (int k = 0; k <= runLen; k++)
                         {
-                            double gdx = cx - px, gdy = midY - py, gdz = cz - pz;
-                            double gl = Math.Max(1, Math.Sqrt(gdx * gdx + gdy * gdy + gdz * gdz));
-                            Glow((int)(px + gdx / gl * (vr + 1.5)), (int)(py + gdy / gl * (vr + 1.5)),
-                                 (int)(pz + gdz / gl * (vr + 1.5)), gid);
+                            double tr = k / (double)runLen;
+                            double cr2 = k > runLen - 8 ? 6.5 : 3.2 + 1.4 * Math.Sin(k * 0.5);
+                            double qx = px + dx3 * k, qz = pz + dz3 * k, qy = py + dip * k;
+                            for (int ox = (int)-cr2; ox <= cr2; ox++)
+                                for (int oz = (int)-cr2; oz <= cr2; oz++)
+                                    for (int oy = (int)(-cr2 * 0.8); oy <= cr2 * 0.8; oy++)
+                                    {
+                                        if (ox * ox + oy * oy / 0.64 + oz * oz > cr2 * cr2) continue;
+                                        int wx = (int)(qx + ox), wy = (int)(qy + oy), wz = (int)(qz + oz);
+                                        if (wy < 10 || wy > MassifY(wx, wz) - 3) continue;
+                                        SetFluid(wx, wy, wz, brine);
+                                    }
+                            if (k == runLen)
+                            {
+                                var sm2 = seams[(int)(Hash01(i * 73, def.Seed * 3) * seams.Length) % seams.Length];
+                                Seam(qx + dx3 * 6, qy, qz + dz3 * 6, 7.5, Need(sm2.Ore), Need(sm2.Rock), 0.42);
+                                Glow((int)qx, (int)qy + 3, (int)qz, i % 2 == 0 ? glowB : glowG);
+                            }
+                        }
+                        Glow((int)px, (int)py + 2, (int)pz, glowG);       // a lamp at the cave mouth
+                    }
+
+                // 6. THE DERRICK. One arm per bay: a braced tower on the
+                //    shore, a box girder out over the rift with a walkway
+                //    and railings, and a chain dropping a bell into the bay.
+                if (bays.Count > 1)
+                {
+                    var kept = new List<(double X, double Z, int Rim, int Floor)>();
+                    foreach (var b in bays)
+                    {
+                        bool near = false;
+                        foreach (var k in kept)
+                            if (Math.Abs(b.X - k.X) + Math.Abs(b.Z - k.Z) < 26) { near = true; break; }
+                        if (!near) kept.Add(b);
+                    }
+                    bays = kept;
+                }
+                for (int i = 0; i < bays.Count && i < 5; i++)
+                {
+                    var bay = bays[i];
+                    int bx0 = 0, bz0 = 0, gy = 0;
+                    bool found = false;
+                    for (double dd = 12; dd < 240; dd += 3)
+                    {
+                        int gx = (int)(bay.X + Math.Cos(shoreAng) * dd), gz = (int)(bay.Z + Math.Sin(shoreAng) * dd);
+                        if (Ground(gx, gz) > sea + 2)
+                        {
+                            bx0 = (int)(bay.X + Math.Cos(shoreAng) * (dd + 7));
+                            bz0 = (int)(bay.Z + Math.Sin(shoreAng) * (dd + 7));
+                            gy = Ground(bx0, bz0);
+                            found = true;
+                            break;
                         }
                     }
-                }
-
-                // 4. the derrick. Find the island: sweep for the nearest
-                //    columns that stand clear of the water, then plant one
-                //    beam per well-separated direction.
-                var shoreHits = new List<(double Ang, double Dist, int Y)>();
-                for (int i = 0; i < 96; i++)
-                {
-                    double a = i * Math.PI * 2 / 96;
-                    for (double dd = caveR * 0.7; dd < R * 2.6; dd += 3)
+                    if (!found)
                     {
-                        int gx = (int)(cx + Math.Cos(a) * dd), gz = (int)(cz + Math.Sin(a) * dd);
-                        if (Ground(gx, gz) > sea + 2) { shoreHits.Add((a, dd, Ground(gx, gz))); break; }
-                    }
-                }
-                shoreHits.Sort((p, q) => p.Dist.CompareTo(q.Dist));
-                var arms = new List<(double Ang, double Dist)>();
-                foreach (var h in shoreHits)
-                {
-                    if (h.Dist > shoreHits[0].Dist + R * 0.9) break;
-                    bool near = false;
-                    foreach (var b in arms)
-                    {
-                        double da = Math.Abs(((h.Ang - b.Ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-                        if (da < 0.5) { near = true; break; }
-                    }
-                    if (!near) arms.Add((h.Ang, h.Dist));
-                    if (arms.Count >= 5) break;
-                }
-                // No land in reach (a shape without an island): stand the
-                // derrick on rock piers rising out of the hole's rim instead
-                // of silently shipping a mine with no headgear.
-                bool onPiers = arms.Count == 0;
-                if (onPiers)
-                    for (int i = 0; i < 4; i++)
-                        arms.Add((i * Math.PI * 0.5 + 0.6, caveR * 1.15));
-
-                for (int i = 0; i < arms.Count; i++)
-                {
-                    double a = arms[i].Ang, ca2 = Math.Cos(a), sa2 = Math.Sin(a);
-                    double baseD = Math.Min(arms[i].Dist + 7, shaftR + 150);
-                    int bx0 = (int)(cx + ca2 * baseD), bz0 = (int)(cz + sa2 * baseD);
-                    int gy = Ground(bx0, bz0);
-                    if (onPiers)
-                    {
-                        gy = SeaFloor(bx0, bz0);
+                        // no land in reach: stand the tower on a rock pier
+                        // rising out of the ridge instead of shipping a mine
+                        // with no headgear
+                        bx0 = (int)(bay.X + Math.Cos(shoreAng) * 34);
+                        bz0 = (int)(bay.Z + Math.Sin(shoreAng) * 34);
+                        gy = MassifY(bx0, bz0);
                         for (int px2 = -3; px2 <= 3; px2++)
                             for (int pz2 = -3; pz2 <= 3; pz2++)
                                 if (px2 * px2 + pz2 * pz2 <= 9)
@@ -6667,7 +6707,6 @@ storyloc devastationarea -2550 -8750
                     }
                     int towerTop = Math.Max(sea + 15, gy + 13);
 
-                    // the shore tower: four braced legs under a plate deck
                     for (int leg = 0; leg < 4; leg++)
                     {
                         int lx = bx0 + ((leg & 1) == 0 ? -3 : 3), lz = bz0 + ((leg & 2) == 0 ? -3 : 3);
@@ -6683,73 +6722,61 @@ storyloc devastationarea -2550 -8750
                         for (int e2 = -3; e2 <= 3; e2++)
                             Set(bx0 + e, towerTop, bz0 + e2, rustB != 0 ? rustB : rustA);
 
-                    // the arm itself: out over the hole and rising, tips
-                    // ringing the shaft mouth so every chain falls clear
-                    double tipD = shaftR * (0.20 + 0.32 * (i / (double)Math.Max(1, arms.Count - 1)));
-                    double tipX = cx + ca2 * tipD, tipZ = cz + sa2 * tipD;
-                    double tipY = towerTop + 9 + rand.NextDouble() * 7;
-                    Girder(bx0, towerTop + 1, bz0, tipX, tipY, tipZ, 2.0, true);
-                    // a strut under the arm and a backstay chain behind it
-                    Girder(bx0 - ca2 * 3, gy + 2, bz0 - sa2 * 3,
-                           bx0 + (tipX - bx0) * 0.42, towerTop + 1 + (tipY - towerTop) * 0.42, bz0 + (tipZ - bz0) * 0.42, 1.0, false);
-                    double anx = cx + ca2 * (baseD + 24), anz = cz + sa2 * (baseD + 24);
-                    ChainRun(tipX, tipY, tipZ, anx, Ground((int)anx, (int)anz) + 1, anz, 3, 1.3);
-                    Clutter(bx0, towerTop + 1, bz0 - 2, i % 2 == 0 ? "gearhugemetal9" : "gearhugemetal15", a);
-                    Clutter(bx0 + 2, towerTop + 1, bz0 + 2, "junktanksmall1", a);
+                    double tipY = towerTop + 8 + rand.NextDouble() * 6;
+                    Girder(bx0, towerTop + 1, bz0, bay.X, tipY, bay.Z, 2.0, true);
+                    Girder(bx0 - Math.Cos(shoreAng) * 3, gy + 2, bz0 - Math.Sin(shoreAng) * 3,
+                           bx0 + (bay.X - bx0) * 0.42, towerTop + 1 + (tipY - towerTop) * 0.42,
+                           bz0 + (bay.Z - bz0) * 0.42, 1.0, false);
+                    double anx = bx0 + Math.Cos(shoreAng) * 24, anz = bz0 + Math.Sin(shoreAng) * 24;
+                    ChainRun(bay.X, tipY, bay.Z, anx, Ground((int)anx, (int)anz) + 1, anz, 3, 1.3);
+                    Clutter(bx0, towerTop + 1, bz0 - 2, i % 2 == 0 ? "gearhugemetal9" : "gearhugemetal15", shoreAng);
+                    Clutter(bx0 + 2, towerTop + 1, bz0 + 2, "junktanksmall1", shoreAng);
 
-                    // the hanging bell, one per arm, each working a different
-                    // depth: just under the waves, in the shaft, in the room.
-                    // The two that hang inside the chamber are measured
-                    // against the room they hang in, so a bell can never
-                    // poke its crown through the roof or its lip into the
-                    // floor however the wall noise fell.
-                    double br2 = 7 + rand.NextDouble() * 3;
-                    double bh2 = 13 + rand.NextDouble() * 6;
-                    CaveAt((int)tipX, (int)midY, (int)tipZ, out int roomTop, out int roomBot);
-                    bh2 = Math.Min(bh2, Math.Max(8, roomTop - roomBot - 4));
-                    double bellLip;
-                    switch (i % 5)
-                    {
-                        case 0: bellLip = sea - 11; break;                 // just under the waves
-                        case 1: bellLip = sea - 27; break;                 // mid water
-                        case 2: bellLip = roofY + 4; break;                // in the throat of the shaft
-                        case 3: bellLip = roomTop - bh2 - 3; break;        // high in the chamber
-                        default: bellLip = roomBot + 1; break;             // resting on the floor
-                    }
-                    bool broken = i == 2 && arms.Count >= 4;      // one chain hangs empty, its bell long gone
-                    if (broken) ChainRun(tipX, tipY - 2, tipZ, tipX, bellLip + bh2 * 0.5, tipZ, 0, 1.6);
+                    // the bell, lowered to a different level in every bay:
+                    // just under the rim, halfway down, or resting on the
+                    // floor of the rift
+                    double br2 = 5.8 + rand.NextDouble() * 1.2;
+                    double bh2 = 13 + rand.NextDouble() * 4;
+                    double span = Math.Max(6, bay.Rim - bay.Floor - bh2 - 3);
+                    double lvl = (i % 3) / 2.0;                       // 0 deep, 1 shallow
+                    double bellLip = bay.Floor + 1 + span * lvl;
+                    bool broken = i == 2 && bays.Count >= 4;          // one chain hangs empty
+                    if (broken) ChainRun(bay.X, tipY - 2, bay.Z, bay.X, bay.Rim - 6, bay.Z, 0, 1.6);
                     else
                     {
-                        ChainRun(tipX, tipY - 2, tipZ, tipX, bellLip + bh2 + 1, tipZ, 0, 1.6);
-                        Bell(tipX, bellLip, tipZ, br2, bh2, 0, 0, 0.04, i % 2 == 0 ? glowG : glowB);
+                        ChainRun(bay.X, tipY - 2, bay.Z, bay.X, bellLip + bh2 + 1, bay.Z, 0, 1.6);
+                        Bell(bay.X, bellLip, bay.Z, br2, bh2, 0, 0, 0.04, i % 2 == 0 ? glowG : glowB);
                     }
                 }
 
-                // 5. the older works: bells that came off their chains, lying
-                //    where they fell on the chamber floor and out on the sea
-                //    bed, with their broken tackle and scrap around them
+                // 7. THE OLDER WORKS: bells that came off their chains lying
+                //    on the rift floor and out on the ridges, with their
+                //    broken tackle and scrap around them.
                 string[] junk = { "junkchain2", "junkchain5", "junkbeamstraight2", "junksheet4", "junktanksmallbase", "junkpipe3" };
-                for (int i = 0; i < 8; i++)
+                for (int i = 0; i < 7; i++)
                 {
-                    double a = Hash01(i * 97 + 3, def.Seed * 5) * Math.PI * 2;
-                    bool inside = i < 5;
-                    double dd = inside ? caveR * (0.20 + Hash01(i * 29, 13) * 0.55)
-                                       : caveR * (1.05 + Hash01(i * 29, 13) * 0.55);
-                    int bx = (int)(cx + Math.Cos(a) * dd), bz = (int)(cz + Math.Sin(a) * dd);
-                    double br3 = 6 + Hash01(i * 37, 17) * 3;
-                    double tilt = 0.9 + Hash01(i * 43, 19) * 0.7;
+                    double bx, bz;
                     int by;
-                    if (inside) { CaveAt(bx, (int)midY, bz, out _, out int cb2); by = cb2 + (int)(br3 * 0.75); }
-                    else by = SeaFloor(bx, bz) + (int)(br3 * 0.7);
-                    Bell(bx, by, bz, br3, 12 + Hash01(i * 51, 23) * 5, tilt,
+                    if (i < 4 && walls.Count > 0)
+                    {
+                        var wsp = walls[(int)(Hash01(i * 97 + 3, def.Seed * 5) * walls.Count) % walls.Count];
+                        bx = wsp.X; bz = wsp.Z; by = wsp.Floor + 4;
+                    }
+                    else
+                    {
+                        double a = Hash01(i * 97 + 3, def.Seed * 5) * Math.PI * 2;
+                        double dd = massifR * (0.35 + Hash01(i * 29, 13) * 0.55);
+                        bx = cx + Math.Cos(a) * dd; bz = cz + Math.Sin(a) * dd;
+                        by = MassifY((int)bx, (int)bz) + 5;
+                    }
+                    double br3 = 5.5 + Hash01(i * 37, 17) * 2.5;
+                    Bell(bx, by, bz, br3, 11 + Hash01(i * 51, 23) * 4, 0.9 + Hash01(i * 43, 19) * 0.7,
                          Hash01(i * 59, 29) * Math.PI * 2, 0.34, i % 3 == 0 ? glowG : 0);
                     for (int k = 0; k < 5; k++)
                     {
                         double ja = Hash01(i * 61 + k, 31) * Math.PI * 2, jd = br3 + 2 + Hash01(k * 7, i) * 9;
                         int jx = (int)(bx + Math.Cos(ja) * jd), jz = (int)(bz + Math.Sin(ja) * jd);
-                        int jy;
-                        if (inside) { CaveAt(jx, (int)midY, jz, out _, out int cb3); jy = cb3 + 1; }
-                        else jy = SeaFloor(jx, jz) + 1;
+                        int jy = by - (int)br3;
                         if (Hash01(k * 13, i * 3) < 0.5) Clutter(jx, jy, jz, junk[(int)(Hash01(k, i) * junk.Length) % junk.Length], ja);
                         else Set(jx, jy, jz, Rust());
                     }
@@ -6908,23 +6935,46 @@ storyloc devastationarea -2550 -8750
                 gba.SetBlock(g.Id, gpos);
                 placed++;
             }
-            // ground truth that the light actually baked: read the block
-            // light right where the first emitter sits
+            // Ground truth that the light actually baked. Probe an emitter
+            // that has somewhere to send its light: one walled into solid
+            // rock stores no block light and reads 0, which looks exactly
+            // like a bake failure and is not one.
             var p0 = glowSpots[0];
+            int buriedSkipped = 0;
+            for (int gi = 0; gi < glowSpots.Count && gi < 80; gi++)
+            {
+                var cand = glowSpots[gi];
+                bool open = false;
+                foreach (var nb in BlockFacing.ALLFACES)
+                {
+                    gpos.Set(cand.X + nb.Normali.X, cand.Y + nb.Normali.Y, cand.Z + nb.Normali.Z);
+                    var nblock = gba.GetBlock(gpos);
+                    if (nblock == null || nblock.Id == 0 || !nblock.SideOpaque[0]) { open = true; break; }
+                }
+                if (open) { p0 = cand; break; }
+                buriedSkipped++;
+            }
             gpos.Set(p0.X, p0.Y, p0.Z);
             var pBlock = gba.GetBlock(gpos);
             sapi.Logger.Notification(
-                "[landmassgen] glow probe: block light {0} at emitter {1}/{2}/{3} ({4} emitters, block {5}, LightHsv {6})",
+                "[landmassgen] glow probe: block light {0} at emitter {1}/{2}/{3} ({4} emitters, {7} walled in, block {5}, LightHsv {6})",
                 gba.GetLightLevel(gpos, EnumLightLevelType.OnlyBlockLight),
                 p0.X, p0.Y, p0.Z, glowSpots.Count, pBlock.Code,
-                pBlock.LightHsv[0] + "," + pBlock.LightHsv[1] + "," + pBlock.LightHsv[2]);
+                pBlock.LightHsv[0] + "," + pBlock.LightHsv[1] + "," + pBlock.LightHsv[2], buriedSkipped);
             // and once more after the relight queue has drained, since the
             // immediate read can race the lighting thread
+            // A big structure commits millions of blocks and the engine
+            // relights asynchronously, so one read 1.5s later can still be
+            // 0 while the queue drains. Probe again as it settles.
             var probePos = new BlockPos(p0.X, p0.Y, p0.Z, job.Dim);
-            sapi.Event.RegisterCallback(dt2 => sapi.Logger.Notification(
-                "[landmassgen] glow probe (late): block light {0} at {1}/{2}/{3}",
-                sapi.World.BlockAccessor.GetLightLevel(probePos, EnumLightLevelType.OnlyBlockLight),
-                probePos.X, probePos.Y, probePos.Z), 1500);
+            foreach (int wait in new[] { 1500, 6000, 20000, 45000 })
+            {
+                int w = wait;
+                sapi.Event.RegisterCallback(dt2 => sapi.Logger.Notification(
+                    "[landmassgen] glow probe (+{4}ms): block light {0} at {1}/{2}/{3}",
+                    sapi.World.BlockAccessor.GetLightLevel(probePos, EnumLightLevelType.OnlyBlockLight),
+                    probePos.X, probePos.Y, probePos.Z, w), w);
+            }
         }
 
         if (lavaProbe != null)

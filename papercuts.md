@@ -528,3 +528,25 @@ whole farm. They had not: the census matched palette codes containing
 127 soil blocks and 16 growths, i.e. too SMALL, the opposite diagnosis.
 Match full palette codes, or anchor the substring, before believing any
 dump statistic. Sibling of the count-by-full-code lesson in tips.md.
+
+## The struct builder's Ground() reported a sea floor that was not there (fixed in 0.54.0)
+
+Symptom: everything the diving bell mine built offshore came out as a
+crust floating over open water. Michael, in game: "the terrain beneath
+the bells is oddly hollow."
+
+Cause: BuildStruct's Ground() called
+`ColumnSurface(job, x, z, sea, out ...)`, passing SEA LEVEL where that
+method expects the column's real natural terrain height. ColumnSurface
+uses the argument to decide whether `ocean basin=` is allowed to carve
+(`if (basinY >= naturalY - 3) return false`, i.e. skip when the basin
+floor is above the natural floor). With sea level standing in for the
+natural floor that test could never fail, so every open-water column
+answered with a phantom sea floor at `sea - 2 - basinDepth`, often 40 to
+60 blocks above the real sea bed. Anything anchored to it (the first
+bank, the first chamber shell) was built in mid water with nothing
+underneath.
+
+Fix: read `GetTerrainMapheightAt` FIRST and pass it in, which is exactly
+what FillColumn has always done. The lesson generalises: when a helper
+takes the natural height as an argument, never feed it a constant.

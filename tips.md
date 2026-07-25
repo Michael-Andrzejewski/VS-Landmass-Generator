@@ -683,3 +683,35 @@ culled at conversion time.
   uniform fall of one block per three blocks of radius, with no step
   anywhere. Give each terrace and its lip one height so the platform is
   genuinely flat, and let the entire drop happen between platforms.
+
+- After a very large commit, a light that reads 0 is not a dead light.
+  The engine relights asynchronously, and a structure that writes 2.3
+  million blocks keeps the queue busy for seconds: the diving bell
+  mine's glow probe read 0 at +1.5s and 22 at +6s, from the same
+  emitter. The probe now samples at 1.5, 6, 20 and 45 seconds and skips
+  emitters walled into rock (one of those stores no block light and
+  reads 0 forever, which looks exactly like the 0.51.0 bake failure and
+  is not one).
+
+- `allowedVariants` is NOT proof that a block exists. It only filters
+  the variants a blocktype would otherwise generate, so an entry whose
+  TYPE is missing from the matching `worldproperties/block/*.json` list
+  produces nothing at all. Both `ore-stibnite-limestone` and
+  `ore-quartz_wolframite-granite` are listed in ore-ungraded.json's
+  allowedVariants, yet stibnite appears in neither ore type property
+  list and wolframite is a GRADED type (so the ungraded code shape is
+  wrong for it): both resolve to null in game. Check the type property
+  file as well as allowedVariants, and let the runtime have the last
+  word: the per-structure "block code(s) did not resolve" log line is
+  what caught these two.
+
+- An underwater rift reads better than an underwater room. Carve a
+  chasm as a wobbling line in plan, cut as a vertical slot whose half
+  width breathes with DEPTH as well as length: a constant width gives
+  two flat planes, while `hw * (0.86 + 0.30 * noise(step, y))` gives
+  ledges and overhangs that read as a cave. Taper the width to zero at
+  both ends so the slot closes, bulge it at a few stations to make bays
+  wide enough for something to hang in, and keep the rock solid all
+  around it. Ore belongs in the walls, set into the face so it just
+  bulges into the slot, and a ghostlight every few blocks along both
+  rims turns the whole edge into a readable line from a distance.
