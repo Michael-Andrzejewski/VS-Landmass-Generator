@@ -6139,7 +6139,6 @@ storyloc devastationarea -2550 -8750
             case "forge":
             {
                 int lava = Id("lava-still-7");
-                int ember = IdFirst("ember", "ember-cold");
                 int craterR = Math.Clamp(def.Size, 12, 40);
                 int gRim = 0;
                 for (int i = 0; i < 4; i++)
@@ -6155,8 +6154,8 @@ storyloc devastationarea -2550 -8750
                         int wall = Math.Max(poolY - 4, gRim - (int)((craterR - d) * 2.4));
                         int top2 = Ground(x, z) + 3;
                         for (int y = wall + 1; y <= top2; y++) Set(x, y, z, 0);   // the crater bowl
-                        if (ember != 0 && wall < poolY + 5 && Hash01(x * 3, z * 5) < 0.25)
-                            Set(x, wall, z, ember);                               // glowing cinders
+                        if (lava != 0 && wall >= poolY && wall < poolY + 5 && Hash01(x * 3, z * 5) < 0.25)
+                            SetFluid(x, wall, z, lava);                           // molten seeps above the pool line
                         if (lava != 0 && wall < poolY)
                             for (int y = wall + 1; y <= poolY; y++) SetFluid(x, y, z, lava);  // the melt
                     }
@@ -6191,7 +6190,11 @@ storyloc devastationarea -2550 -8750
                     double a2 = i * Math.PI / 2 + 0.4;
                     double hx4 = cx + Math.Cos(a2) * 9.5, hz4 = cz + Math.Sin(a2) * 9.5;
                     double rx2 = cx + Math.Cos(a2) * (craterR - 1), rz2 = cz + Math.Sin(a2) * (craterR - 1);
-                    ChainRun(hx4, crY + 7, hz4, rx2, Ground((int)rx2, (int)rz2) + 1, rz2, 0, 1.7);
+                    // anchor into the CARVED bowl surface, two blocks deep:
+                    // the natural Ground here is above the bowl cut, and
+                    // anchoring to it left chain ends floating over the rim
+                    int rimSurf = Math.Min(Ground((int)rx2, (int)rz2), Math.Max(poolY - 4, gRim - 2));
+                    ChainRun(hx4, crY + 7, hz4, rx2, rimSurf - 2, rz2, 0, 1.7);
                 }
                 double ca = 2.0;
                 double cx2 = cx + Math.Cos(ca) * (craterR - 1), cz3 = cz + Math.Sin(ca) * (craterR - 1);
@@ -6220,8 +6223,8 @@ storyloc devastationarea -2550 -8750
                             int g2 = Ground((int)px3, (int)pz3);
                             if (g2 < sea + 5) break;
                             SetFluid((int)px3, g2, (int)pz3, lava);
-                            if (ember != 0 && Hash01((int)px3, (int)pz3) < 0.3)
-                                Set((int)px3 + (Hash01(k, i) < 0.5 ? 1 : -1), g2, (int)pz3, ember);
+                            if (Hash01((int)px3, (int)pz3) < 0.3)
+                                SetFluid((int)px3 + (Hash01(k, i) < 0.5 ? 1 : -1), g2, (int)pz3, lava);
                         }
                     }
                 break;
