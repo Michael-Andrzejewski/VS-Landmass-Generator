@@ -318,19 +318,25 @@ guaranteed depth.
 - `kind=divingbell` (size = the works; the ridge field is about 0.74x
   its radius): the Diving Bell Mine. Raises a solid sea mount of
   rippling rock ridges from the real sea floor upward, then splits it
-  with long narrow chasms 50 to 70 blocks deep whose walls carry ledges
-  and overhangs, with short flooded caves running off them. The ore is
-  in those walls: lenses of host rock studded with their own ore
-  (titanium/ilmenite, nickel/pentlandite, chromite, uranium, fluorite,
-  lapis lazuli, cinnabar, malachite, corundum, graphite, olivine,
-  sylvite, borax, kernite, silver, tin, diamond and more, every pair
-  checked against the game's allowedVariants AND its ore type property
-  list). Ghostlights dot both rims and the worked faces. On the shore
-  the derrick stands: braced towers carrying corroded box girders with
-  walkways and railings out over the rift, each dropping a chain into a
-  widened bay where a house-sized cast bell hangs at its own depth,
-  holding a real pocket of AIR so a diver can surface inside it. Older
-  bells lie collapsed on the ridges and the rift floor among the scrap.
+  with long narrow chasms that fall most of the way to the mantle,
+  whose walls carry ledges and overhangs, with flooded caves running
+  off them. Ore is seeded through the entire body of rock and is
+  thickest in the chasm faces, where each deposit is offset so the slot
+  cuts it open: titanium/ilmenite, nickel/pentlandite, chromite,
+  uranium, fluorite, lapis lazuli, cinnabar, malachite, corundum,
+  graphite, olivine, sylvite, borax, kernite, silver, tin, diamond and
+  more, every pair checked against the game's allowedVariants AND its
+  ore type property list. Deposits are written only into cells the
+  builder knows are stone, with a noise-chewed edge that dissolves into
+  the host, so none of them can hang in the water as a ball. Ghostlights
+  dot both rims and the worked faces. On the shore the derrick stands:
+  braced towers carrying corroded box girders with walkways and railings
+  out over the rift, each dropping a chain into a widened bay where a
+  house-sized cast bell hangs at its own depth, holding a real pocket of
+  AIR so a diver can surface inside it. Older bells lie collapsed on the
+  ridges and the rift floor and sit driven into the chasm walls with
+  their mouths cut open, every one of them another air pocket, among
+  torn hull sections, draped chains and scrap.
   If no land is in reach the towers stand on rock piers instead.
 - `kind=granary` (size = compound radius): the Hill Granary. A ruined
   farm compound in the island's own rock: a round silo whose upper

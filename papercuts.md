@@ -550,3 +550,30 @@ underneath.
 Fix: read `GetTerrainMapheightAt` FIRST and pass it in, which is exactly
 what FillColumn has always done. The lesson generalises: when a helper
 takes the natural height as an argument, never feed it a constant.
+
+## Ore balls and floating lights: writing without asking what is there (fixed in 0.55.0)
+
+Symptom, from Michael in game: ore appearing "in odd spherical chunks
+of floating blocks", and ghostlights hanging in the water instead of
+sitting on anything.
+
+Cause, in both cases the same one: the builder wrote a shape without
+testing what occupied the cells. `Seam()` stamped a full ellipsoid of
+host rock through `Set()`, so wherever the lens reached past the chasm
+face it filled open water with stone and left a ball hanging in the
+rift. `Glow()` queued whatever coordinate the caller computed, and a
+rim light computed from the massif height lands in mid water whenever
+that column has since been carved away.
+
+The trap behind the first one is that you cannot simply read the world
+to find out: inside BuildStruct every edit is still staged in the bulk
+accessor, so `GetBlock` describes the terrain as it was before the
+command. The fix is a predicate the builder owns (`IsRock`, backed by a
+`carved` set the carve calls fill in), consulted before every ore
+write. The fix for the second is a pinning pass that runs AFTER the
+commit, where the world finally is the truth, and moves or drops any
+emitter that touches nothing.
+
+Lesson: a structure pass that writes blindly will look correct in the
+code and wrong in the world. Either compute the occupancy yourself or
+do the work after the commit, and log the count either way.

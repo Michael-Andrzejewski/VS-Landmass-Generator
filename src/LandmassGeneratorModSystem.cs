@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -5535,11 +5535,17 @@ storyloc devastationarea -2550 -8750
         // its pocket of AIR (bulk-accessor writes never trigger a liquid
         // update), so a diver can surface inside one. `tilt` leans it over
         // for the wrecks lying on the floor; `decay` eats holes in the shell.
-        void Bell(double bx, double by, double bz, double br, double bh, double tilt, double taz, double decay, int glowId)
+        // `forceDry` keeps the air pocket in a bell that is lying over or
+        // driven into rock, and `openMouth` carves the throat as well as the
+        // body so that pocket has a way in instead of being sealed by the
+        // stone the bell was driven through.
+        void Bell(double bx, double by, double bz, double br, double bh, double tilt, double taz, double decay, int glowId,
+                  bool forceDry = false, bool openMouth = false)
         {
             double ux = Math.Sin(tilt) * Math.Cos(taz), uy = Math.Cos(tilt), uz = Math.Sin(tilt) * Math.Sin(taz);
             double reach = br * 1.3 + bh + 2;
-            bool dry = tilt < 0.5;
+            bool dry = forceDry || tilt < 0.5;
+            double throat = openMouth ? -1.1 : 0.2;
             for (int x = (int)(bx - reach); x <= (int)(bx + reach); x++)
                 for (int z = (int)(bz - reach); z <= (int)(bz + reach); z++)
                     for (int y = (int)(by - reach); y <= (int)(by + reach); y++)
@@ -5559,7 +5565,7 @@ storyloc devastationarea -2550 -8750
                             if (!crown && Hash01(x * 3 + y * 7, z * 5 - y) < decay) continue;
                             Set(x, y, z, Rust());
                         }
-                        else if (h > 0.2)
+                        else if (h > throat)
                         {
                             if (dry || y > sea - 1) Set(x, y, z, 0);
                             else SetFluid(x, y, z, job.SaltWaterId);
@@ -5576,13 +5582,27 @@ storyloc devastationarea -2550 -8750
             }
             if (glowId != 0)
             {
-                int gy = (int)Math.Round(by + uy * bh * 0.70);
-                int gx = (int)Math.Round(bx + ux * bh * 0.70), gz = (int)Math.Round(bz + uz * bh * 0.70);
-                int side = Math.Max(1, (int)(br * 0.35));
-                Glow(gx + side, gy, gz, glowId);
-                Glow(gx - side, gy, gz, glowId);
-                Glow(gx, gy, gz + side, glowId);
-                Glow(gx, gy, gz - side, glowId);
+                // four lamps hung against the INSIDE of the shell, in the
+                // bell's own frame: offsetting along world x and z put them
+                // in mid air the moment the bell was tilted over.
+                double gh = bh * 0.70;
+                double gx = bx + ux * gh, gy = by + uy * gh, gz = bz + uz * gh;
+                double gprof = br * (Math.Pow(1 - 0.70, 0.40) + 0.12 * Math.Exp(-Math.Pow(0.70 / 0.12, 2)));
+                double gr = Math.Max(1.0, gprof - 1.2);
+                double ghl = Math.Sqrt(ux * ux + uz * uz);
+                double q1x, q1y, q1z, q2x, q2y, q2z;
+                if (ghl < 0.001) { q1x = 1; q1y = 0; q1z = 0; q2x = 0; q2y = 0; q2z = 1; }
+                else
+                {
+                    q1x = -uz / ghl; q1y = 0; q1z = ux / ghl;
+                    q2x = uy * q1z - uz * q1y; q2y = uz * q1x - ux * q1z; q2z = ux * q1y - uy * q1x;
+                }
+                for (int q = 0; q < 4; q++)
+                {
+                    double sgn = q < 2 ? 1 : -1;
+                    double vx = (q % 2 == 0 ? q1x : q2x) * sgn, vy = (q % 2 == 0 ? q1y : q2y) * sgn, vz = (q % 2 == 0 ? q1z : q2z) * sgn;
+                    Glow((int)Math.Round(gx + vx * gr), (int)Math.Round(gy + vy * gr), (int)Math.Round(gz + vz * gr), glowId);
+                }
             }
         }
 
@@ -6385,12 +6405,14 @@ storyloc devastationarea -2550 -8750
 
             // ── THE DIVING BELL MINE ──────────────────────────────────────
             // A drowned mine over a rift. The sea floor here is a solid
-            // ridge field of rock, split by long narrow chasms that drop
-            // 40 to 70 blocks into it, with short caves running off their
-            // walls. The ore is IN those walls, ghostlights dot the rims
-            // and the faces, and the derrick standing on the island's shore
-            // lowers a house-sized diving bell into a widened bay of the
-            // nearest rift, each bell holding its own pocket of air.
+            // ridge field of rock split by long chasms that fall away to the
+            // mantle, with caves running off their walls. Ore is seeded
+            // through the whole massif and thickest in the chasm faces,
+            // ghostlights are pinned to the rock along the rims, and the
+            // derrick on the shore lowers a house-sized diving bell into a
+            // widened bay of the nearest rift. Older bells lie on the floor
+            // or sit half swallowed by the walls, each holding a pocket of
+            // air a diver can surface into.
             case "divingbell":
             {
                 int host = job.StoneId != 0 ? job.StoneId : IdFirst("rock-limestone", "rock-granite");
@@ -6444,6 +6466,35 @@ storyloc devastationarea -2550 -8750
                             Set(x, y, z, job.RockBlend.Noise(x * 0.5 + y * 0.13, z * 0.5) > 0.54 ? host2 : host);
                     }
 
+                // 1b. WHAT COUNTS AS ROCK. The ore and wreck passes must
+                //     never write into open water, or a deposit reads as a
+                //     ball of stone hanging in the rift, which is exactly
+                //     what the first cut did. Solidity cannot be asked of
+                //     the world here: the massif fill and every carve are
+                //     still staged in the bulk accessor and invisible to a
+                //     read. So it is answered from the same functions that
+                //     built them, and only BELOW the natural sea bed does
+                //     the world get the last word, which is also what keeps
+                //     ore out of the natural cave network.
+                var carved = new HashSet<long>();
+                long VKey(int x, int y, int z)
+                    => (((long)(x + 32768) & 0xFFFFL) << 40) | (((long)(z + 32768) & 0xFFFFL) << 24) | (uint)(y & 0xFFFF);
+                var rockPos = new BlockPos(0, 0, 0, job.Dim);
+                void Carve(int x, int y, int z)
+                {
+                    if (!InRect(x, z) || y < 6) return;
+                    SetFluid(x, y, z, brine);
+                    carved.Add(VKey(x, y, z));
+                }
+                bool IsRock(int x, int y, int z)
+                {
+                    if (!InRect(x, z) || y < 9 || y > MassifY(x, z)) return false;
+                    if (carved.Contains(VKey(x, y, z))) return false;
+                    if (y > Ground(x, z)) return true;                 // the massif fill, already staged
+                    rockPos.Set(x, y, z);
+                    return sapi.World.BlockAccessor.GetBlock(rockPos, BlockLayersAccess.SolidBlocks).Id != 0;
+                }
+
                 // 2. WHERE THE LAND IS. The rift is laid across the approach
                 //    from the island, so every bell can be lowered from a
                 //    beam that starts on the shore.
@@ -6468,8 +6519,9 @@ storyloc devastationarea -2550 -8750
                 // 3. THE CHASMS. Each is a wobbling line in plan carved as a
                 //    vertical slot: the half width breathes with depth, so
                 //    the walls have ledges and overhangs like a cave instead
-                //    of standing as two flat planes. The front rift carries
-                //    widened bays where the bells go down.
+                //    of standing as two flat planes. They fall most of the
+                //    way to the mantle, and the front rift carries widened
+                //    bays where the bells go down.
                 var bays = new List<(double X, double Z, int Rim, int Floor)>();
                 var walls = new List<(double X, double Z, double Ux, double Uz, double Hw, int Rim, int Floor)>();
                 int nCh = 3;
@@ -6507,8 +6559,10 @@ storyloc devastationarea -2550 -8750
                         if (hw < 1.2) continue;
 
                         int rim = MassifY((int)px, (int)pz);
-                        int deep = (int)(52 + 20 * Math.Sin(t * 9.3 + ci));
-                        int flr = Math.Max(12, rim - (int)(deep * taper) - 6);
+                        // deep enough that the floor of the mid section is
+                        // down among the mantle rock, not a shelf
+                        int deep = (int)(78 + 30 * Math.Sin(t * 9.3 + ci));
+                        int flr = Math.Max(14, rim - (int)(deep * taper) - 6);
 
                         for (int y = flr; y <= rim + 1; y++)
                         {
@@ -6517,15 +6571,14 @@ storyloc devastationarea -2550 -8750
                             {
                                 int wx = (int)Math.Round(px - uz * w), wz = (int)Math.Round(pz + ux * w);
                                 if (y > MassifY(wx, wz)) continue;
-                                SetFluid(wx, y, wz, brine);
+                                Carve(wx, y, wz);
                             }
                             // a lamp left burning against one wall, deep down
                             if (s % 13 == 0 && y > flr + 4 && (y - flr) % 17 == (s / 13) % 17)
                             {
-                                double hwy2 = hw * (0.86 + 0.30 * job.SurfNoise.Noise(s * 0.30 + ci * 40, y * 0.42));
                                 double side = (s / 13) % 2 == 0 ? 1 : -1;
-                                Glow((int)Math.Round(px - uz * (hwy2 - 1.6) * side), y,
-                                     (int)Math.Round(pz + ux * (hwy2 - 1.6) * side), (s % 26 == 0) ? glowG : glowB);
+                                Glow((int)Math.Round(px - uz * (hwy - 0.8) * side), y,
+                                     (int)Math.Round(pz + ux * (hwy - 0.8) * side), (s % 26 == 0) ? glowG : glowB);
                             }
                         }
 
@@ -6539,16 +6592,53 @@ storyloc devastationarea -2550 -8750
                                 if (er > flr + 4) Glow((int)ex, er + 1, (int)ez, (s % 16 == 0) ? glowG : glowB);
                             }
 
-                        if (s % 11 == 0) walls.Add((px, pz, ux, uz, hw, rim, flr));
+                        if (s % 6 == 0) walls.Add((px, pz, ux, uz, hw, rim, flr));
                         if (nearBay >= 0 && ci == 0) bays.Add((px, pz, rim, flr));
                     }
                 }
 
-                // 4. THE ORE, in the chasm walls where a diver can reach it.
-                //    Every ore-and-rock pair below exists in the game's own
-                //    allowedVariants list; a seam is a lens of its host rock
-                //    studded with its ore, set into the wall so it bulges a
-                //    little into the open slot.
+                // 4. SIDE CAVES off the chasm walls: short flooded tubes that
+                //    swell into a pocket at the end, so the rift is worth
+                //    swimming into and not just looking at. Carved before any
+                //    ore goes in, so a deposit can never fill one.
+                var pockets = new List<(double X, double Y, double Z, double Dx, double Dz)>();
+                if (walls.Count > 0)
+                    for (int i = 0; i < 9; i++)
+                    {
+                        var wsp = walls[(int)(Hash01(i * 61 + 3, def.Seed * 5) * walls.Count) % walls.Count];
+                        double side = Hash01(i * 29, 11) < 0.5 ? 1 : -1;
+                        double dirx = -wsp.Uz * side, dirz = wsp.Ux * side;
+                        double yaw = (Hash01(i * 37, 19) - 0.5) * 1.1;
+                        double dx3 = dirx * Math.Cos(yaw) - dirz * Math.Sin(yaw);
+                        double dz3 = dirx * Math.Sin(yaw) + dirz * Math.Cos(yaw);
+                        double frac = 0.25 + Hash01(i * 43, 23) * 0.55;
+                        double px = wsp.X + dirx * (wsp.Hw - 1), pz = wsp.Z + dirz * (wsp.Hw - 1);
+                        double py = wsp.Floor + (wsp.Rim - wsp.Floor) * frac;
+                        int runLen = 22 + (int)(Hash01(i * 47, 29) * 24);
+                        double dip = (Hash01(i * 59, 31) - 0.45) * 0.35;
+                        double qx = px, qy = py, qz = pz;
+                        for (int k = 0; k <= runLen; k++)
+                        {
+                            double cr2 = k > runLen - 8 ? 6.5 : 3.2 + 1.4 * Math.Sin(k * 0.5);
+                            qx = px + dx3 * k; qz = pz + dz3 * k; qy = py + dip * k;
+                            for (int ox = (int)-cr2; ox <= cr2; ox++)
+                                for (int oz = (int)-cr2; oz <= cr2; oz++)
+                                    for (int oy = (int)(-cr2 * 0.8); oy <= cr2 * 0.8; oy++)
+                                    {
+                                        if (ox * ox + oy * oy / 0.64 + oz * oz > cr2 * cr2) continue;
+                                        int wx = (int)(qx + ox), wy = (int)(qy + oy), wz = (int)(qz + oz);
+                                        if (wy < 10 || wy > MassifY(wx, wz) - 3) continue;
+                                        Carve(wx, wy, wz);
+                                    }
+                        }
+                        pockets.Add((qx, qy, qz, dx3, dz3));
+                        Glow((int)px, (int)py + 2, (int)pz, glowG);       // a lamp at the cave mouth
+                    }
+
+                // 5. THE ORE. Every ore-and-rock pair below exists in the
+                //    game's own allowedVariants list AND in the matching ore
+                //    type property file, which is the part that catches the
+                //    codes that only look real.
                 (string Ore, string Rock)[] seams = {
                     ("ore-medium-ilmenite-basalt", "rock-basalt"),               // titanium
                     ("ore-rich-ilmenite-basalt", "rock-basalt"),
@@ -6583,81 +6673,94 @@ storyloc devastationarea -2550 -8750
                     ("ore-medium-emerald-limestone", "rock-limestone"),
                     ("ore-medium-cassiterite-granite", "rock-granite"),
                 };
-
-                void Seam(double px, double py, double pz, double vr, int oreId, int rockId, double rate)
+                var oreIds = new int[seams.Length];
+                var oreRock = new int[seams.Length];
+                for (int i = 0; i < seams.Length; i++)
                 {
-                    if (rockId == 0) return;
-                    for (int x = (int)(px - vr); x <= (int)(px + vr); x++)
-                        for (int z = (int)(pz - vr); z <= (int)(pz + vr); z++)
-                            for (int y = (int)(py - vr * 0.8); y <= (int)(py + vr * 0.8); y++)
+                    oreIds[i] = Need(seams[i].Ore);
+                    oreRock[i] = Need(seams[i].Rock);
+                }
+
+                // A deposit. Never a sphere: the radius is chewed by noise
+                // and the last fifth of it dissolves into the surrounding
+                // stone, and the ore itself follows a noise field so it
+                // comes in connected clumps the way a real seam does. When
+                // the ore's host rock IS the massif rock the deposit only
+                // sprinkles ore and leaves the stone alone; a foreign host
+                // is written as an intrusion of that rock instead.
+                void OreBody(double px, double py, double pz, double vr, int oreId, int rockId, double rate)
+                {
+                    if (oreId == 0 && rockId == 0) return;
+                    bool intrusion = rockId != 0 && rockId != host;
+                    int ir = (int)Math.Ceiling(vr) + 2;
+                    for (int x = (int)px - ir; x <= (int)px + ir; x++)
+                        for (int z = (int)pz - ir; z <= (int)pz + ir; z++)
+                            for (int y = (int)(py - vr) - 1; y <= (int)(py + vr) + 1; y++)
                             {
-                                if (y < 8) continue;
-                                // lenticular, like a real ore bed: wide and low
-                                double ax2 = x - px, ay2 = (y - py) / 0.68, az2 = z - pz;
-                                if (Math.Sqrt(ax2 * ax2 + ay2 * ay2 + az2 * az2) > vr) continue;
-                                Set(x, y, z, Hash01(x * 7 + y * 3, z * 11 - y * 5) < rate && oreId != 0 ? oreId : rockId);
+                                double ax2 = x - px, ay2 = (y - py) / 0.72, az2 = z - pz;
+                                double dist = Math.Sqrt(ax2 * ax2 + ay2 * ay2 + az2 * az2);
+                                double lump = vr * (0.70 + 0.55 * job.RockBlend.Noise(x * 0.55 + y * 0.31, z * 0.55 - y * 0.17));
+                                if (dist > lump) continue;
+                                if (!IsRock(x, y, z)) continue;
+                                double edge = dist / Math.Max(0.001, lump);
+                                if (edge > 0.72 && Hash01(x * 13 + y * 7, z * 17 - y * 3) < (edge - 0.72) / 0.28) continue;
+                                bool ore = oreId != 0
+                                    && job.SurfNoise.Noise(x * 0.9 + y * 0.5, z * 0.9 - y * 0.35) > 1.0 - rate;
+                                if (ore) Set(x, y, z, oreId);
+                                else if (intrusion) Set(x, y, z, rockId);
                             }
                 }
 
+                // 5a. The worked faces: deposits set into both walls of every
+                //     chasm at every depth, offset so each one is cut open by
+                //     the slot and shows its ore to a diver.
                 if (walls.Count > 0)
-                    for (int i = 0; i < 34; i++)
+                    for (int i = 0; i < 120; i++)
                     {
                         var wsp = walls[(int)(Hash01(i * 19 + 7, def.Seed) * walls.Count) % walls.Count];
-                        var sm = seams[(int)(Hash01(i * 31 + 5, def.Seed * 7) * seams.Length) % seams.Length];
-                        int oreId = Need(sm.Ore), rockId = Need(sm.Rock);
-                        if (rockId == 0) continue;
-                        double vr = 5.5 + Hash01(i * 23, def.Seed * 3) * 6.0;
+                        int si = (int)(Hash01(i * 31 + 5, def.Seed * 7) * seams.Length) % seams.Length;
+                        if (oreRock[si] == 0) continue;
+                        double vr = 4.5 + Hash01(i * 23, def.Seed * 3) * 5.5;
                         double side = Hash01(i * 41, 13) < 0.5 ? 1 : -1;
-                        double frac = 0.18 + Hash01(i * 53, 17) * 0.72;
+                        double frac = 0.05 + Hash01(i * 53, 17) * 0.90;
                         double sy = wsp.Floor + (wsp.Rim - wsp.Floor) * frac;
-                        double sxp = wsp.X - wsp.Uz * (wsp.Hw + vr * 0.70) * side;
-                        double szp = wsp.Z + wsp.Ux * (wsp.Hw + vr * 0.70) * side;
-                        Seam(sxp, sy, szp, vr, oreId, rockId, 0.34 + Hash01(i * 71, 9) * 0.22);
-                        // the light that was hung to work it
-                        Glow((int)Math.Round(wsp.X - wsp.Uz * (wsp.Hw - 1.5) * side), (int)sy + 1,
-                             (int)Math.Round(wsp.Z + wsp.Ux * (wsp.Hw - 1.5) * side), i % 2 == 0 ? glowG : glowB);
+                        double sxp = wsp.X - wsp.Uz * (wsp.Hw + vr * 0.45) * side;
+                        double szp = wsp.Z + wsp.Ux * (wsp.Hw + vr * 0.45) * side;
+                        OreBody(sxp, sy, szp, vr, oreIds[si], oreRock[si], 0.34 + Hash01(i * 71, 9) * 0.20);
+                        // the light that was hung to work it, against the face
+                        if (i % 3 == 0)
+                            Glow((int)Math.Round(wsp.X - wsp.Uz * (wsp.Hw - 0.8) * side), (int)sy + 1,
+                                 (int)Math.Round(wsp.Z + wsp.Ux * (wsp.Hw - 0.8) * side), i % 6 == 0 ? glowG : glowB);
                     }
 
-                // 5. SIDE CAVES off the chasm walls: short flooded tubes that
-                //    swell into a pocket at the end, with a seam in it, so
-                //    the rift is worth swimming into and not just looking at.
-                if (walls.Count > 0)
-                    for (int i = 0; i < 6; i++)
-                    {
-                        var wsp = walls[(int)(Hash01(i * 61 + 3, def.Seed * 5) * walls.Count) % walls.Count];
-                        double side = Hash01(i * 29, 11) < 0.5 ? 1 : -1;
-                        double dirx = -wsp.Uz * side, dirz = wsp.Ux * side;
-                        double yaw = (Hash01(i * 37, 19) - 0.5) * 1.1;
-                        double dx3 = dirx * Math.Cos(yaw) - dirz * Math.Sin(yaw);
-                        double dz3 = dirx * Math.Sin(yaw) + dirz * Math.Cos(yaw);
-                        double frac = 0.25 + Hash01(i * 43, 23) * 0.55;
-                        double px = wsp.X + dirx * (wsp.Hw - 1), pz = wsp.Z + dirz * (wsp.Hw - 1);
-                        double py = wsp.Floor + (wsp.Rim - wsp.Floor) * frac;
-                        int runLen = 22 + (int)(Hash01(i * 47, 29) * 24);
-                        double dip = (Hash01(i * 59, 31) - 0.45) * 0.35;
-                        for (int k = 0; k <= runLen; k++)
-                        {
-                            double tr = k / (double)runLen;
-                            double cr2 = k > runLen - 8 ? 6.5 : 3.2 + 1.4 * Math.Sin(k * 0.5);
-                            double qx = px + dx3 * k, qz = pz + dz3 * k, qy = py + dip * k;
-                            for (int ox = (int)-cr2; ox <= cr2; ox++)
-                                for (int oz = (int)-cr2; oz <= cr2; oz++)
-                                    for (int oy = (int)(-cr2 * 0.8); oy <= cr2 * 0.8; oy++)
-                                    {
-                                        if (ox * ox + oy * oy / 0.64 + oz * oz > cr2 * cr2) continue;
-                                        int wx = (int)(qx + ox), wy = (int)(qy + oy), wz = (int)(qz + oz);
-                                        if (wy < 10 || wy > MassifY(wx, wz) - 3) continue;
-                                        SetFluid(wx, wy, wz, brine);
-                                    }
-                            if (k == runLen)
-                            {
-                                var sm2 = seams[(int)(Hash01(i * 73, def.Seed * 3) * seams.Length) % seams.Length];
-                                Seam(qx + dx3 * 6, qy, qz + dz3 * 6, 7.5, Need(sm2.Ore), Need(sm2.Rock), 0.42);
-                                Glow((int)qx, (int)qy + 3, (int)qz, i % 2 == 0 ? glowB : glowG);
-                            }
-                        }
-                        Glow((int)px, (int)py + 2, (int)pz, glowG);       // a lamp at the cave mouth
-                    }
+                // 5b. And through the whole body of rock under the works, so
+                //     the mine is worth digging into anywhere and not just
+                //     along the two faces that happen to be open.
+                for (int i = 0; i < 320; i++)
+                {
+                    double a = Hash01(i * 7 + 1, def.Seed * 11) * Math.PI * 2;
+                    double dd = Math.Sqrt(Hash01(i * 13 + 5, def.Seed * 3)) * massifR * 1.12;
+                    int ox2 = (int)(cx + Math.Cos(a) * dd), oz2 = (int)(cz + Math.Sin(a) * dd);
+                    int top = MassifY(ox2, oz2);
+                    int oy2 = 16 + (int)(Hash01(i * 17 + 3, def.Seed * 5) * Math.Max(4, top - 22));
+                    if (oy2 > top - 2) continue;
+                    if (!IsRock(ox2, oy2, oz2)) continue;
+                    int si = (int)(Hash01(i * 29 + 9, def.Seed * 13) * seams.Length) % seams.Length;
+                    if (oreRock[si] == 0) continue;
+                    OreBody(ox2, oy2, oz2, 3.0 + Hash01(i * 37, 7) * 4.0, oreIds[si], oreRock[si],
+                            0.26 + Hash01(i * 43, 19) * 0.18);
+                }
+
+                // 5c. A seam at the end of every side cave, the reason the
+                //     cave was driven in the first place.
+                for (int i = 0; i < pockets.Count; i++)
+                {
+                    var pk = pockets[i];
+                    int si = (int)(Hash01(i * 73, def.Seed * 3) * seams.Length) % seams.Length;
+                    if (oreRock[si] == 0) continue;
+                    OreBody(pk.X + pk.Dx * 6, pk.Y, pk.Z + pk.Dz * 6, 7.5, oreIds[si], oreRock[si], 0.42);
+                    Glow((int)pk.X, (int)pk.Y + 3, (int)pk.Z, i % 2 == 0 ? glowB : glowG);
+                }
 
                 // 6. THE DERRICK. One arm per bay: a braced tower on the
                 //    shore, a box girder out over the rift with a walkway
@@ -6738,8 +6841,8 @@ storyloc devastationarea -2550 -8750
                     double br2 = 5.8 + rand.NextDouble() * 1.2;
                     double bh2 = 13 + rand.NextDouble() * 4;
                     double span = Math.Max(6, bay.Rim - bay.Floor - bh2 - 3);
-                    double lvl = (i % 3) / 2.0;                       // 0 deep, 1 shallow
-                    double bellLip = bay.Floor + 1 + span * lvl;
+                    double lvl = 0.30 + (i % 3) * 0.30;
+                    double bellLip = bay.Rim - 10 - span * 0.55 * lvl;
                     bool broken = i == 2 && bays.Count >= 4;          // one chain hangs empty
                     if (broken) ChainRun(bay.X, tipY - 2, bay.Z, bay.X, bay.Rim - 6, bay.Z, 0, 1.6);
                     else
@@ -6749,29 +6852,59 @@ storyloc devastationarea -2550 -8750
                     }
                 }
 
-                // 7. THE OLDER WORKS: bells that came off their chains lying
-                //    on the rift floor and out on the ridges, with their
-                //    broken tackle and scrap around them.
+                // 7. THE OLDER WORKS. Bells that came off their chains lie on
+                //    the rift floor and sit half swallowed by the walls, and
+                //    the wrecked tackle is scattered around them. Every one
+                //    of them is DRY inside with its mouth cut open, so each
+                //    is an air pocket a diver can surface into, and none of
+                //    them floats: the floor ones rest on the floor and the
+                //    wall ones are driven into solid rock.
                 string[] junk = { "junkchain2", "junkchain5", "junkbeamstraight2", "junksheet4", "junktanksmallbase", "junkpipe3" };
-                for (int i = 0; i < 7; i++)
+
+                // driven into the chasm walls, mouth opening on the rift
+                if (walls.Count > 0)
+                    for (int i = 0; i < 10; i++)
+                    {
+                        var wsp = walls[(int)(Hash01(i * 83 + 11, def.Seed * 9) * walls.Count) % walls.Count];
+                        double side = Hash01(i * 67, 7) < 0.5 ? 1 : -1;
+                        double dirx = -wsp.Uz * side, dirz = wsp.Ux * side;
+                        double frac = 0.12 + Hash01(i * 89, 23) * 0.76;
+                        double wy = wsp.Floor + (wsp.Rim - wsp.Floor) * frac;
+                        double br4 = 4.5 + Hash01(i * 31, 41) * 2.0;
+                        double bh4 = 10 + Hash01(i * 53, 29) * 4;
+                        double fx2 = wsp.X + dirx * (wsp.Hw - 0.5), fz2 = wsp.Z + dirz * (wsp.Hw - 0.5);
+                        double taz2 = Math.Atan2(dirz, dirx);
+                        double tilt2 = 1.35 + (Hash01(i * 97, 13) - 0.5) * 0.5;
+                        Bell(fx2, wy, fz2, br4, bh4, tilt2, taz2, 0.16,
+                             i % 2 == 0 ? glowG : glowB, true, true);
+                        for (int k = 0; k < 3; k++)
+                        {
+                            double jd = br4 + 1 + Hash01(k * 11, i * 5) * 4;
+                            int jx = (int)(fx2 - dirx * jd), jz = (int)(fz2 - dirz * jd);
+                            Clutter(jx, (int)wy - (int)br4, jz, junk[(int)(Hash01(k * 7, i * 3) * junk.Length) % junk.Length], taz2);
+                        }
+                    }
+
+                // lying on the rift floor and out on the ridges
+                for (int i = 0; i < 11; i++)
                 {
                     double bx, bz;
                     int by;
-                    if (i < 4 && walls.Count > 0)
+                    if (i < 6 && walls.Count > 0)
                     {
                         var wsp = walls[(int)(Hash01(i * 97 + 3, def.Seed * 5) * walls.Count) % walls.Count];
-                        bx = wsp.X; bz = wsp.Z; by = wsp.Floor + 4;
+                        bx = wsp.X; bz = wsp.Z; by = wsp.Floor + 1;      // resting ON the floor
                     }
                     else
                     {
                         double a = Hash01(i * 97 + 3, def.Seed * 5) * Math.PI * 2;
                         double dd = massifR * (0.35 + Hash01(i * 29, 13) * 0.55);
                         bx = cx + Math.Cos(a) * dd; bz = cz + Math.Sin(a) * dd;
-                        by = MassifY((int)bx, (int)bz) + 5;
+                        by = MassifY((int)bx, (int)bz) - 2;              // sunk into the ridge
                     }
                     double br3 = 5.5 + Hash01(i * 37, 17) * 2.5;
                     Bell(bx, by, bz, br3, 11 + Hash01(i * 51, 23) * 4, 0.9 + Hash01(i * 43, 19) * 0.7,
-                         Hash01(i * 59, 29) * Math.PI * 2, 0.34, i % 3 == 0 ? glowG : 0);
+                         Hash01(i * 59, 29) * Math.PI * 2, 0.34, i % 3 == 0 ? glowG : 0, true, true);
                     for (int k = 0; k < 5; k++)
                     {
                         double ja = Hash01(i * 61 + k, 31) * Math.PI * 2, jd = br3 + 2 + Hash01(k * 7, i) * 9;
@@ -6781,6 +6914,38 @@ storyloc devastationarea -2550 -8750
                         else Set(jx, jy, jz, Rust());
                     }
                 }
+
+                // torn hull sections and fallen beams among the ridges: the
+                // gear that came down with the bells
+                for (int i = 0; i < 5; i++)
+                {
+                    double a = Hash01(i * 101 + 7, def.Seed * 17) * Math.PI * 2;
+                    double dd = massifR * (0.25 + Hash01(i * 41, 37) * 0.70);
+                    double hx2 = cx + Math.Cos(a) * dd, hz2 = cz + Math.Sin(a) * dd;
+                    int hy2 = MassifY((int)hx2, (int)hz2) - 1;
+                    HullTube(hx2, hy2, hz2, Hash01(i * 19, 23) * Math.PI * 2,
+                             40 + Hash01(i * 29, 31) * 60, 16 + (int)(Hash01(i * 13, 11) * 14),
+                             3.5, 2.8, 0.45);
+                    for (int k = 0; k < 4; k++)
+                    {
+                        double ja = Hash01(i * 7 + k, 43) * Math.PI * 2, jd = 6 + Hash01(k * 5, i) * 12;
+                        int jx = (int)(hx2 + Math.Cos(ja) * jd), jz = (int)(hz2 + Math.Sin(ja) * jd);
+                        Clutter(jx, MassifY(jx, jz) + 1, jz, junk[(int)(Hash01(k * 3, i * 7) * junk.Length) % junk.Length], ja);
+                    }
+                }
+
+                // chains left draped over the rims and down into the rift
+                if (walls.Count > 0)
+                    for (int i = 0; i < 6; i++)
+                    {
+                        var wsp = walls[(int)(Hash01(i * 113 + 5, def.Seed * 19) * walls.Count) % walls.Count];
+                        double side = Hash01(i * 71, 17) < 0.5 ? 1 : -1;
+                        double dirx = -wsp.Uz * side, dirz = wsp.Ux * side;
+                        double ex2 = wsp.X + dirx * (wsp.Hw + 4), ez2 = wsp.Z + dirz * (wsp.Hw + 4);
+                        double dy2 = wsp.Floor + (wsp.Rim - wsp.Floor) * (0.30 + Hash01(i * 79, 13) * 0.45);
+                        ChainRun(ex2, MassifY((int)ex2, (int)ez2) + 1, ez2,
+                                 wsp.X + dirx * (wsp.Hw - 1), dy2, wsp.Z + dirz * (wsp.Hw - 1), 0, 1.4);
+                    }
                 break;
             }
 
@@ -6929,6 +7094,91 @@ storyloc devastationarea -2550 -8750
         {
             var gba = sapi.World.BlockAccessor;
             var gpos = new BlockPos(0, 0, 0, job.Dim);
+
+            // Every emitter has to sit against something. A ghostlight left
+            // in open water with nothing around it reads as a bead floating
+            // in the dark, which is what the first rift looked like along
+            // its rims. A light standing IN a solid block is fine (that is
+            // how the colossus wears its seams); a light in air or water
+            // must touch one. Anything else is walked out to the nearest
+            // cell that does, and dropped if there is nothing within reach,
+            // because no light at all beats one hanging in the water.
+            // This runs after the commit, so it sees the finished world.
+            var ring = new List<(int X, int Y, int Z)>();
+            for (int ox = -4; ox <= 4; ox++)
+                for (int oy = -4; oy <= 4; oy++)
+                    for (int oz = -4; oz <= 4; oz++)
+                        if (ox != 0 || oy != 0 || oz != 0) ring.Add((ox, oy, oz));
+            ring.Sort((a, b) => (a.X * a.X + a.Y * a.Y + a.Z * a.Z).CompareTo(b.X * b.X + b.Y * b.Y + b.Z * b.Z));
+
+            bool SolidCell(int x, int y, int z)
+            {
+                gpos.Set(x, y, z);
+                var b = gba.GetBlock(gpos, BlockLayersAccess.SolidBlocks);
+                return b != null && b.Id != 0;
+            }
+            bool Touches(int x, int y, int z)
+            {
+                foreach (var nb in BlockFacing.ALLFACES)
+                    if (SolidCell(x + nb.Normali.X, y + nb.Normali.Y, z + nb.Normali.Z)) return true;
+                return false;
+            }
+
+            // Emitters are judged as CLUSTERS, not one at a time. The
+            // lighthouse stacks three lights on a pedestal, so the upper two
+            // touch nothing but each other: what matters is whether the
+            // group they belong to reaches something solid anywhere.
+            long GKey(int x, int y, int z) => (((long)(x + 1048576) & 0x1FFFFF) << 42) | (((long)(z + 1048576) & 0x1FFFFF) << 21) | (uint)(y & 0x1FFFFF);
+            var spotAt = new Dictionary<long, int>();
+            for (int i = 0; i < glowSpots.Count; i++) spotAt[GKey(glowSpots[i].X, glowSpots[i].Y, glowSpots[i].Z)] = i;
+            var group = new int[glowSpots.Count];
+            for (int i = 0; i < group.Length; i++) group[i] = -1;
+            var groupHeld = new List<bool>();
+            var stack = new Stack<int>();
+            for (int i = 0; i < glowSpots.Count; i++)
+            {
+                if (group[i] >= 0) continue;
+                int gid = groupHeld.Count;
+                bool held = false;
+                groupHeld.Add(false);
+                group[i] = gid;
+                stack.Push(i);
+                while (stack.Count > 0)
+                {
+                    var s = glowSpots[stack.Pop()];
+                    if (SolidCell(s.X, s.Y, s.Z) || Touches(s.X, s.Y, s.Z)) held = true;
+                    foreach (var nb in BlockFacing.ALLFACES)
+                    {
+                        if (!spotAt.TryGetValue(GKey(s.X + nb.Normali.X, s.Y + nb.Normali.Y, s.Z + nb.Normali.Z), out int j)) continue;
+                        if (group[j] >= 0) continue;
+                        group[j] = gid;
+                        stack.Push(j);
+                    }
+                }
+                groupHeld[gid] = held;
+            }
+
+            var pinned = new List<(int X, int Y, int Z, int Id)>();
+            int floated = 0, orphaned = 0;
+            for (int i = 0; i < glowSpots.Count; i++)
+            {
+                var g = glowSpots[i];
+                if (groupHeld[group[i]]) { pinned.Add(g); continue; }
+                bool moved = false;
+                foreach (var o in ring)
+                {
+                    int nx = g.X + o.X, ny = g.Y + o.Y, nz = g.Z + o.Z;
+                    if (ny < 5 || SolidCell(nx, ny, nz) || !Touches(nx, ny, nz)) continue;
+                    pinned.Add((nx, ny, nz, g.Id));
+                    moved = true;
+                    break;
+                }
+                if (moved) floated++; else orphaned++;
+            }
+            if (floated > 0 || orphaned > 0)
+                sapi.Logger.Notification("[landmassgen] {0}: {1} emitter(s) pinned to the nearest surface, {2} dropped with nothing in reach",
+                    def.Kind, floated, orphaned);
+            glowSpots = pinned;
             foreach (var g in glowSpots)
             {
                 gpos.Set(g.X, g.Y, g.Z);
@@ -6939,7 +7189,7 @@ storyloc devastationarea -2550 -8750
             // that has somewhere to send its light: one walled into solid
             // rock stores no block light and reads 0, which looks exactly
             // like a bake failure and is not one.
-            var p0 = glowSpots[0];
+            var p0 = glowSpots.Count > 0 ? glowSpots[0] : (X: 0, Y: 0, Z: 0, Id: 0);
             int buriedSkipped = 0;
             for (int gi = 0; gi < glowSpots.Count && gi < 80; gi++)
             {

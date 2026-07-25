@@ -715,3 +715,35 @@ culled at conversion time.
   around it. Ore belongs in the walls, set into the face so it just
   bulges into the slot, and a ghostlight every few blocks along both
   rims turns the whole edge into a readable line from a distance.
+
+- Anything a structure builder places must be gated on a solidity test
+  the builder computes ITSELF. Inside BuildStruct the massif fill and
+  every carve are still staged in the bulk accessor, so a world read
+  answers with the terrain as it was before the command: reading it to
+  ask "is this stone?" is worthless. The diving bell mine now carries a
+  `carved` set filled by its own carve calls and an `IsRock(x,y,z)` that
+  answers from MassifY / Ground / carved above the natural sea bed and
+  defers to the world only BELOW it (which is also what keeps deposits
+  out of the natural cave network). Ore written through that predicate
+  cannot end up hanging in open water, and the dump proves it: 0 blocks
+  with no solid neighbour, 0 clusters surrounded by nothing but water.
+
+- A deposit reads as natural when its edge is noisy and its ore is
+  clumped. A plain radius test gives a billiard ball no matter what is
+  inside it. Chew the radius with noise (`vr * (0.70 + 0.55 * n)`),
+  dissolve the outer fifth into the host with a probability ramp, and
+  drive the ore itself off a noise field rather than a per-block hash,
+  which turns an even sprinkle into connected clumps. Offset a wall
+  deposit by `hw + vr * 0.45` so the slot cuts it open: the part that
+  would stick out into the water is simply never written.
+
+- Ghostlights are pinned to a surface after the commit, in CLUSTERS. A
+  light standing inside a solid block is fine (the colossus wears its
+  seams that way) and so is one touching solid, but a light in open
+  water touching nothing reads as a bead hanging in the dark. The pass
+  groups the queued emitters, keeps any group that reaches something
+  solid anywhere (the lighthouse stacks three lights on one pedestal, so
+  the top two touch only each other), and walks the rest out to the
+  nearest cell that touches rock, dropping a light entirely rather than
+  leaving it hanging. It logs what it moved: the rebuilt mine pinned 91
+  of 322 and dropped 2, the lighthouse pinned 1 of 20.
