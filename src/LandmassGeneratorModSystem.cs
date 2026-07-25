@@ -5362,6 +5362,7 @@ storyloc devastationarea -2550 -8750
         // AFTER the bulk commit, the same way the Underwater Horrors ruins
         // place theirs, so their light is baked into the chunks immediately.
         var glowSpots = new List<(int X, int Y, int Z, int Id)>();
+        (int X, int Y, int Z)? lavaProbe = null;   // one melt-surface cell, light-checked after commit
         void Glow(int x, int y, int z, int id)
         {
             if (id == 0 || !InRect(x, z) || y < 5 || y > sapi.WorldManager.MapSizeY - 3) return;
@@ -6185,7 +6186,10 @@ storyloc devastationarea -2550 -8750
                         if (lava != 0 && wall >= poolY && wall < poolY + 5 && Hash01(x * 3, z * 5) < 0.25)
                             SetFluid(x, wall, z, lava);                           // molten seeps above the pool line
                         if (lava != 0 && wall < poolY)
+                        {
                             for (int y = wall + 1; y <= poolY; y++) SetFluid(x, y, z, lava);  // the melt
+                            if (lavaProbe == null) lavaProbe = (x, poolY, z);
+                        }
                     }
 
                 // the suspended crucible: a metal bowl full of lava
@@ -6288,6 +6292,15 @@ storyloc devastationarea -2550 -8750
                 "[landmassgen] glow probe (late): block light {0} at {1}/{2}/{3}",
                 sapi.World.BlockAccessor.GetLightLevel(probePos, EnumLightLevelType.OnlyBlockLight),
                 probePos.X, probePos.Y, probePos.Z), 1500);
+        }
+
+        if (lavaProbe != null)
+        {
+            var lp = new BlockPos(lavaProbe.Value.X, lavaProbe.Value.Y + 1, lavaProbe.Value.Z, job.Dim);
+            sapi.Event.RegisterCallback(dt2 => sapi.Logger.Notification(
+                "[landmassgen] lava probe (late): block light {0} above the melt at {1}/{2}/{3}",
+                sapi.World.BlockAccessor.GetLightLevel(lp, EnumLightLevelType.OnlyBlockLight),
+                lp.X, lp.Y, lp.Z), 1500);
         }
 
         if (clutterSpots.Count > 0)
