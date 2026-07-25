@@ -5748,20 +5748,26 @@ storyloc devastationarea -2550 -8750
                             }
                         }
 
-                // devastation growth crusting the dry hide
-                for (int i = 0; i < 90; i++)
+                // devastation growth crusting the dry hide. devgrowth is
+                // dynamic and attaches to side faces too, so it sprouts
+                // OUTWARD along the surface normal: upright on top, sideways
+                // from the flanks, all around the sphere down to the waves.
+                for (int i = 0; i < 120; i++)
                 {
                     double ga = Hash01(i * 7, def.Seed) * Math.PI * 2;
-                    double gp = Hash01(i * 13, def.Seed * 3) * 1.15;        // upper hemisphere bias
+                    double gp = -0.10 + Hash01(i * 13, def.Seed * 3) * 1.25;
                     double gx3 = Math.Cos(ga) * Math.Cos(gp), gy3 = Math.Sin(gp), gz3 = Math.Sin(ga) * Math.Cos(gp);
                     int px = (int)Math.Round(cx + gx3 * (orbR - 0.6));
                     int py = (int)Math.Round(oy + gy3 * (orbR - 0.6));
                     int pz = (int)Math.Round(cz + gz3 * (orbR - 0.6));
-                    if (py + 1 <= sea + 1) continue;
+                    int qx = (int)Math.Round(cx + gx3 * (orbR + 0.7));
+                    int qy = (int)Math.Round(oy + gy3 * (orbR + 0.7));
+                    int qz = (int)Math.Round(cz + gz3 * (orbR + 0.7));
+                    if (qy <= sea + 1) continue;
                     int g2 = growth[(int)(Hash01(i, 29) * growth.Length) % growth.Length];
                     if (g2 == 0) continue;
                     Set(px, py, pz, dsoil);                                 // growth roots in devastated soil
-                    Set(px, py + 1, pz, g2);
+                    Set(qx, qy, qz, g2);
                 }
 
                 // the chains: taut from the hide straight down into the rock.
@@ -5834,6 +5840,7 @@ storyloc devastationarea -2550 -8750
                 }
 
                 var colTop = new Dictionary<long, int>();                            // topmost statue block per column
+                var sideSpots = new List<(int X, int Y, int Z)>();                   // flank cells for side-mounted thorns
 
                 // A superellipsoid part in colossus-local space (+X forward),
                 // rotated to world by the pose yaw. mode 0 carved rock with
@@ -5861,6 +5868,21 @@ storyloc devastationarea -2550 -8750
                                 Set(x, y, z, m);
                                 long ck = ((long)x << 32) | (uint)z;
                                 if (!colTop.TryGetValue(ck, out int ct) || y > ct) colTop[ck] = y;
+                                // devgrowth attaches to side faces, so thorns
+                                // can creep out of the flanks: remember the
+                                // cell just outward of sideways-facing skin
+                                if (mode == 0 && e > 0.90 && y > lyC - ry + 4)
+                                {
+                                    double au = Math.Abs(u), aw = Math.Abs(w);
+                                    if (Math.Max(au, aw) > Math.Abs(v)
+                                        && Hash01(x * 23 + y * 11, z * 29 - y * 7) < 0.012)
+                                    {
+                                        int sxn, szn;
+                                        if (au >= aw) { sxn = (int)Math.Round(Math.Sign(u) * cyw); szn = (int)Math.Round(Math.Sign(u) * syw); }
+                                        else { sxn = (int)Math.Round(-Math.Sign(w) * syw); szn = (int)Math.Round(Math.Sign(w) * cyw); }
+                                        sideSpots.Add((x + sxn, y, z + szn));
+                                    }
+                                }
                             }
                         }
                 }
@@ -5958,6 +5980,12 @@ storyloc devastationarea -2550 -8750
                         Set(x, kv.Value, z, dsoilC);
                         Set(x, kv.Value + 1, z, g2);
                     }
+                // and out of the flanks: devgrowth attaches to side faces
+                foreach (var s in sideSpots)
+                {
+                    int g2 = growthC[(int)(Hash01(s.X * 3, s.Z * 5) * growthC.Length) % growthC.Length];
+                    if (g2 != 0) Set(s.X, s.Y, s.Z, g2);
+                }
                 break;
             }
 
