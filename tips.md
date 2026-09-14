@@ -747,3 +747,45 @@ culled at conversion time.
   nearest cell that touches rock, dropping a light entirely rather than
   leaving it hanging. It logs what it moved: the rebuilt mine pinned 91
   of 322 and dropped 2, the lighthouse pinned 1 of 20.
+
+## World creation screen (verified against the 1.22.7 client code)
+
+- A mod's `worldconfig.json` (zip root) is merged into the New World and
+  Customize screens. `worldConfigAttributes` entries render by `dataType`:
+  `bool` = checkbox, `dropdown` = dropdown (`values` + `names`), `intrange`
+  and `doublerange` = slider (`min`, `max`, `step`, optional `alarm`
+  threshold, optional named ticks via `values`/`names`), `intinput`,
+  `doubleinput`, `string` = text box, `stringrange` = slider over named
+  strings. `onlyDuringWorldCreate` hides the control after creation;
+  `category` groups controls into a tab.
+- Slider lang keys are NOT optional: `worldattribute-<code>-unit` is fetched
+  with plain `Lang.Get` (`"{0} blocks"`), and `-warning` is appended to the
+  tooltip past the alarm value. Labels: `worldattribute-<code>` and
+  `-desc`; tab title: `worldconfig-category-<category>`.
+- `playStyles` entries become presets on the FIRST screen: merged across
+  mods by `code`, sorted by `listOrder` (vanilla Standard is 5, Exploration
+  6), named by `playstyle-<langCode>` / `playstyle-desc-<langCode>`. Each
+  carries its own `worldConfig` defaults, so the Rustfall preset presets
+  `rustfallWorld`, `landcover 0`, `spawnRadius 0`. The key must exist even
+  when empty (`"playStyles": []`) or the world list NREs.
+- Values chosen on the screen land in `SaveGame.WorldConfiguration` as
+  strings; read them with `GetAsString` and parse. The mod applies the
+  starter diameter in `ApplyWorldConfigIslandOverrides` at all three plan
+  sites (worldgen renderer, blocking setup pass, live decoration command),
+  keyed on plan coordinates 0,0 = the starter island.
+- The customize screen itself cannot be tested headless; a dedicated server
+  with `WorldConfig.WorldConfiguration` set in `serverconfig.json` exercises
+  the same override path (see the 0.56.0 slider test).
+
+## Ideal house island (`ideal_house_island`, 600 wide)
+
+The starter island's generator at 2x grid (192x180 cells, ~3 blocks per
+cell at diameter 600) with every starter coordinate multiplied by `S = 2`.
+Shores scale too: plains `shore=40` (was 16), beach 90 (was 36), cliff
+aprons 6 (was 3), or a 600-block island reads as one flat pancake with a
+lip. `height=18` keeps the slate headland at ~18 and the plains at ~11.
+New regions: S house terrace (rough 0.02, no bushes, thin wild grass), G
+terra preta garden, A arboretum with ten temperate treegens, a second lake,
+and a claystone/shale iron headland (D apron, I rise) with its own mine
+(`ores=iron:0.06,coal:0.04`, `branchradius=0.6`). Both caves dry in the
+previewer on seeds 12 and 7 (5480 steps, deepest 51 below sea).

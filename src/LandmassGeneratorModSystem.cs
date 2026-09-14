@@ -858,6 +858,7 @@ storyloc devastationarea -2550 -8750
                 // connected singleplayer client is still on the loading
                 // screen. Blocking is exactly what we want.
                 var opt = ParseIslandOptions(isl.Options);
+                ApplyWorldConfigIslandOverrides(opt, isl.MapX, isl.MapZ);
                 if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(isl.MapX, isl.MapZ).ToString();
                 int iox = sapi.WorldManager.MapSizeX / 2 + isl.MapX;
                 int ioz = sapi.WorldManager.MapSizeZ / 2 + isl.MapZ;
@@ -977,6 +978,19 @@ storyloc devastationarea -2550 -8750
         }
         var isl = islands[idx];
         string opts = isl.Options;
+        // Same world-creation-screen override the worldgen renderer applied
+        // (starter island diameter), so the live decoration pass sizes its
+        // flora, caves and clear rect to the island that was actually built.
+        if (isl.MapX == 0 && isl.MapZ == 0)
+        {
+            var o = ParseIslandOptions(opts);
+            o.TryGetValue("diameter", out string plannedD);
+            ApplyWorldConfigIslandOverrides(o, 0, 0);
+            if (o.TryGetValue("diameter", out string dOverride) && dOverride != plannedD)
+            {
+                opts = System.Text.RegularExpressions.Regex.Replace(opts, @"(^|\s)diameter=\S+", "").Trim() + " diameter=" + dOverride;
+            }
+        }
         // Deterministic seed: the exact one the worldgen renderer derived,
         // so the live pass lands on identical terrain instead of reshaping
         // the island under the player.
@@ -1545,6 +1559,28 @@ storyloc devastationarea -2550 -8750
 
     // The option tokens of /genisland (and of a plan file's island line):
     // key=value pairs, with a bare leading number as diameter shorthand.
+    // Values picked on the world creation screen (Rustfall tab) that
+    // override a plan island's options. The island at plan coordinates
+    // 0,0 is the starter island; its diameter follows the "Starter island
+    // diameter" slider when the world was created with one. Both the
+    // worldgen renderer and the setup pass call this, so every stage of
+    // the island agrees on the size.
+    private void ApplyWorldConfigIslandOverrides(Dictionary<string, string> opt, int mapX, int mapZ)
+    {
+        if (mapX != 0 || mapZ != 0) return;
+        var wc = sapi.WorldManager.SaveGame?.WorldConfiguration;
+        if (wc == null) return;
+        string raw = wc.GetAsString("rustfallStarterDiameter", null);
+        if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out int d) || d <= 0) return;
+        d = GameMath.Clamp(d, 8, 1024);
+        opt.TryGetValue("diameter", out string planned);
+        opt["diameter"] = d.ToString();
+        if (planned != d.ToString())
+        {
+            sapi.Logger.Notification("[landmassgenerator] Starter island diameter {0} from the world creation screen (plan file said {1}).", d, planned ?? "default");
+        }
+    }
+
     private static Dictionary<string, string> ParseIslandOptions(string all)
     {
         string[] toks = all.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
@@ -3069,6 +3105,7 @@ storyloc devastationarea -2550 -8750
                 if (!int.TryParse(parts[1], out int mapX) || !int.TryParse(parts[2], out int mapZ)) continue;
 
                 var opt = ParseIslandOptions(string.Join(" ", parts, 3, parts.Length - 3));
+                ApplyWorldConfigIslandOverrides(opt, mapX, mapZ);
                 if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(mapX, mapZ).ToString();
                 // NOT DefaultSpawnPosition: vanilla computes the map-middle
                 // spawn AFTER worldgen init (it needs the spawn chunks), so

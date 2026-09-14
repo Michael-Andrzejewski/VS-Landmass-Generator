@@ -1,5 +1,43 @@
 {
-    "playStyles": [],
+    "playStyles": [
+        {
+            "code": "rustfall",
+            "playListCode": "survival",
+            "langCode": "preset-rustfall",
+            "mods": [
+                "game",
+                "survival"
+            ],
+            "listOrder": 7,
+            "worldType": "standard",
+            "worldConfig": {
+                "worldClimate": "realistic",
+                "gameMode": "survival",
+                "temporalStability": "true",
+                "temporalStorms": "sometimes",
+                "graceTimer": "0",
+                "microblockChiseling": "stonewood",
+                "polarEquatorDistance": "100000",
+                "lungCapacity": "40000",
+                "harshWinters": "true",
+                "daysPerMonth": "9",
+                "saplingGrowthRate": "1",
+                "propickNodeSearchRadius": "6",
+                "allowUndergroundFarming": "false",
+                "allowFallingBlocks": "true",
+                "allowFireSpread": "true",
+                "temporalGearRespawnUses": "20",
+                "temporalStormSleeping": "0",
+                "clutterObtainable": "ifrepaired",
+                "landcover": "0",
+                "upheavelCommonness": "0",
+                "spawnRadius": "0",
+                "rustfallWorld": "true",
+                "rustfallNaturalIslands": "true",
+                "rustfallStarterDiameter": "150"
+            }
+        }
+    ],
     "worldConfigAttributes": [
         {
             "dataType": "Bool",
@@ -15,6 +53,18 @@
             "code": "rustfallNaturalIslands",
             "default": "true",
             "onCustomizeScreen": true
+        },
+        {
+            "dataType": "intrange",
+            "category": "rustfall",
+            "code": "rustfallStarterDiameter",
+            "min": 100,
+            "max": 600,
+            "step": 10,
+            "alarm": 250,
+            "default": "150",
+            "onCustomizeScreen": true,
+            "onlyDuringWorldCreate": true
         }
     ]
 }

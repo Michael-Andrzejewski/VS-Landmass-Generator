@@ -79,6 +79,7 @@ Run it from open ocean for the cleanest result. On existing land it clears the t
 Instead of a radial dome you can build a specific island you drew.
 
     /genisland shape=ideal_island diameter=400
+    /genisland shape=ideal_house_island diameter=600 height=18 stone=rock-peridotite sand=sand-peridotite
     /genisland shapes                      # list installed shapes
 
 Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod prints the path on load). A shape is an ASCII map plus a legend of regions, and each region gets its own rock, surface, ore, forest and shore steepness:
@@ -435,6 +436,23 @@ to 0, applied immediately; land then only exists where forced), `clearspawn N`
 `storyloc <code> <mapX> <mapZ>` lines. Pins all locations, rebuilds the
 worldgen maps (dropping the auto-rolled story spots), then pregenerates each
 story area one by one with progress in chat.
+
+### World creation screen (0.56.0+)
+
+The mod adds a **Rustfall** preset to the New World screen, next to
+Standard and Exploration. Picking it sets up the Rustfall ocean world with
+no further steps: pure ocean, spawn radius 0, the "Rustfall world" flag,
+natural islands on. Press Customize for the **Rustfall** tab:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| Rustfall world | on with the preset | Runs the world plan on first load (pure ocean, story locations pinned, starter island generated under your feet). |
+| Natural world-gen islands | on | Let underwater terrain occasionally breach as small natural islands. |
+| Starter island diameter | 150 blocks | Width of the plan's island at 0,0. Replaces the plan file's `diameter=` for that island, at worldgen and in the decoration pass. Slider 100 to 600 in steps of 10; past 250 it warns, because the default plan's cattail isles sit 265 blocks east. |
+
+Everything else about the world (which islands, where, story coordinates)
+still comes from `worldplan.txt`. The Rustfall tab also appears on the other
+presets, so a Standard world with "Rustfall world" ticked behaves the same.
 
     /timereset
 
