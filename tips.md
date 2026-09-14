@@ -770,9 +770,12 @@ culled at conversion time.
   when empty (`"playStyles": []`) or the world list NREs.
 - Values chosen on the screen land in `SaveGame.WorldConfiguration` as
   strings; read them with `GetAsString` and parse. The mod applies the
-  starter diameter in `ApplyWorldConfigIslandOverrides` at all three plan
-  sites (worldgen renderer, blocking setup pass, live decoration command),
-  keyed on plan coordinates 0,0 = the starter island.
+  starter diameter in `ApplyWorldConfigToPlanIslands`, ONE function fed by
+  all three plan consumers (worldgen renderer, blocking setup pass, live
+  decoration command) so sizes, positions and coordinate-derived seeds
+  agree. Plan coordinates 0,0 = the starter; every other island slides
+  radially away from it by half the diameter change (Michael: the gap to
+  the cattail isles must stay constant as the starter grows).
 - The customize screen itself cannot be tested headless; a dedicated server
   with `WorldConfig.WorldConfiguration` set in `serverconfig.json` exercises
   the same override path (see the 0.56.0 slider test).

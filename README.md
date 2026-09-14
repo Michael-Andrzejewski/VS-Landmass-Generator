@@ -448,7 +448,7 @@ natural islands on. Press Customize for the **Rustfall** tab:
 |---|---|---|
 | Rustfall world | on with the preset | Runs the world plan on first load (pure ocean, story locations pinned, starter island generated under your feet). |
 | Natural world-gen islands | on | Let underwater terrain occasionally breach as small natural islands. |
-| Starter island diameter | 150 blocks | Width of the plan's island at 0,0. Replaces the plan file's `diameter=` for that island, at worldgen and in the decoration pass. Slider 100 to 600 in steps of 10; past 250 it warns, because the default plan's cattail isles sit 265 blocks east. |
+| Starter island diameter | 150 blocks | Width of the plan's island at 0,0. Replaces the plan file's `diameter=` for that island, at worldgen and in the decoration pass. Every other plan island slides straight away from spawn by half the change, so the water gap the plan drew stays the same (the default plan's cattail isles sit 85 blocks off the starter's shore at any size). Slider 100 to 600 in steps of 10. |
 
 Everything else about the world (which islands, where, story coordinates)
 still comes from `worldplan.txt`. The Rustfall tab also appears on the other

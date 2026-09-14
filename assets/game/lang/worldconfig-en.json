@@ -7,7 +7,6 @@
     "playstyle-preset-rustfall": "Rustfall",
     "playstyle-desc-preset-rustfall": "The Rustfall ocean world: no natural continents, the six story locations pinned at their planned coordinates, and the starter island generated under your feet before you land. Open Customize for the Rustfall tab: starter island diameter and natural islands.",
     "worldattribute-rustfallStarterDiameter": "Starter island diameter",
-    "worldattribute-rustfallStarterDiameter-desc": "Width in blocks of the island at spawn (the plan file's island at 0,0). The plan's own value is replaced by this one when the world is created. In the default plan the cattail isles sit 265 blocks east, so a starter wider than about 250 blocks grows into them.",
-    "worldattribute-rustfallStarterDiameter-unit": "{0} blocks",
-    "worldattribute-rustfallStarterDiameter-warning": " (overlaps the cattail isles of the default plan)"
+    "worldattribute-rustfallStarterDiameter-desc": "Width in blocks of the island at spawn (the plan file's island at 0,0). The plan's own value is replaced by this one when the world is created, and every other island in the plan slides straight away from spawn by half the change, so the water between them stays as wide as the plan drew it.",
+    "worldattribute-rustfallStarterDiameter-unit": "{0} blocks"
 }

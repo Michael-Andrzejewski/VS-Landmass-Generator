@@ -61,7 +61,6 @@
             "min": 100,
             "max": 600,
             "step": 10,
-            "alarm": 250,
             "default": "150",
             "onCustomizeScreen": true,
             "onlyDuringWorldCreate": true

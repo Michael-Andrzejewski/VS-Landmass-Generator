@@ -731,6 +731,7 @@ storyloc devastationarea -2550 -8750
         {
             return TextCommandResult.Error($"Plan file {planPath} contains no directives.");
         }
+        islands = ApplyWorldConfigToPlanIslands(islands);
 
         var notes = new List<string>();
         if (freshPlan) notes.Add($"no plan file existed, wrote and applied the default at {planPath}");
@@ -858,7 +859,6 @@ storyloc devastationarea -2550 -8750
                 // connected singleplayer client is still on the loading
                 // screen. Blocking is exactly what we want.
                 var opt = ParseIslandOptions(isl.Options);
-                ApplyWorldConfigIslandOverrides(opt, isl.MapX, isl.MapZ);
                 if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(isl.MapX, isl.MapZ).ToString();
                 int iox = sapi.WorldManager.MapSizeX / 2 + isl.MapX;
                 int ioz = sapi.WorldManager.MapSizeZ / 2 + isl.MapZ;
@@ -978,19 +978,6 @@ storyloc devastationarea -2550 -8750
         }
         var isl = islands[idx];
         string opts = isl.Options;
-        // Same world-creation-screen override the worldgen renderer applied
-        // (starter island diameter), so the live decoration pass sizes its
-        // flora, caves and clear rect to the island that was actually built.
-        if (isl.MapX == 0 && isl.MapZ == 0)
-        {
-            var o = ParseIslandOptions(opts);
-            o.TryGetValue("diameter", out string plannedD);
-            ApplyWorldConfigIslandOverrides(o, 0, 0);
-            if (o.TryGetValue("diameter", out string dOverride) && dOverride != plannedD)
-            {
-                opts = System.Text.RegularExpressions.Regex.Replace(opts, @"(^|\s)diameter=\S+", "").Trim() + " diameter=" + dOverride;
-            }
-        }
         // Deterministic seed: the exact one the worldgen renderer derived,
         // so the live pass lands on identical terrain instead of reshaping
         // the island under the player.
@@ -1559,26 +1546,45 @@ storyloc devastationarea -2550 -8750
 
     // The option tokens of /genisland (and of a plan file's island line):
     // key=value pairs, with a bare leading number as diameter shorthand.
-    // Values picked on the world creation screen (Rustfall tab) that
-    // override a plan island's options. The island at plan coordinates
-    // 0,0 is the starter island; its diameter follows the "Starter island
-    // diameter" slider when the world was created with one. Both the
-    // worldgen renderer and the setup pass call this, so every stage of
-    // the island agrees on the size.
-    private void ApplyWorldConfigIslandOverrides(Dictionary<string, string> opt, int mapX, int mapZ)
+    // The plan's islands after the world creation screen has had its say.
+    // The island at plan coordinates 0,0 is the starter: its diameter follows
+    // the "Starter island diameter" slider when the world was created with
+    // one. Every OTHER island then slides straight away from the starter by
+    // half the diameter change, so the water gap the plan drew between them
+    // stays the same width whatever size the starter ends up. All three plan
+    // consumers (worldgen renderer, blocking setup, live decoration) go
+    // through here, so every stage agrees on sizes and positions, and the
+    // per-island seeds (derived from the coordinates) agree too.
+    private List<(int MapX, int MapZ, string Options)> ApplyWorldConfigToPlanIslands(List<(int MapX, int MapZ, string Options)> islands)
     {
-        if (mapX != 0 || mapZ != 0) return;
         var wc = sapi.WorldManager.SaveGame?.WorldConfiguration;
-        if (wc == null) return;
-        string raw = wc.GetAsString("rustfallStarterDiameter", null);
-        if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out int d) || d <= 0) return;
+        string raw = wc?.GetAsString("rustfallStarterDiameter", null);
+        if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out int d) || d <= 0) return islands;
         d = GameMath.Clamp(d, 8, 1024);
-        opt.TryGetValue("diameter", out string planned);
-        opt["diameter"] = d.ToString();
-        if (planned != d.ToString())
+
+        int starterIdx = islands.FindIndex(i => i.MapX == 0 && i.MapZ == 0);
+        if (starterIdx < 0) return islands;
+        int planned = OptInt(ParseIslandOptions(islands[starterIdx].Options), "diameter", 120, 8, 1024);
+        if (planned == d) return islands;
+
+        double shift = (d - planned) / 2.0;
+        var result = new List<(int MapX, int MapZ, string Options)>(islands.Count);
+        foreach (var isl in islands)
         {
-            sapi.Logger.Notification("[landmassgenerator] Starter island diameter {0} from the world creation screen (plan file said {1}).", d, planned ?? "default");
+            if (isl.MapX == 0 && isl.MapZ == 0)
+            {
+                string opts = System.Text.RegularExpressions.Regex.Replace(isl.Options, @"(^|\s)diameter=\S+", "").Trim() + " diameter=" + d;
+                result.Add((0, 0, opts));
+                continue;
+            }
+            double len = Math.Sqrt((double)isl.MapX * isl.MapX + (double)isl.MapZ * isl.MapZ);
+            int nx = (int)Math.Round(isl.MapX + isl.MapX / len * shift);
+            int nz = (int)Math.Round(isl.MapZ + isl.MapZ / len * shift);
+            result.Add((nx, nz, isl.Options));
+            sapi.Logger.Notification("[landmassgenerator] Plan island at {0}, {1} moved to {2}, {3} to keep its distance from the {4}-block starter island.", isl.MapX, isl.MapZ, nx, nz, d);
         }
+        sapi.Logger.Notification("[landmassgenerator] Starter island diameter {0} from the world creation screen (plan file said {1}).", d, planned);
+        return result;
     }
 
     private static Dictionary<string, string> ParseIslandOptions(string all)
@@ -3096,16 +3102,21 @@ storyloc devastationarea -2550 -8750
         var jobs = new List<IslandJob>();
         try
         {
+            var planIslands = new List<(int MapX, int MapZ, string Options)>();
             foreach (string raw in File.ReadAllLines(planPath))
             {
                 string line = raw.Trim();
                 if (line.Length == 0 || line.StartsWith("#")) continue;
                 string[] parts = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 4 || !parts[0].Equals("island", StringComparison.OrdinalIgnoreCase)) continue;
-                if (!int.TryParse(parts[1], out int mapX) || !int.TryParse(parts[2], out int mapZ)) continue;
-
-                var opt = ParseIslandOptions(string.Join(" ", parts, 3, parts.Length - 3));
-                ApplyWorldConfigIslandOverrides(opt, mapX, mapZ);
+                if (!int.TryParse(parts[1], out int px) || !int.TryParse(parts[2], out int pz)) continue;
+                planIslands.Add((px, pz, string.Join(" ", parts, 3, parts.Length - 3)));
+            }
+            planIslands = ApplyWorldConfigToPlanIslands(planIslands);
+            foreach (var pi in planIslands)
+            {
+                int mapX = pi.MapX, mapZ = pi.MapZ;
+                var opt = ParseIslandOptions(pi.Options);
                 if (!opt.ContainsKey("seed")) opt["seed"] = PlanIslandSeed(mapX, mapZ).ToString();
                 // NOT DefaultSpawnPosition: vanilla computes the map-middle
                 // spawn AFTER worldgen init (it needs the spawn chunks), so
