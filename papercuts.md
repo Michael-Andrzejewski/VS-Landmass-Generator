@@ -578,19 +578,22 @@ Lesson: a structure pass that writes blindly will look correct in the
 code and wrong in the world. Either compute the occupancy yourself or
 do the work after the commit, and log the count either way.
 
-## dumpgen's wait is too short for a 600-block island
+## dumpgen can time out on a 600-block island from a COLD start
 
-`node tools/dumpgen.mjs <shape>` printed `ERROR: timed out` on
-`ideal_house_island` at diameter 600, and the shell wrapper exited. The build
-had NOT failed: the server was still working and finished fine a minute later,
-writing the .lmd (509,560 columns, 338M cells, 17 minutes end to end). Only
-dumpgen's client-side wait gave up.
+`waitForDumps` allows `5 + shapes*15` minutes, so 20 for one shape. A 600
+block island is about 14 minutes of build on its own, which fits; add a cold
+server boot and the world gen under it and it does not. First run on
+`ideal_house_island` printed `ERROR: timed out` and the wrapper exited, and
+the build had NOT failed: the server was still working and wrote the .lmd
+five minutes later (509,560 columns, 338M cells). The second run, against the
+already-warm server, finished in 14 minutes and reported `done` normally.
 
-So a timeout from dumpgen is not a result. Read `export/server.log` for
-`Island complete:` and `[dump] wrote` before concluding anything, or better,
-tail it through a monitor while the job runs. The line to watch for is
-`[landmassgenerator] Island complete:`, which also carries the region problem
-notes and the cave notes; those are the actual verdict.
+So a timeout from dumpgen is not a result. Read `export/server.log` before
+concluding anything, or tail it through a monitor while the job runs. The line
+that matters is `[landmassgenerator] Island complete:`, which carries the
+region problem notes and the cave notes; that is the actual verdict, and
+`[dump] wrote` confirms the file. On anything this big, run dumpgen once to
+warm the server and read the log rather than trusting the wrapper's exit.
 
 ## A cave marker on a plateau reports a buried entrance
 
