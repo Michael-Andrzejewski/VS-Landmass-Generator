@@ -79,7 +79,7 @@ Run it from open ocean for the cleanest result. On existing land it clears the t
 Instead of a radial dome you can build a specific island you drew.
 
     /genisland shape=ideal_island diameter=400
-    /genisland shape=ideal_house_island diameter=600 height=18 stone=rock-peridotite sand=sand-peridotite
+    /genisland shape=ideal_house_island diameter=600 height=18
     /genisland shapes                      # list installed shapes
 
 Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod prints the path on load). A shape is an ASCII map plus a legend of regions, and each region gets its own rock, surface, ore, forest and shore steepness:

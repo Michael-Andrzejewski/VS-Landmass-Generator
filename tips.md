@@ -782,13 +782,46 @@ culled at conversion time.
 
 ## Ideal house island (`ideal_house_island`, 600 wide)
 
-The starter island's generator at 2x grid (192x180 cells, ~3 blocks per
-cell at diameter 600) with every starter coordinate multiplied by `S = 2`.
-Shores scale too: plains `shore=40` (was 16), beach 90 (was 36), cliff
-aprons 6 (was 3), or a 600-block island reads as one flat pancake with a
-lip. `height=18` keeps the slate headland at ~18 and the plains at ~11.
-New regions: S house terrace (rough 0.02, no bushes, thin wild grass), G
-terra preta garden, A arboretum with ten temperate treegens, a second lake,
-and a claystone/shale iron headland (D apron, I rise) with its own mine
-(`ores=iron:0.06,coal:0.04`, `branchradius=0.6`). Both caves dry in the
-previewer on seeds 12 and 7 (5480 steps, deepest 51 below sea).
+Relaid 2026-09-16 from Michael's hand-drawn map. 200x200 cells, so at
+`diameter=600` one cell is exactly three blocks; the coast harmonic is 92
+cells so the island really does span about 590. Run it at `height=18`, which
+is what every height fraction below was chosen against.
+
+West is prairie with the odd tree (`P`, forest 0.004), the north is flat
+shoretown prairie (`K`, 0.003, height 0.40 so it reads level), the centre is
+thick forest (`F`, 0.055, mixed temperate) and the east is thicker, steeper
+and rockier (`J`, 0.075, tropical treegens + `climate=lush`). Forest and
+prairie land about 39% and 32% of the island.
+
+THE PIECE WORTH REUSING: a **secluded beach behind a ridge**. The ridge `R`
+spans a WIDER arc than the beach `B`, so past both ends of the sand it runs
+straight down to the water as a 15 block sea cliff and closes the pocket off;
+the beach is the only part of that arc where the ridge steps back. One 8
+degree wedge (`p`, height 0.45) is left as the ascending path, and it has to
+sit inside the beach's arc or you walk down to water rather than to sand.
+
+TUNING THE BEACH, learned the slow way. A beach next to a tall region does
+NOT sit level just because you gave it a small `shore`: the ~5 cell height
+smoothing pulls its inner third up toward the ridge. The first cut (band
+t>0.935, about 18 blocks) came out as a continuous ramp from 6 down to the
+water with nothing level on it. Widening the band to t>0.895 (26-32 blocks)
+leaves 17-20 blocks genuinely level at 2-3 above the waterline once the blend
+has had its 15. With `height=0.18 shore=8` and the ridge at 0.88, the wall
+over the sand measures 13, which is what the drawing asked for. Measure this,
+do not eyeball it: `buildIsland(currentShape, 600, 18).columnSurface(x, z)`
+in the previewer console returns `{topY, mat, cell}`, so a transect along a
+bearing prints the real profile in blocks.
+
+Willow Lake is `w` at `pond=5`, ellipse 12.5 x 10.5 cells, which measures 71
+x 61 blocks of open water: the region is always bigger than the water, so
+size the ellipse by measuring, not by arithmetic. Rock is `shale` with
+`whitemarble` through the forest regions, the ridge is `whitemarble` over
+`chalk`, and the grass regions carry `peridotite` as their second rock for
+the deep stone. There is no third rock slot, so a three-rock island has to
+spread them across regions. `sand-whitemarble` does NOT exist (sand only has
+the 14 base rocks), so any marble region needs `sand=sand-chalk` spelled out.
+
+Kept from the old layout: the house terrace `S` (rough 0.02, thin wild grass)
+and its terra preta garden `G`, the flax meadow, the clay vein, and the
+claystone/shale iron headland (`D` apron, `I` rise) with its mine. The copper
+mine now bores into the face of the white ridge.

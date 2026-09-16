@@ -1,30 +1,39 @@
 """
-Ideal house island: the starter island grown to 600 blocks and given a site
-for Michael's ideal house. Same bones as starter_island (radial harmonic
-coast, white-sand west beach, oak forest north, slate headland with the
-copper mine north-east, cattail pond with its rich meadow, flax meadow,
-low-fertility south rim, giant oak) at four times the width, plus:
+Ideal house island, laid out from Michael's hand-drawn map (2026-09-16).
 
-  - S  house site: a big flat grass terrace north-west of the centre,
-       kept clean (no bushes, thin wild grass) so it can be built on.
-  - G  terra preta garden strip along the south edge of the house site.
-  - A  arboretum: a mixed wood of every temperate tree the game grows, so
-       every tree seed can be gathered without leaving the island.
-  - I  iron headland: a claystone/shale rise on the south-west coast with
-       coal and iron in the rock, and a second mine (marker N) bored into
-       it. Copper + iron + coal on one island is the road to steel.
-  - a second, larger lake ('w') east of the house, ringed by rich meadow.
+Reading of the drawing, west to east:
 
-Grid is 2x the starter's (192 x 180), so at diameter=600 one cell is about
-three blocks. Cell coordinates in this file are the starter's times two.
+  - LEFT (west) is prairie: open grass with only the occasional tree, the
+    university/barracks/arena side of the map.
+  - The CENTRE thickens into real forest, and the EAST is thicker still,
+    steeper and rockier, reading as the drawing's thick jungle forest.
+  - The EAST COAST is a tall white ridge of marble and chalk. It meets the sea
+    as a cliff at both ends, and between those ends it steps back to leave a
+    thin level beach at its foot: the drawing's secluded beach, walled off from
+    the island by the ridge, with one ascending path notched through.
+  - NORTH is shoretown: flat, prairie-like, its coast broken by small scattered
+    white-sand beaches rather than one continuous strand.
+  - WILLOW LAKE sits east of centre, a 70 block mere ringed with rich meadow
+    and swamp cypress standing in the shallows.
+  - Michael's house keeps its flat terrace and terra preta garden, south of
+    centre where the drawing puts them, and the iron headland keeps its mine on
+    the south-west shoulder.
+
+Rock is shale with marble through it, the white ridge is marble over chalk, and
+peridotite blends underground as the deep rock.
+
+Grid is 200 x 200, so at diameter=600 one cell is three blocks.
 
     python tools/gen_ideal_house_island.py > shapes/ideal_house_island.txt
 """
 import math
 
-S = 2.0                    # cell scale relative to the starter island
-W, H = 192, 180
-CX, CY = 96.0, 90.0
+W, H = 200, 200
+CX, CY = 100.0, 100.0
+
+# The command height these fractions were chosen against. The east ridge is
+# meant to stand 12-15 blocks over its beach: 1.00 and 0.15 of 18 is 15.3.
+SUGGEST_HEIGHT = 18
 
 
 def adist(a, b):
@@ -36,17 +45,13 @@ def adist(a, b):
 def coast_r(ang):
     """Coast radius (cells) at angle `ang` (deg; 0=east, 90=south)."""
     t = math.radians(ang)
-    r = 39.0 * S * (1.0
-                    + 0.050 * math.sin(2 * t + 0.9)
-                    + 0.040 * math.sin(3 * t + 2.1)
-                    + 0.022 * math.sin(5 * t + 4.2)
-                    + 0.012 * math.sin(7 * t + 1.3))
-    # Gentle west bulge: the beach lobe.
-    a = adist(ang, 168.0)
-    r *= 1.0 + 0.06 * math.exp(-(a / 34.0) ** 2)
+    r = 92.0 * (1.0
+                + 0.038 * math.sin(2 * t + 0.9)
+                + 0.030 * math.sin(3 * t + 2.1)
+                + 0.018 * math.sin(5 * t + 4.2)
+                + 0.010 * math.sin(7 * t + 1.3))
     # South-west shoulder: the iron headland pushes the coast out a little.
-    a = adist(ang, 132.0)
-    r *= 1.0 + 0.05 * math.exp(-(a / 16.0) ** 2)
+    r *= 1.0 + 0.045 * math.exp(-(adist(ang, 138.0) / 16.0) ** 2)
     return r
 
 
@@ -61,6 +66,19 @@ def ell(dx, dz, cx, cz, rx, rz):
     return ((dx - cx) / rx) ** 2 + ((dz - cz) / rz) ** 2 <= 1.0
 
 
+# ── the east ridge and its secluded beach ────────────────────────────────────
+# The ridge spans a wider arc than the beach, so at both ends of the beach it
+# runs right down to the water as a cliff and closes the pocket off.
+RIDGE_A0, RIDGE_A1 = -22.0, 86.0
+BEACH_A0, BEACH_A1 = 6.0, 64.0
+PATH_A = 66.0                     # the one notch down through the ridge
+
+
+def arc_has(ang, a0, a1):
+    """True when `ang` lies in the arc a0..a1 (degrees, may be negative)."""
+    return ((ang - a0) % 360.0) <= ((a1 - a0) % 360.0)
+
+
 def region(c, r):
     dx, dz = c + 0.5 - CX, r + 0.5 - CY
     rho = math.hypot(dx, dz)
@@ -70,69 +88,70 @@ def region(c, r):
         return '.'
     t = rho / rc                       # 0 at centre, 1 at the coast
 
-    # Cattail pond south-east of the giant oak (starter's pond, scaled).
-    if ell(dx, dz, 7.0 * S, 14.0 * S, 5.2 * S, 3.6 * S):
-        return 'w'
-    # The lake: a bigger mere east of the house site, north of the flax.
-    if ell(dx, dz, 26.0, -30.0, 12.0, 8.0):
+    # ── Willow Lake, east of centre. 23 cells across is about 70 blocks. ──
+    if ell(dx, dz, 25.0, 3.0, 12.5, 10.5):
         return 'w'
 
-    # Big clay vein from the pond's east edge toward the south-east coast.
-    if seg_dist(dx, dz, 12.0 * S, 14.0 * S, 28.0 * S, 27.0 * S) < 2.6 * S:
-        return 'V'
+    # ── the ascending path: a saddle notched through the ridge ──
+    if adist(ang, PATH_A) < 4.0 and t > 0.76:
+        return 'p'
 
-    # Small hidden clay patch in the forest.
-    if ell(dx, dz, -8.0 * S, -27.0 * S, 3.5 * S, 2.5 * S):
-        return 'c'
-
-    # North-east slate edge: waterline apron first, high slate behind it.
-    if adist(ang, -15.0) < 50.0 and t > 0.86:
-        return 'C'
-    if adist(ang, -15.0) < 42.0 and t > 0.66:
+    # ── east coast: white ridge, with the beach tucked into its middle ──
+    if arc_has(ang, RIDGE_A0, RIDGE_A1) and t > 0.80:
+        if arc_has(ang, BEACH_A0, BEACH_A1) and t > 0.895:
+            return 'B'
         return 'R'
 
-    # South-west iron headland: rocky apron at the water, claystone rise
-    # behind it, both narrower than the slate headland.
-    if adist(ang, 132.0) < 24.0 and t > 0.88:
+    # ── south rim: a thin beach along the bottom of the drawing ──
+    if adist(ang, 108.0) < 22.0 and t > 0.955:
+        return 'B'
+
+    # ── south-west iron headland, kept from the old island ──
+    if adist(ang, 138.0) < 22.0 and t > 0.90:
         return 'D'
-    if adist(ang, 132.0) < 18.0 and t > 0.72:
+    if adist(ang, 138.0) < 16.0 and t > 0.76:
         return 'I'
 
-    # West beach lobe, reedy at its north tip.
-    a = adist(ang, 168.0)
-    if a < 42.0 and t > 0.55 + 0.38 * (a / 42.0) ** 2:
-        return 'T' if adist(ang, -153.0) < 13.0 else 'B'
+    # ── north: shoretown's coast, small scattered white-sand beaches ──
+    if adist(ang, -100.0) < 46.0 and t > 0.945:
+        # pockets rather than one strand: a slow wave along the shore
+        if math.sin(math.radians(ang) * 6.0 + 0.7) > 0.25:
+            return 'B'
 
-    # Low-fertility ground along the south rim.
-    if adist(ang, 95.0) < 40.0 and t > 0.72:
-        return 'L'
+    # ── west coast: the prairie runs almost to the water ──
+    if adist(ang, 178.0) < 30.0 and t > 0.965:
+        return 'B'
 
-    # House site: flat terrace north-west of the centre.
-    if ell(dx, dz, -22.0, -14.0, 22.0, 15.0):
+    # ── house terrace and its garden, south of centre ──
+    if ell(dx, dz, -2.0, 46.0, 21.0, 14.0):
         return 'S'
-    # Terra preta garden strip hugging the site's south edge.
-    if ell(dx, dz, -22.0, 4.0, 18.0, 4.5):
+    if ell(dx, dz, -2.0, 63.0, 17.0, 4.5):
         return 'G'
 
-    # Arboretum: between the forest and the beach on the west.
-    if adist(ang, -135.0) < 22.0 and 0.50 < t < 0.90:
-        return 'A'
-
-    # Oak forest across the north.
-    if adist(ang, -95.0) < 50.0 and t > 0.40:
-        return 'F'
-
-    # Rich meadow wrapping the pond and the lake.
-    if ell(dx, dz, 7.0 * S, 14.0 * S, 11.5 * S, 9.5 * S):
+    # ── rich meadow ringing the lake, and the flax meadow past it ──
+    if ell(dx, dz, 25.0, 3.0, 21.0, 18.0):
         return 'H'
-    if ell(dx, dz, 26.0, -30.0, 19.0, 14.0):
-        return 'H'
-
-    # Wild flax meadow, east of centre.
-    if ell(dx, dz, 20.0 * S, -2.0 * S, 8.5 * S, 7.0 * S):
+    if ell(dx, dz, 46.0, 30.0, 13.0, 10.0):
         return 'X'
 
-    return 'P'
+    # ── clay vein running out of the lake's south shore ──
+    if seg_dist(dx, dz, 26.0, 13.0, 44.0, 44.0) < 4.0:
+        return 'V'
+
+    # ── east: thick, steep, rocky forest behind the ridge ──
+    if arc_has(ang, RIDGE_A0 - 6.0, RIDGE_A1 + 6.0) and t > 0.30 + 0.05 * math.sin(math.radians(ang) * 5.0):
+        return 'J'
+
+    # ── north: shoretown proper, flat and prairie-like ──
+    if adist(ang, -100.0) < 42.0 and t > 0.50 + 0.06 * math.sin(math.radians(ang) * 7.0 + 1.1):
+        return 'K'
+
+    # ── west: prairie with only the occasional tree ──
+    if adist(ang, 175.0) < 44.0 and t > 0.46 + 0.06 * math.sin(math.radians(ang) * 6.0 + 3.4):
+        return 'P'
+
+    # ── everything else is the thick forest through the middle ──
+    return 'F'
 
 
 def place(grid, x, z, mark, expect):
@@ -145,50 +164,53 @@ def place(grid, x, z, mark, expect):
 def main():
     grid = [[region(c, r) for c in range(W)] for r in range(H)]
 
-    # Giant oak at the centre, as on the starter.
-    place(grid, 95, 90, 'O', 'PHS')
+    # Giant oak just west of the centre, on the forest edge.
+    place(grid, 92, 100, 'O', 'FPH')
 
-    # Copper mine: base of the slate headland's waterline apron (angle -15).
-    ang = math.radians(-15.0)
-    place(grid, int(CX + 36.6 * S * math.cos(ang)), int(CY + 36.6 * S * math.sin(ang)), 'M', 'C')
+    # Copper mine in the face of the white ridge, on the cliff end north of
+    # the beach so its mouth is above the water.
+    ang = math.radians(-8.0)
+    place(grid, int(CX + 0.88 * coast_r(-8.0) * math.cos(ang)),
+          int(CY + 0.88 * coast_r(-8.0) * math.sin(ang)), 'M', 'R')
 
-    # Iron mine: base of the iron headland's apron (angle 132).
-    ang = math.radians(132.0)
-    place(grid, int(CX + 37.4 * S * math.cos(ang)), int(CY + 37.4 * S * math.sin(ang)), 'N', 'D')
+    # Iron mine at the foot of the iron headland, as before.
+    ang = math.radians(138.0)
+    place(grid, int(CX + 0.93 * coast_r(138.0) * math.cos(ang)),
+          int(CY + 0.93 * coast_r(138.0) * math.sin(ang)), 'N', 'D')
 
-    print("# ideal_house_island - the starter island at 600 blocks with a site for the ideal house.")
+    print("# ideal_house_island - laid out from Michael's hand-drawn map.")
     print("# Regenerate: python tools/gen_ideal_house_island.py > shapes/ideal_house_island.txt")
-    print("# Suggested: /genisland shape=ideal_house_island diameter=600 height=18 stone=rock-peridotite sand=sand-peridotite")
+    print(f"# Suggested: /genisland shape=ideal_house_island diameter=600 height={SUGGEST_HEIGHT}")
     print("#")
-    print("# Starter island bones (white-sand west beach, oak forest north, slate")
-    print("# headland + copper mine north-east, cattail pond and rich meadow, flax")
-    print("# meadow east, low-fertility south rim, giant oak) at four times the width.")
-    print("# New: S flat house terrace north-west of centre, G terra preta garden on its")
-    print("# south edge, A arboretum of every temperate tree, a lake east of the house,")
-    print("# and an iron headland (D apron, I claystone rise) with a coal-and-iron mine (N)")
-    print("# on the south-west coast.")
+    print("# West is open prairie, the centre thickens into forest and the east is")
+    print("# thicker, steeper and rockier. The east coast is a tall white marble ridge")
+    print("# that meets the sea as a cliff at both ends and steps back in the middle to")
+    print("# leave a thin level beach at its foot (B), walled off from the island, with")
+    print("# one ascending path (p) notched through. North is flat shoretown prairie")
+    print("# with small scattered white-sand beaches. Willow Lake (w) is a 70 block mere")
+    print("# east of centre. Rock is shale with marble through it, the ridge is marble")
+    print("# over chalk, peridotite blends underground as the deep rock.")
     print()
-    print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   bushes=raspberry:0.002,blueberry:0.002 scatter=cornflower:0.010,forgetmenot:0.010,cowparsley:0.005 height=0.62 shore=40 rough=0.08")
-    print("region S rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   wildgrass=0.12 stones=0.003 scatter=cornflower:0.004 height=0.62 shore=40 rough=0.02")
-    print("region G rock=slate rock2=peridotite fertility=terrapreta surface=grass ores=copper:0.02 wildgrass=0.15 flax=0.02 scatter=cornflower:0.012,forgetmenot:0.012,catmint:0.008 height=0.62 shore=40 rough=0.03")
-    print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   forest=0.015 trees=oak orebits=copper:0.0012 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.68 shore=40 rough=0.08")
-    print("region A rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   forest=0.020 trees=englishoak,silverbirch,scotspine,sugarmaple,norwaymaple,walnut,larch,fir,riverbirch,himalayanbirch bushes=blackberry:0.006,blueberry:0.006 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,eaglefern:0.020,deerfern:0.010 height=0.66 shore=40 rough=0.08")
-    print("region H rock=slate rock2=peridotite fertility=high   surface=grass ores=copper:0.02   bushes=cranberry:0.01 scatter=cornflower:0.015,forgetmenot:0.015,horsetail:0.010 height=0.62 shore=40 rough=0.06")
-    print("region X rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   flax=0.05 bushes=blackcurrant:0.005,redcurrant:0.005 scatter=catmint:0.008,cowparsley:0.006 height=0.62 shore=40 rough=0.08")
-    print("region L rock=slate                  fertility=low    surface=grass ores=copper:0.02   bushes=cranberry:0.008 scatter=cowparsley:0.004 height=0.50 shore=36 rough=0.12")
-    print("region B rock=slate sand=sand-chalk  surface=sand     bushes=birch:0.006,strawberry:0.003 shells=0.02 height=0.14 shore=90 rough=0.03")
-    print("region T rock=slate sand=sand-chalk  surface=sand     bushes=birch:0.006,strawberry:0.003 shells=0.02 height=0.14 shore=90 rough=0.03 cattails=1.0")
-    print("region C rock=slate sand=sand-slate  surface=rocksand boulders=0.015 height=0.55 shore=6  rough=0.10")
-    print("region R rock=slate rock2=peridotite surface=rock     ores=copper:0.02   orebits=copper:0.0025 boulders=0.010 height=1.0 shore=40 rough=0.12")
+    # Ground. Heights are fractions of the command height; at height=18 the
+    # ridge stands 18 blocks and its beach 2.7, so the wall over the sand is
+    # about 15 blocks, which is what the drawing asks for.
+    print("region P rock=shale rock2=peridotite fertility=medium surface=grass forest=0.004 trees=englishoak,silverbirch bushes=raspberry:0.004,blueberry:0.003 scatter=cornflower:0.012,forgetmenot:0.012,cowparsley:0.008,wilddaisy:0.006 wildgrass=0.40 height=0.45 shore=30 rough=0.07")
+    print("region K rock=shale rock2=peridotite fertility=medium surface=grass forest=0.003 trees=englishoak bushes=blueberry:0.003 scatter=cornflower:0.014,forgetmenot:0.010,wilddaisy:0.008,cowparsley:0.006 wildgrass=0.42 height=0.40 shore=30 rough=0.04")
+    print("region F rock=shale rock2=whitemarble fertility=medium surface=grass forest=0.055 trees=englishoak,sugarmaple,norwaymaple,silverbirch,walnut,scotspine bushes=raspberry:0.012,blackberry:0.008 sticks=0.05 litter=0.85 scatter=fieldmushroom:0.007,chanterelle:0.005,eaglefern:0.028,deerfern:0.014,horsetail:0.008 height=0.58 shore=30 rough=0.09")
+    print("region J rock=shale rock2=whitemarble fertility=medium surface=grass forest=0.075 trees=kapok,vineykapok,largekapok,purpleheart,ebony,acacia bushes=blackberry:0.010,blackcurrant:0.006 sticks=0.06 litter=0.9 stones=0.020 boulders=0.004 scatter=eaglefern:0.035,deerfern:0.018,fieldmushroom:0.006,horsetail:0.010 height=0.75 shore=22 rough=0.16 climate=lush")
+    print("region R rock=whitemarble rock2=chalk sand=sand-chalk surface=rock ores=copper:0.02 orebits=copper:0.0020 boulders=0.012 stones=0.020 height=0.88 shore=4  rough=0.14")
+    print("region p rock=whitemarble rock2=chalk sand=sand-chalk fertility=low surface=grass wildgrass=0.25 stones=0.015 scatter=heather:0.008 height=0.45 shore=12 rough=0.06")
+    print("region B rock=whitemarble sand=sand-chalk surface=sand bushes=birch:0.005,strawberry:0.003 shells=0.030 height=0.18 shore=8  rough=0.03")
+    print("region S rock=shale rock2=peridotite fertility=medium surface=grass wildgrass=0.12 stones=0.002 scatter=cornflower:0.005 height=0.50 shore=30 rough=0.02")
+    print("region G rock=shale rock2=peridotite fertility=terrapreta surface=grass wildgrass=0.15 flax=0.02 scatter=cornflower:0.012,forgetmenot:0.012,catmint:0.008 height=0.50 shore=30 rough=0.03")
+    print("region H rock=shale rock2=peridotite fertility=high surface=grass forest=0.010 trees=riverbirch bushes=cranberry:0.010 scatter=cornflower:0.016,forgetmenot:0.016,horsetail:0.014 height=0.55 shore=30 rough=0.05")
+    print("region X rock=shale rock2=peridotite fertility=medium surface=grass flax=0.05 bushes=blackcurrant:0.005,redcurrant:0.005 scatter=catmint:0.008,cowparsley:0.006 height=0.50 shore=30 rough=0.07")
+    print("region V rock=shale rock2=peridotite fertility=medium surface=grass clay=0.95 height=0.56 shore=30 rough=0.05")
     print("region D rock=claystone sand=sand-claystone surface=rocksand boulders=0.015 ores=coal:0.02 height=0.50 shore=6  rough=0.10")
-    print("region I rock=claystone rock2=shale  surface=rock     ores=iron:0.03,coal:0.03 orebits=iron:0.0025 boulders=0.010 height=0.90 shore=36 rough=0.14")
-    print("region V rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:0.02   height=0.62 shore=40 rough=0.06")
-    print("region c rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:0.02   height=0.68 shore=40 rough=0.08")
-    print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.62 shore=40 pond=4 cattails=0.45 lilies=0.10 clay=0.5")
+    print("region I rock=claystone rock2=shale surface=rock ores=iron:0.03,coal:0.03 orebits=iron:0.0025 boulders=0.010 height=0.85 shore=30 rough=0.14")
+    print("region w rock=shale rock2=peridotite fertility=high surface=grass pond=5 forest=0.030 trees=baldcypressswamp cattails=0.40 lilies=0.10 clay=0.4 height=0.55 shore=30")
     print("tree O oak 2.4")
-    # Copper mine as on the starter, stretched for the bigger headland.
-    print("cave M heading=auto dip=18 length=180 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=5 branchdepth=2 branchlen=0.7 depth=45 mouth=3 entry=6 ores=copper:0.06 seed=12")
-    # Iron mine: wider bore, coal and iron in the walls, twisting branches.
+    print("cave M heading=auto dip=18 length=190 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=5 branchdepth=2 branchlen=0.7 depth=45 mouth=5 entry=6 ores=copper:0.06 seed=12")
     print("cave N heading=auto dip=16 length=220 radius=3.0 squash=0.75 weave=0.5 scale=0.9 branches=5 branchdepth=2 branchlen=0.7 branchradius=0.6 depth=55 mouth=5 entry=6 ores=iron:0.06,coal:0.04 seed=7")
     print()
     print("map")
