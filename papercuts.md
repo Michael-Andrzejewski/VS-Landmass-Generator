@@ -611,3 +611,38 @@ Moving the marker down onto the beach at the ridge's foot fixes it, and reads
 better anyway. Watch for this whenever a mine goes into a tall region whose
 height is uniform out to the coast; the old island got away with it because it
 had a separate low apron band (region C) at the waterline for exactly this.
+
+## Chunk-error reports: what to collect BEFORE restarting the world
+
+Michael reported "a huge chunk error while generating the island" on the 600
+block ideal house island. What the logs could still tell me afterwards:
+
+- `client-chat.log` APPENDS across sessions, so the whole run survived:
+  build started 00:51:54, `Loading 357 chunk column(s)`, island complete
+  01:02:36. Eleven minutes.
+- No `WARNING: N chunk column(s) never loaded`. That guard is real (the
+  pre-load covers the FULL job bounds, `MinX .. MinX+W-1`, which includes the
+  offshore ring, not just the island footprint), so every column the build
+  wrote into was loaded. Bulk writes into unloaded chunks being silently lost
+  was NOT the cause.
+- No exceptions anywhere.
+
+What the logs could NOT tell me: `server-debug.log` and `server-main.log` are
+TRUNCATED on restart, and he restarted at 01:03, a minute after the build
+finished. The session that contains the evidence is gone. **When something
+looks wrong after a generate, copy `%APPDATA%\VintagestoryData\Logs\` before
+relaunching.** Only the chat log survives on its own.
+
+The one suspicious event, unproven: `dynamicvillages` founded a village
+("Jesion") at 00:55:21, three minutes into the build. There is a plausible
+mechanism worth checking if this recurs. Force-loading 357 chunk columns makes
+those columns GENERATE, and structure placers (villages, betterruins) run
+during chunk generation, on the pre-island seabed. Their deferred features can
+then land on or beside terrain the island has already written. The bigger the
+island, the more fresh columns the pre-load triggers at once, so a 600 wide
+island is the worst case by a wide margin.
+
+Practical mitigation until it is understood: fly the area first so its chunks
+are already generated, THEN run `/genisland`. The pre-load has nothing left to
+trigger, and the chat line tells you it worked ("Loading N chunk column(s)"
+with a small N, or no line at all).
