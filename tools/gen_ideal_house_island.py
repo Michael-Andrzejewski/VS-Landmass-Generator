@@ -167,11 +167,14 @@ def main():
     # Giant oak just west of the centre, on the forest edge.
     place(grid, 92, 100, 'O', 'FPH')
 
-    # Copper mine in the face of the white ridge, on the cliff end north of
-    # the beach so its mouth is above the water.
-    ang = math.radians(-8.0)
-    place(grid, int(CX + 0.88 * coast_r(-8.0) * math.cos(ang)),
-          int(CY + 0.88 * coast_r(-8.0) * math.sin(ang)), 'M', 'R')
+    # Copper mine bored into the ridge from the SECLUDED BEACH, so the hidden
+    # strand is worth the walk down the path. The mouth has to stand on the
+    # sand: put it up on the ridge plateau instead and the generator reports
+    # "no open air within 24 blocks seaward of the mouth, entrance may be
+    # buried", because seaward of a plateau column is more plateau.
+    ang = math.radians(35.0)
+    place(grid, int(CX + 0.915 * coast_r(35.0) * math.cos(ang)),
+          int(CY + 0.915 * coast_r(35.0) * math.sin(ang)), 'M', 'B')
 
     # Iron mine at the foot of the iron headland, as before.
     ang = math.radians(138.0)

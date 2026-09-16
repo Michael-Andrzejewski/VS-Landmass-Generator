@@ -577,3 +577,34 @@ emitter that touches nothing.
 Lesson: a structure pass that writes blindly will look correct in the
 code and wrong in the world. Either compute the occupancy yourself or
 do the work after the commit, and log the count either way.
+
+## dumpgen's wait is too short for a 600-block island
+
+`node tools/dumpgen.mjs <shape>` printed `ERROR: timed out` on
+`ideal_house_island` at diameter 600, and the shell wrapper exited. The build
+had NOT failed: the server was still working and finished fine a minute later,
+writing the .lmd (509,560 columns, 338M cells, 17 minutes end to end). Only
+dumpgen's client-side wait gave up.
+
+So a timeout from dumpgen is not a result. Read `export/server.log` for
+`Island complete:` and `[dump] wrote` before concluding anything, or better,
+tail it through a monitor while the job runs. The line to watch for is
+`[landmassgenerator] Island complete:`, which also carries the region problem
+notes and the cave notes; those are the actual verdict.
+
+## A cave marker on a plateau reports a buried entrance
+
+First cut of the relaid ideal house island put the copper mine at t=0.88 on
+the east marble ridge, which is a flat plateau from t=0.80 out to the coast.
+The generator reported:
+
+    cave at map 184,88: no open air within 24 blocks seaward of the mouth,
+    entrance may be buried
+
+The check walks SEAWARD from the mouth looking for open air, and seaward of a
+plateau column is more plateau: the cliff edge was 30 blocks further out. A
+cave mouth needs ground that FALLS AWAY in front of it within about 24 blocks.
+Moving the marker down onto the beach at the ridge's foot fixes it, and reads
+better anyway. Watch for this whenever a mine goes into a tall region whose
+height is uniform out to the coast; the old island got away with it because it
+had a separate low apron band (region C) at the waterline for exactly this.
