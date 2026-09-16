@@ -30,20 +30,10 @@
 148,
 135
 ],
-"game:agedstonebricks-peridotite": [
-126,
-124,
-91
-],
 "game:agedstonebricks-shale": [
 86,
 86,
 85
-],
-"game:agedstonebricks-slate": [
-76,
-64,
-58
 ],
 "game:altar-east": [
 92,
@@ -95,25 +85,30 @@
 128,
 100
 ],
+"game:brickruin-irregular-brown": [
+99,
+81,
+56
+],
 "game:brickruin-irregular-gray": [
 63,
 60,
 53
 ],
-"game:carvedlog-acacia-aged-bottom-fancy-ns": [
-103,
-74,
-60
+"game:brickruin-irregular-red": [
+101,
+66,
+54
+],
+"game:brickruin-irregular-tan": [
+124,
+101,
+71
 ],
 "game:carvedlog-acacia-aged-bottom-fancy-we": [
 103,
 74,
 60
-],
-"game:carvedlog-acacia-aged-middle-fancy-ns": [
-105,
-77,
-61
 ],
 "game:carvedlog-acacia-aged-middle-fancy-we": [
 105,
@@ -320,6 +315,11 @@
 100,
 88
 ],
+"game:clutter|alidade": [
+115,
+100,
+88
+],
 "game:clutter|anvil-broken1": [
 115,
 100,
@@ -356,6 +356,11 @@
 88
 ],
 "game:clutter|barrel-metal4": [
+115,
+100,
+88
+],
+"game:clutter|bed-short-green": [
 115,
 100,
 88
@@ -485,6 +490,11 @@
 100,
 88
 ],
+"game:clutter|bookshelves/bookpile-aged5": [
+115,
+100,
+88
+],
 "game:clutter|bookshelves/bookstand-aged-book-closed": [
 115,
 100,
@@ -521,6 +531,16 @@
 88
 ],
 "game:clutter|bookshelves/scrollrack-full1": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/scrollrack-full2": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/scrollrack-full3": [
 115,
 100,
 88
@@ -646,6 +666,11 @@
 90
 ],
 "game:clutter|chains/chain-end2": [
+104,
+96,
+90
+],
+"game:clutter|chains/chain-floor": [
 104,
 96,
 90
@@ -920,6 +945,11 @@
 100,
 88
 ],
+"game:clutter|hazmat-rack-ruined1": [
+115,
+100,
+88
+],
 "game:clutter|ladder-aged1": [
 115,
 100,
@@ -1105,6 +1135,21 @@
 100,
 88
 ],
+"game:clutter|pile-weapon2": [
+115,
+100,
+88
+],
+"game:clutter|pile-weapon4": [
+115,
+100,
+88
+],
+"game:clutter|pile-weapon5": [
+115,
+100,
+88
+],
 "game:clutter|pile-weapon6": [
 115,
 100,
@@ -1119,6 +1164,11 @@
 115,
 100,
 88
+],
+"game:clutter|pipe-veryrusted-h-EW": [
+122,
+74,
+52
 ],
 "game:clutter|pipe-veryrusted-h-SW_45d": [
 122,
@@ -1156,6 +1206,11 @@
 88
 ],
 "game:clutter|rubble-cracked2": [
+115,
+100,
+88
+],
+"game:clutter|rubble-cracked3": [
 115,
 100,
 88
@@ -1275,6 +1330,11 @@
 100,
 88
 ],
+"game:clutter|table-long-with-cloth-green": [
+115,
+100,
+88
+],
 "game:clutter|table-ruined1": [
 115,
 100,
@@ -1320,6 +1380,16 @@
 82,
 60
 ],
+"game:clutter|tank-glass8": [
+110,
+82,
+60
+],
+"game:clutter|tank-glass9": [
+110,
+82,
+60
+],
 "game:clutter|tank-metal2": [
 110,
 82,
@@ -1341,6 +1411,11 @@
 88
 ],
 "game:clutter|tool-pickaxe": [
+115,
+100,
+88
+],
+"game:clutter|toolrack-bell": [
 115,
 100,
 88
@@ -1434,11 +1509,6 @@
 146,
 134,
 105
-],
-"game:cobblestone-peridotite": [
-95,
-91,
-58
 ],
 "game:cobblestone-sandstone": [
 184,
@@ -1555,16 +1625,6 @@
 106,
 93
 ],
-"game:cobblestonestairs-peridotite-up-east-free": [
-93,
-89,
-56
-],
-"game:cobblestonestairs-peridotite-up-south-free": [
-93,
-89,
-56
-],
 "game:cobblestonestairs-sandstone-up-east-free": [
 181,
 142,
@@ -1589,16 +1649,6 @@
 74,
 74,
 74
-],
-"game:cobblestonestairs-slate-up-east-free": [
-64,
-52,
-46
-],
-"game:cobblestonestairs-slate-up-north-free": [
-64,
-52,
-46
 ],
 "game:crackedrock-andesite": [
 132,
@@ -1970,11 +2020,6 @@
 47,
 178
 ],
-"game:crystal-amethyst-large1-west": [
-144,
-47,
-178
-],
 "game:crystal-amethyst-large2-down": [
 144,
 47,
@@ -2300,17 +2345,7 @@
 133,
 69
 ],
-"game:crystal-olivine-cluster1-up": [
-121,
-133,
-69
-],
 "game:crystal-olivine-cluster1-west": [
-121,
-133,
-69
-],
-"game:crystal-olivine-cluster2-down": [
 121,
 133,
 69
@@ -2330,27 +2365,7 @@
 133,
 69
 ],
-"game:crystal-olivine-cluster2-up": [
-121,
-133,
-69
-],
 "game:crystal-olivine-cluster2-west": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large1-down": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large1-north": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large1-south": [
 121,
 133,
 69
@@ -2360,42 +2375,7 @@
 133,
 69
 ],
-"game:crystal-olivine-large1-west": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large2-down": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large2-east": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large2-north": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large2-south": [
-121,
-133,
-69
-],
 "game:crystal-olivine-large2-up": [
-121,
-133,
-69
-],
-"game:crystal-olivine-large2-west": [
-121,
-133,
-69
-],
-"game:crystal-olivine-small1-down": [
 121,
 133,
 69
@@ -2416,11 +2396,6 @@
 69
 ],
 "game:crystal-olivine-small1-west": [
-121,
-133,
-69
-],
-"game:crystal-olivine-small2-down": [
 121,
 133,
 69
@@ -2450,11 +2425,6 @@
 133,
 69
 ],
-"game:crystal-olivine-small3-down": [
-121,
-133,
-69
-],
 "game:crystal-olivine-small3-east": [
 121,
 133,
@@ -2466,11 +2436,6 @@
 69
 ],
 "game:crystal-olivine-small3-south": [
-121,
-133,
-69
-],
-"game:crystal-olivine-small3-up": [
 121,
 133,
 69
@@ -2566,6 +2531,11 @@
 178
 ],
 "game:crystal-rosequartz-large2-down": [
+225,
+218,
+178
+],
+"game:crystal-rosequartz-large2-east": [
 225,
 218,
 178
@@ -2675,6 +2645,11 @@
 133,
 131
 ],
+"game:crystal-smokyquartz-cluster1-east": [
+136,
+133,
+131
+],
 "game:crystal-smokyquartz-cluster1-north": [
 136,
 133,
@@ -2726,6 +2701,11 @@
 178
 ],
 "game:crystal-smokyquartz-large1-east": [
+225,
+218,
+178
+],
+"game:crystal-smokyquartz-large1-north": [
 225,
 218,
 178
@@ -2836,6 +2816,11 @@
 54
 ],
 "game:crystal-smokyquartz-small3-up": [
+47,
+54,
+54
+],
+"game:crystal-smokyquartz-small3-west": [
 47,
 54,
 54
@@ -3010,20 +2995,10 @@
 95,
 81
 ],
-"game:drystone-peridotite": [
-85,
-82,
-55
-],
 "game:drystone-shale": [
 65,
 65,
 65
-],
-"game:drystone-slate": [
-58,
-48,
-43
 ],
 "game:fern-cinnamonfern": [
 141,
@@ -3051,11 +3026,6 @@
 43
 ],
 "game:flower-bluebell-free": [
-170,
-160,
-90
-],
-"game:flower-catmint-free": [
 170,
 160,
 90
@@ -3215,16 +3185,6 @@
 113,
 69
 ],
-"game:fruitingbush-wild-redcurrant-free": [
-137,
-113,
-69
-],
-"game:fruitingbush-wild-strawberry-free": [
-137,
-113,
-69
-],
 "game:glass-plain": [
 200,
 220,
@@ -3306,11 +3266,6 @@
 131,
 123,
 109
-],
-"game:gravel-peridotite": [
-131,
-126,
-93
 ],
 "game:gravel-sandstone": [
 185,
@@ -3413,11 +3368,6 @@
 140,
 140
 ],
-"game:leaves-grown1-walnut": [
-140,
-140,
-140
-],
 "game:leaves-grown2-acacia": [
 129,
 129,
@@ -3454,11 +3404,6 @@
 131
 ],
 "game:leaves-grown2-purpleheart": [
-140,
-140,
-140
-],
-"game:leaves-grown2-walnut": [
 140,
 140,
 140
@@ -3503,11 +3448,6 @@
 140,
 140
 ],
-"game:leaves-grown3-walnut": [
-140,
-140,
-140
-],
 "game:leaves-grown4-acacia": [
 129,
 129,
@@ -3544,11 +3484,6 @@
 131
 ],
 "game:leaves-grown4-purpleheart": [
-140,
-140,
-140
-],
-"game:leaves-grown4-walnut": [
 140,
 140,
 140
@@ -3593,11 +3528,6 @@
 140,
 140
 ],
-"game:leaves-grown5-walnut": [
-140,
-140,
-140
-],
 "game:leaves-grown6-acacia": [
 129,
 129,
@@ -3634,11 +3564,6 @@
 131
 ],
 "game:leaves-grown6-purpleheart": [
-140,
-140,
-140
-],
-"game:leaves-grown6-walnut": [
 140,
 140,
 140
@@ -3683,11 +3608,6 @@
 140,
 140
 ],
-"game:leaves-grown7-walnut": [
-140,
-140,
-140
-],
 "game:leavesbranchy-grown1-acacia": [
 111,
 89,
@@ -3727,11 +3647,6 @@
 105,
 84,
 64
-],
-"game:leavesbranchy-grown1-walnut": [
-92,
-81,
-77
 ],
 "game:leavesbranchy-grown2-acacia": [
 111,
@@ -3773,11 +3688,6 @@
 84,
 64
 ],
-"game:leavesbranchy-grown2-walnut": [
-92,
-81,
-77
-],
 "game:leavesbranchy-grown3-acacia": [
 111,
 89,
@@ -3817,11 +3727,6 @@
 105,
 84,
 64
-],
-"game:leavesbranchy-grown3-walnut": [
-92,
-81,
-77
 ],
 "game:leavesbranchy-grown4-acacia": [
 111,
@@ -3863,11 +3768,6 @@
 84,
 64
 ],
-"game:leavesbranchy-grown4-walnut": [
-92,
-81,
-77
-],
 "game:leavesbranchy-grown5-acacia": [
 111,
 89,
@@ -3907,11 +3807,6 @@
 105,
 84,
 64
-],
-"game:leavesbranchy-grown5-walnut": [
-92,
-81,
-77
 ],
 "game:leavesbranchy-grown6-acacia": [
 111,
@@ -3953,11 +3848,6 @@
 84,
 64
 ],
-"game:leavesbranchy-grown6-walnut": [
-92,
-81,
-77
-],
 "game:leavesbranchy-grown7-acacia": [
 111,
 89,
@@ -3997,11 +3887,6 @@
 105,
 84,
 64
-],
-"game:leavesbranchy-grown7-walnut": [
-92,
-81,
-77
 ],
 "game:locustnest-cage": [
 110,
@@ -4093,11 +3978,6 @@
 41,
 32
 ],
-"game:log-grown-walnut-ud": [
-92,
-81,
-77
-],
 "game:log-placed-aged-ns": [
 76,
 66,
@@ -4148,11 +4028,6 @@
 148,
 135
 ],
-"game:looseboulders-peridotite-free": [
-126,
-124,
-91
-],
 "game:looseboulders-sandstone-free": [
 207,
 168,
@@ -4167,11 +4042,6 @@
 76,
 64,
 58
-],
-"game:looseboulders-whitemarble-free": [
-197,
-200,
-200
 ],
 "game:looseflints-granite-free": [
 154,
@@ -4203,30 +4073,10 @@
 105,
 60
 ],
-"game:looseores-limonite-shale-free": [
-86,
-86,
-85
-],
-"game:looseores-magnetite-claystone-free": [
-45,
-46,
-46
-],
 "game:looseores-malachite-limestone-free": [
 24,
 121,
 81
-],
-"game:looseores-malachite-whitemarble-free": [
-24,
-121,
-81
-],
-"game:looseores-nativecopper-chalk-free": [
-200,
-200,
-194
 ],
 "game:looseores-nativecopper-phyllite-free": [
 139,
@@ -4415,6 +4265,12 @@
 120,
 60
 ],
+"game:multiblock-monolithic-0-0-p1": [
+120,
+120,
+120,
+60
+],
 "game:multiblock-monolithic-0-p1-0": [
 120,
 120,
@@ -4427,82 +4283,7 @@
 120,
 60
 ],
-"game:mushroom-beardedtooth-normal-east": [
-220,
-206,
-192
-],
-"game:mushroom-beardedtooth-normal-north": [
-220,
-206,
-192
-],
-"game:mushroom-beardedtooth-normal-south": [
-220,
-206,
-192
-],
-"game:mushroom-beardedtooth-normal-west": [
-220,
-206,
-192
-],
-"game:mushroom-chanterelle-normal": [
-189,
-154,
-54
-],
-"game:mushroom-chickenofthewoods-normal-east": [
-176,
-125,
-56
-],
-"game:mushroom-chickenofthewoods-normal-north": [
-176,
-125,
-56
-],
-"game:mushroom-chickenofthewoods-normal-south": [
-176,
-125,
-56
-],
-"game:mushroom-chickenofthewoods-normal-west": [
-176,
-125,
-56
-],
-"game:mushroom-deerear-normal-east": [
-165,
-78,
-19
-],
-"game:mushroom-deerear-normal-north": [
-165,
-78,
-19
-],
-"game:mushroom-deerear-normal-south": [
-165,
-78,
-19
-],
-"game:mushroom-deerear-normal-west": [
-165,
-78,
-19
-],
-"game:mushroom-dryadsaddle-normal-east": [
-159,
-141,
-112
-],
 "game:mushroom-dryadsaddle-normal-north": [
-159,
-141,
-112
-],
-"game:mushroom-dryadsaddle-normal-south": [
 159,
 141,
 112
@@ -4517,42 +4298,12 @@
 123,
 108
 ],
-"game:mushroom-pinkbonnet-normal-east": [
-203,
-93,
-97
-],
-"game:mushroom-pinkbonnet-normal-north": [
-203,
-93,
-97
-],
-"game:mushroom-pinkbonnet-normal-south": [
-203,
-93,
-97
-],
-"game:mushroom-pinkbonnet-normal-west": [
-203,
-93,
-97
-],
 "game:mushroom-shiitake-normal-east": [
 120,
 123,
 108
 ],
 "game:mushroom-shiitake-normal-north": [
-120,
-123,
-108
-],
-"game:mushroom-shiitake-normal-south": [
-120,
-123,
-108
-],
-"game:mushroom-shiitake-normal-west": [
 120,
 123,
 108
@@ -4588,11 +4339,6 @@
 72
 ],
 "game:ore-bituminouscoal-chalk": [
-22,
-23,
-23
-],
-"game:ore-bituminouscoal-claystone": [
 22,
 23,
 23
@@ -4637,11 +4383,6 @@
 33,
 28
 ],
-"game:ore-bountiful-hematite-peridotite": [
-64,
-33,
-28
-],
 "game:ore-bountiful-limonite-shale": [
 60,
 22,
@@ -4651,11 +4392,6 @@
 147,
 91,
 59
-],
-"game:ore-bountiful-pentlandite-peridotite": [
-72,
-59,
-31
 ],
 "game:ore-bountiful-quartz_nativegold-basalt": [
 196,
@@ -4672,16 +4408,6 @@
 156,
 62
 ],
-"game:ore-bountiful-quartz_nativegold-granite": [
-196,
-156,
-62
-],
-"game:ore-bountiful-quartz_nativegold-peridotite": [
-196,
-156,
-62
-],
 "game:ore-bountiful-quartz_nativegold-shale": [
 196,
 156,
@@ -4693,6 +4419,11 @@
 62
 ],
 "game:ore-bountiful-quartz_nativesilver-andesite": [
+162,
+163,
+163
+],
+"game:ore-bountiful-quartz_nativesilver-basalt": [
 162,
 163,
 163
@@ -4716,16 +4447,6 @@
 162,
 163,
 163
-],
-"game:ore-bountiful-quartz_nativesilver-slate": [
-162,
-163,
-163
-],
-"game:ore-bountiful-rhodochrosite-slate": [
-87,
-55,
-50
 ],
 "game:ore-bountiful-sphalerite-slate": [
 131,
@@ -4778,11 +4499,6 @@
 64
 ],
 "game:ore-flint-granite": [
-90,
-86,
-64
-],
-"game:ore-flint-peridotite": [
 90,
 86,
 64
@@ -4897,16 +4613,6 @@
 18,
 8
 ],
-"game:ore-low-emerald-basalt": [
-52,
-137,
-79
-],
-"game:ore-low-emerald-peridotite": [
-52,
-137,
-79
-],
 "game:ore-low-emerald-shale": [
 52,
 137,
@@ -4916,11 +4622,6 @@
 52,
 137,
 79
-],
-"game:ore-low-olivine_peridot-peridotite": [
-92,
-100,
-56
 ],
 "game:ore-medium-bismuthinite-andesite": [
 147,
@@ -4933,11 +4634,6 @@
 119
 ],
 "game:ore-medium-bismuthinite-granite": [
-147,
-155,
-119
-],
-"game:ore-medium-bismuthinite-peridotite": [
 147,
 155,
 119
@@ -4993,11 +4689,6 @@
 79
 ],
 "game:ore-medium-emerald-limestone": [
-52,
-137,
-79
-],
-"game:ore-medium-emerald-peridotite": [
 52,
 137,
 79
@@ -5072,6 +4763,11 @@
 35,
 30
 ],
+"game:ore-medium-limonite-basalt": [
+60,
+22,
+0
+],
 "game:ore-medium-limonite-shale": [
 60,
 22,
@@ -5083,11 +4779,6 @@
 46
 ],
 "game:ore-medium-magnetite-chalk": [
-45,
-46,
-46
-],
-"game:ore-medium-magnetite-claystone": [
 45,
 46,
 46
@@ -5162,11 +4853,6 @@
 91,
 59
 ],
-"game:ore-medium-olivine_peridot-peridotite": [
-92,
-100,
-56
-],
 "game:ore-medium-pentlandite-basalt": [
 72,
 59,
@@ -5192,7 +4878,7 @@
 156,
 62
 ],
-"game:ore-medium-quartz_nativegold-peridotite": [
+"game:ore-medium-quartz_nativegold-granite": [
 196,
 156,
 62
@@ -5208,6 +4894,11 @@
 62
 ],
 "game:ore-medium-quartz_nativesilver-andesite": [
+162,
+163,
+163
+],
+"game:ore-medium-quartz_nativesilver-basalt": [
 162,
 163,
 163
@@ -5262,11 +4953,6 @@
 55,
 50
 ],
-"game:ore-medium-rhodochrosite-slate": [
-87,
-55,
-50
-],
 "game:ore-medium-sphalerite-andesite": [
 131,
 126,
@@ -5288,11 +4974,6 @@
 115
 ],
 "game:ore-medium-sphalerite-limestone": [
-131,
-126,
-115
-],
-"game:ore-medium-sphalerite-peridotite": [
 131,
 126,
 115
@@ -5357,22 +5038,7 @@
 52,
 25
 ],
-"game:ore-poor-cassiterite-peridotite": [
-72,
-52,
-25
-],
-"game:ore-poor-cassiterite-slate": [
-72,
-52,
-25
-],
 "game:ore-poor-chromite-basalt": [
-61,
-56,
-58
-],
-"game:ore-poor-chromite-granite": [
 61,
 56,
 58
@@ -5418,6 +5084,11 @@
 0
 ],
 "game:ore-poor-magnetite-claystone": [
+45,
+46,
+46
+],
+"game:ore-poor-magnetite-slate": [
 45,
 46,
 46
@@ -5487,11 +5158,6 @@
 59,
 31
 ],
-"game:ore-poor-pentlandite-peridotite": [
-72,
-59,
-31
-],
 "game:ore-poor-quartz_nativegold-chalk": [
 196,
 156,
@@ -5502,15 +5168,15 @@
 156,
 62
 ],
-"game:ore-poor-quartz_nativegold-peridotite": [
-196,
-156,
-62
-],
 "game:ore-poor-quartz_nativegold-shale": [
 196,
 156,
 62
+],
+"game:ore-poor-quartz_nativesilver-basalt": [
+162,
+163,
+163
 ],
 "game:ore-poor-quartz_nativesilver-chalk": [
 162,
@@ -5532,11 +5198,6 @@
 163,
 163
 ],
-"game:ore-poor-quartz_nativesilver-slate": [
-162,
-163,
-163
-],
 "game:ore-poor-rhodochrosite-chalk": [
 87,
 55,
@@ -5553,11 +5214,6 @@
 50
 ],
 "game:ore-poor-rhodochrosite-shale": [
-87,
-55,
-50
-],
-"game:ore-poor-rhodochrosite-slate": [
 87,
 55,
 50
@@ -5642,11 +5298,6 @@
 56,
 58
 ],
-"game:ore-rich-chromite-peridotite": [
-61,
-56,
-58
-],
 "game:ore-rich-galena-claystone": [
 62,
 78,
@@ -5681,6 +5332,11 @@
 60,
 22,
 0
+],
+"game:ore-rich-magnetite-slate": [
+45,
+46,
+46
 ],
 "game:ore-rich-malachite-whitemarble": [
 29,
@@ -5722,11 +5378,6 @@
 156,
 62
 ],
-"game:ore-rich-quartz_nativegold-peridotite": [
-196,
-156,
-62
-],
 "game:ore-rich-quartz_nativegold-shale": [
 196,
 156,
@@ -5738,6 +5389,11 @@
 62
 ],
 "game:ore-rich-quartz_nativesilver-andesite": [
+162,
+163,
+163
+],
+"game:ore-rich-quartz_nativesilver-basalt": [
 162,
 163,
 163
@@ -5778,11 +5434,6 @@
 50
 ],
 "game:ore-rich-rhodochrosite-shale": [
-87,
-55,
-50
-],
-"game:ore-rich-rhodochrosite-slate": [
 87,
 55,
 50
@@ -5892,11 +5543,6 @@
 98,
 85
 ],
-"game:polishedrockold-cobbled-peridotite": [
-101,
-96,
-73
-],
 "game:polishedrockold-cobbled-sandstone": [
 121,
 92,
@@ -5926,11 +5572,6 @@
 110,
 103,
 90
-],
-"game:polishedrockold-full-peridotite": [
-107,
-101,
-78
 ],
 "game:polishedrockold-full-shale": [
 45,
@@ -6037,11 +5678,6 @@
 116,
 113
 ],
-"game:rock-redmarble": [
-193,
-170,
-145
-],
 "game:rock-sandstone": [
 196,
 157,
@@ -6137,11 +5773,6 @@
 183,
 161
 ],
-"game:saltpeter-ewd": [
-193,
-183,
-161
-],
 "game:saltpeter-ewu": [
 193,
 183,
@@ -6178,11 +5809,6 @@
 161
 ],
 "game:saltpeter-nesud": [
-193,
-183,
-161
-],
-"game:saltpeter-neswd": [
 193,
 183,
 161
@@ -6237,11 +5863,6 @@
 183,
 161
 ],
-"game:saltpeter-nsud": [
-193,
-183,
-161
-],
 "game:saltpeter-nsw": [
 193,
 183,
@@ -6263,11 +5884,6 @@
 161
 ],
 "game:saltpeter-nu": [
-193,
-183,
-161
-],
-"game:saltpeter-nud": [
 193,
 183,
 161
@@ -6746,11 +6362,6 @@
 188,
 159
 ],
-"game:sand-peridotite": [
-126,
-124,
-91
-],
 "game:sand-sandstone": [
 207,
 168,
@@ -6770,6 +6381,11 @@
 157,
 129,
 94
+],
+"game:sandwavy-granite": [
+154,
+148,
+135
 ],
 "game:sandwavy-sandstone": [
 207,
@@ -7257,41 +6873,6 @@
 148,
 135
 ],
-"game:stalagsection-halite-08": [
-215,
-189,
-178
-],
-"game:stalagsection-peridotite-04": [
-126,
-124,
-91
-],
-"game:stalagsection-peridotite-06": [
-126,
-124,
-91
-],
-"game:stalagsection-peridotite-08": [
-126,
-124,
-91
-],
-"game:stalagsection-peridotite-10": [
-126,
-124,
-91
-],
-"game:stalagsection-peridotite-12": [
-126,
-124,
-91
-],
-"game:stalagsection-peridotite-14": [
-126,
-124,
-91
-],
 "game:stalagsection-sandstone-04": [
 207,
 168,
@@ -7442,11 +7023,6 @@
 188,
 159
 ],
-"game:stonebricks-peridotite": [
-126,
-124,
-91
-],
 "game:stonebricks-sandstone": [
 207,
 168,
@@ -7481,6 +7057,11 @@
 119,
 136,
 100
+],
+"game:storagevessel-oxblood": [
+91,
+91,
+101
 ],
 "game:storagevessel-patina": [
 111,
@@ -7547,11 +7128,6 @@
 86,
 65
 ],
-"game:tapestry-north": [
-97,
-86,
-65
-],
 "game:tapestry-south": [
 97,
 86,
@@ -7612,6 +7188,16 @@
 86,
 68
 ],
+"game:trough-genericwood-large-feet-north": [
+50,
+58,
+58
+],
+"game:trough-genericwood-large-head-north": [
+50,
+58,
+58
+],
 "game:trough-genericwood-small-ns": [
 47,
 54,
@@ -7621,6 +7207,11 @@
 47,
 54,
 54
+],
+"game:trunk-east": [
+135,
+102,
+73
 ],
 "game:trunk-south": [
 135,
@@ -7884,7 +7475,19 @@
 140,
 110
 ],
+"game:water-se-6": [
+30,
+80,
+140,
+110
+],
 "game:water-se-7": [
+30,
+80,
+140,
+110
+],
+"game:water-still-6": [
 30,
 80,
 140,
@@ -8042,11 +7645,6 @@
 91
 ],
 "game:woodenfence-aged-ns-free": [
-123,
-111,
-91
-],
-"game:woodenfence-aged-nsw-free": [
 123,
 111,
 91

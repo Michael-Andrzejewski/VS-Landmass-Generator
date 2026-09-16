@@ -782,46 +782,51 @@ culled at conversion time.
 
 ## Ideal house island (`ideal_house_island`, 600 wide)
 
-Relaid 2026-09-16 from Michael's hand-drawn map. 200x200 cells, so at
-`diameter=600` one cell is exactly three blocks; the coast harmonic is 92
-cells so the island really does span about 590. Run it at `height=18`, which
-is what every height fraction below was chosen against.
+The LANDFORM TEMPLATE, iterated four times against Michael's marked-up plan
+renders. 200x200 cells, three blocks a cell at `diameter=600`, run at
+`height=18`. Nine regions and no biome detail: his instruction was "don't
+change the biomes yet, I just want a template, we'll add layers later".
 
-West is prairie with the odd tree (`P`, forest 0.004), the north is flat
-shoretown prairie (`K`, 0.003, height 0.40 so it reads level), the centre is
-thick forest (`F`, 0.055, mixed temperate) and the east is thicker, steeper
-and rockier (`J`, 0.075, tropical treegens + `climate=lush`). Forest and
-prairie land about 39% and 32% of the island.
+THREE THINGS THAT GENERALISE, each of which cost a round trip:
 
-THE PIECE WORTH REUSING: a **secluded beach behind a ridge**. The ridge `R`
-spans a WIDER arc than the beach `B`, so past both ends of the sand it runs
-straight down to the water as a 15 block sea cliff and closes the pocket off;
-the beach is the only part of that arc where the ridge steps back. One 8
-degree wedge (`p`, height 0.45) is left as the ascending path, and it has to
-sit inside the beach's arc or you walk down to water rather than to sand.
+**A tapering band needs its wobble damped at the taper.** Region edges are a
+threshold plus a sum of sines, which is what makes them read as coastline
+instead of machinery. But where a band pinches out, an undamped bay can dip
+past the taper and strand an isolated patch of rock on its own. Multiply the
+wobble by `1 - u**1.2` so it fades as the band closes. He crossed out that
+stray patch twice before I worked out it was the wobble and not the taper.
 
-TUNING THE BEACH, learned the slow way. A beach next to a tall region does
-NOT sit level just because you gave it a small `shore`: the ~5 cell height
-smoothing pulls its inner third up toward the ridge. The first cut (band
-t>0.935, about 18 blocks) came out as a continuous ramp from 6 down to the
-water with nothing level on it. Widening the band to t>0.895 (26-32 blocks)
-leaves 17-20 blocks genuinely level at 2-3 above the waterline once the blend
-has had its 15. With `height=0.18 shore=8` and the ridge at 0.88, the wall
-over the sand measures 13, which is what the drawing asked for. Measure this,
-do not eyeball it: `buildIsland(currentShape, 600, 18).columnSurface(x, z)`
-in the previewer console returns `{topY, mat, cell}`, so a transect along a
-bearing prints the real profile in blocks.
+**To pull a band in from the coast, cap its OUTER edge.** A region written as
+`t > inner` is a band from its floor out to the coast, so raising the floor
+drives it TOWARD the shore, not away. The dense forest block needed
+`inner < t < outer` with the outer falling from 1.0 to 0.56 to keep it off the
+sand.
 
-Willow Lake is `w` at `pond=5`, ellipse 12.5 x 10.5 cells, which measures 71
-x 61 blocks of open water: the region is always bigger than the water, so
-size the ellipse by measuring, not by arithmetic. Rock is `shale` with
-`whitemarble` through the forest regions, the ridge is `whitemarble` over
-`chalk`, and the grass regions carry `peridotite` as their second rock for
-the deep stone. There is no third rock slot, so a three-rock island has to
-spread them across regions. `sand-whitemarble` does NOT exist (sand only has
-the 14 base rocks), so any marble region needs `sand=sand-chalk` spelled out.
+**Express a strand as a WIDTH, not an inner edge.** `inner = 1 - width(ang)`
+with the width ramping to zero at both ends makes the sand taper into the
+grass; a fixed inner radius makes it stop dead on an arc.
 
-Kept from the old layout: the house terrace `S` (rough 0.02, thin wild grass)
-and its terra preta garden `G`, the flax meadow, the clay vein, and the
-claystone/shale iron headland (`D` apron, `I` rise) with its mine. The copper
-mine now bores into the face of the white ridge.
+The east coast carries TWO shelves, which is worth copying: the north one
+tapers off and stops, a stretch of dense forest runs to the water between
+them, then a second larger and taller one (height 1.00 against 0.82) bulges
+further inland and brushes the coast across the middle of its arc. The "brush"
+is `outer = beachInner + (1.05 - beachInner) * smoothstep(...)`, a bump
+centred in the arc, so the shelf takes the shore at one headland and the sand
+runs on either side of it.
+
+Beach: broad in the south-west, thinning eastward to a strip under the second
+shelf. 30 blocks of sand at bearing 110, 16 at 50, 4 at 30, nothing past 134.
+Rock reads slate on the surface with `rock2=whitemarble` deeper and
+`sand=sand-chalk` for the white; there is no third rock slot, so a
+three-rock island spreads them across regions, and `sand-whitemarble` does not
+exist so a marble region must name its sand.
+
+Willow Lake sits south-west of centre, nearly touching the house terrace, and
+is 29 blocks deep on `pond=30 pondslope=16` (see papercuts for why a big pond
+needed a mod change at all).
+
+Verify by MEASURING, not by eye: `buildIsland(currentShape, 600, 18)
+.columnSurface(x, z)` in the previewer console returns `{topY, mat, cell}`, so
+a sweep of bearings prints the real widths and heights in blocks. Every claim
+above came from that, and each round of his feedback was a number I could
+check before rebuilding.

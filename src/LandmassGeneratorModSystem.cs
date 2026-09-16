@@ -1207,6 +1207,10 @@ storyloc devastationarea -2550 -8750
         public double Rough = 0.3;        // surface noise amplitude
         public double Forest;
         public int Pond;                  // 0 = dry land; else a pond this many blocks deep
+        // How far in from the shore the bed takes to reach full depth, in
+        // blocks. The default 4 suits a farm pond; a mere tens of blocks wide
+        // needs tens of blocks of slope or its floor is a flat box with a lip.
+        public double PondSlope = 4.0;
         public double Cattails;           // pond region: chance per rim column; land region: chance per waterline column
         public double Flax;               // chance of a wild flax plant per grass column
         public double Devastation;        // chance per column of a devastated-ground patch centre
@@ -2156,6 +2160,7 @@ storyloc devastationarea -2550 -8750
                 case "rough": r.Rough = ParseD(v, 0.3); break;
                 case "forest": r.Forest = Math.Clamp(ParseD(v, 0), 0, 0.35); break;
                 case "pond": r.Pond = (int)Math.Clamp(ParseD(v, 3), 1, 40); break;
+                case "pondslope": r.PondSlope = Math.Clamp(ParseD(v, 4), 1, 120); break;
                 case "cattails": r.Cattails = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "flax": r.Flax = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "orebits": oreBitsStr = oreBitsStr == null ? v : oreBitsStr + "," + v; break;
@@ -3325,9 +3330,20 @@ storyloc devastationarea -2550 -8750
                 // declines from the edges to full depth like a real pond, not a
                 // carved-out box.
                 int rimY = PondRim(job, r);
-                double dEdge = PondEdgeDist(s, gx, gz) * job.WorldPerCell;
-                int depth = 1 + (int)Math.Round((r.Pond - 1) * Smooth(dEdge / 4.0));
-                topY = Math.Max(job.SeaLevel - 2, rimY - depth);
+                // The search window has to reach as far as the slope does, or
+                // the bed saturates at the window edge and goes flat early.
+                int win = (int)Math.Clamp(Math.Ceiling(r.PondSlope / job.WorldPerCell) + 2, 6, 22);
+                double dEdge = PondEdgeDist(s, gx, gz, win) * job.WorldPerCell;
+                int depth = 1 + (int)Math.Round((r.Pond - 1) * Smooth(dEdge / r.PondSlope));
+                // A pond bed used to be pinned at sea level - 2. That is right
+                // for a farm pond, but it silently caps how deep a big mere can
+                // be: this island's lake rim is 9 above the water line, so the
+                // old floor allowed 11 blocks, not the 30 it asks for. The bed
+                // may now sink into the island's own rock, stopping well short
+                // of the bottom of the fill so it can never punch through into
+                // the sea.
+                int bedFloor = Math.Max(1, job.SeaLevel - job.MaxDepth + 8);
+                topY = Math.Max(bedFloor, rimY - depth);
                 waterTopY = rimY - 1;
                 topMat = SurfSoil; // muddy pond bed
             }
@@ -3424,12 +3440,12 @@ storyloc devastationarea -2550 -8750
     // Distance (in cells) from a point inside a pond to the pond's edge, by
     // scanning outward for the nearest non-pond cell. Ponds are tiny, so the
     // small window is plenty and cheap.
-    private static double PondEdgeDist(ShapeDef s, double gx, double gz)
+    private static double PondEdgeDist(ShapeDef s, double gx, double gz, int win = 6)
     {
         int cx = (int)Math.Floor(gx), cz = (int)Math.Floor(gz);
-        double best = 6.0;
-        for (int dz = -6; dz <= 6; dz++)
-            for (int dx = -6; dx <= 6; dx++)
+        double best = win;
+        for (int dz = -win; dz <= win; dz++)
+            for (int dx = -win; dx <= win; dx++)
             {
                 int nx = cx + dx, nz = cz + dz;
                 bool pond = nx >= 0 && nz >= 0 && nx < s.W && nz < s.H

@@ -53,7 +53,7 @@ function parseShape(text) {
     if (/^region$/i.test(tok[0]) && tok.length >= 2) {
       const r = {
         key: tok[1][0], rock: 'granite', sand: null, fert: 'medium', surface: 'grass',
-        height: 1.0, shore: 8, rough: 0.3, pond: 0, forest: 0, sandy: 0, flood: 0,
+        height: 1.0, shore: 8, rough: 0.3, pond: 0, pondslope: 4, forest: 0, sandy: 0, flood: 0,
       };
       for (let i = 2; i < tok.length; i++) {
         const eq = tok[i].indexOf('='); if (eq <= 0) continue;
@@ -66,6 +66,7 @@ function parseShape(text) {
         else if (k === 'shore') r.shore = Math.max(1, parseFloat(v) || 8);
         else if (k === 'rough') r.rough = parseFloat(v) || 0;
         else if (k === 'pond') r.pond = Math.max(1, Math.min(40, parseFloat(v) || 3));
+        else if (k === 'pondslope') r.pondslope = Math.max(1, Math.min(120, parseFloat(v) || 4));
         else if (k === 'forest') r.forest = parseFloat(v) || 0;
         else if (k === 'sandy') r.sandy = parseFloat(v) || 0;
         else if (k === 'flood') r.flood = Math.max(1, Math.min(3, Math.trunc(parseFloat(v) || 1)));
@@ -298,11 +299,11 @@ function buildIsland(shape, diameter, domeHeight) {
 
   const pondRim = (r) => -1 + Math.round(domeHeight * r.height);
 
-  function pondEdgeDist(gx, gz) {
+  function pondEdgeDist(gx, gz, win = 6) {
     const cx = Math.floor(gx), cz = Math.floor(gz);
-    let best = 6;
-    for (let dz = -6; dz <= 6; dz++)
-      for (let dx = -6; dx <= 6; dx++) {
+    let best = win;
+    for (let dz = -win; dz <= win; dz++)
+      for (let dx = -win; dx <= win; dx++) {
         const nx = cx + dx, nz = cz + dz;
         const pond = nx >= 0 && nz >= 0 && nx < W && nz < H && shape.cells[nz][nx] !== '.'
           && shape.regions[shape.cells[nz][nx]] && shape.regions[shape.cells[nz][nx]].pond > 0;
@@ -344,9 +345,13 @@ function buildIsland(shape, diameter, domeHeight) {
 
       if (reg.pond > 0) {
         const rimY = pondRim(reg);
-        const dEdge = pondEdgeDist(gx, gz) * wpc;
-        const depth = 1 + Math.round((reg.pond - 1) * smooth(dEdge / 4));
-        return { topY: Math.max(-2, rimY - depth), waterTop: rimY - 1, mat: 'pond', reg, cell };
+        const slope = reg.pondslope || 4;
+        const win = Math.max(6, Math.min(22, Math.ceil(slope / wpc) + 2));
+        const dEdge = pondEdgeDist(gx, gz, win) * wpc;
+        const depth = 1 + Math.round((reg.pond - 1) * smooth(dEdge / slope));
+        // The bed may sink into the island's own rock; the previewer's zero is
+        // sea level, and -80 mirrors the server's maxdepth floor.
+        return { topY: Math.max(-72, rimY - depth), waterTop: rimY - 1, mat: 'pond', reg, cell };
       }
       const pondN = neighbourPond(cx, cz);
       let topY = pondN ? pondRim(pondN) - 1 : landY;

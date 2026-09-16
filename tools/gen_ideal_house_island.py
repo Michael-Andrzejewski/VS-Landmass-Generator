@@ -80,9 +80,14 @@ def ell(dx, dz, cx, cz, rx, rz):
 # The beach runs from its EAST end round the bottom to its WEST end. It is a
 # strip at the east, under the ridge, and opens into a broad strand by the time
 # it reaches the south-west.
-BEACH_E, BEACH_W = 22.0, 156.0
-# The ridge covers the east coast and dies away before it reaches the south.
-RIDGE_E, RIDGE_W = -26.0, 94.0
+BEACH_E, BEACH_W = 22.0, 134.0
+# TWO shelves on the east, not one. The northern one tapers off and stops; a
+# stretch of dense forest runs to the water between them; then a second, larger
+# and taller shelf bulges inland and brushes the coast across its middle.
+# Both sit on the EAST side, where he bracketed them. Running B round to 80
+# put a grey slab across the bottom of the island again.
+SHELF_A = (-36.0, 2.0)
+SHELF_B = (14.0, 54.0)
 
 
 def beach_width(ang):
@@ -104,19 +109,40 @@ def beach_inner(ang):
     return 1.0 - beach_width(ang)
 
 
-def ridge_inner(ang):
-    """Climbs westward so the rock band pinches out instead of wrapping the
-    bottom of the island in grey."""
-    u = clamp01((ang - RIDGE_E) / (RIDGE_W - RIDGE_E))
-    # The wobble fades out as the shelf pinches. Without that, a bay in the
-    # boundary can dip below the beach line past the taper and leave an
-    # isolated patch of rock sitting on the bottom of the island, which is the
-    # thing he keeps crossing out. A thinning shelf should not have big lobes
-    # on its thin end anyway.
+def smoothstep(x):
+    x = clamp01(x)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def shelf_a_inner(ang):
+    """The northern shelf. Its inner edge climbs southward so the band pinches
+    out to nothing rather than wrapping the island in grey, and the wobble is
+    damped as it pinches: an undamped bay can dip past the taper and strand a
+    patch of rock on its own, which is the thing he keeps crossing out."""
+    u = clamp01((ang - SHELF_A[0]) / (SHELF_A[1] - SHELF_A[0]))
     damp = 1.0 - u ** 1.2
-    return (0.735 + 0.250 * (u ** 1.5)
-            + damp * wob(ang, (0.052, 3, 0.5), (0.034, 5, 2.2),
-                              (0.019, 8, 4.4), (0.011, 13, 1.7)))
+    return (0.700 + 0.310 * (u ** 1.35)
+            + damp * wob(ang, (0.050, 3, 0.5), (0.031, 6, 2.2), (0.017, 9, 4.4)))
+
+
+def shelf_b_inner(ang):
+    """The southern shelf: larger, so its inner edge bulges further inland, and
+    pinched at BOTH ends because it has forest on one side and the strand on
+    the other."""
+    u = clamp01((ang - SHELF_B[0]) / (SHELF_B[1] - SHELF_B[0]))
+    bulge = math.sin(math.pi * u) ** 0.75
+    return (1.02 - 0.36 * bulge
+            + bulge * wob(ang, (0.055, 3, 1.9), (0.032, 5, 0.4), (0.018, 9, 3.1)))
+
+
+def shelf_b_outer(ang):
+    """Normally the strand runs in front of it; across the middle it reaches
+    the water instead, so the shelf brushes the coast at one headland."""
+    u = clamp01((ang - SHELF_B[0]) / (SHELF_B[1] - SHELF_B[0]))
+    centre = 0.5 + 0.04 * math.sin(math.radians(ang) * 3.0 + 1.0)
+    touch = smoothstep(1.0 - abs(u - centre) / 0.17)
+    edge = beach_inner(ang)
+    return edge + (1.05 - edge) * touch
 
 
 def region(c, r):
@@ -129,13 +155,16 @@ def region(c, r):
     t = rho / rc                       # 0 at centre, 1 at the coast
 
     # Willow Lake, east of centre: 25 x 21 cells reads as 71 x 61 of water.
-    if ell(dx, dz, 25.0, 3.0, 12.5, 10.5):
+    if ell(dx, dz, 12.0, 22.0, 12.5, 10.5):
         return 'w'
 
-    # The beach, and the ridge behind its eastern half.
+    # Shelf B is tested BEFORE the strand, so where it reaches the water it
+    # takes the shore and the sand runs on either side of the headland.
+    if arc_has(ang, SHELF_B[0], SHELF_B[1]) and shelf_b_inner(ang) < t < shelf_b_outer(ang):
+        return 'Q'
     if arc_has(ang, BEACH_E, BEACH_W) and t > beach_inner(ang):
         return 'B'
-    if arc_has(ang, RIDGE_E, RIDGE_W) and t > ridge_inner(ang):
+    if arc_has(ang, SHELF_A[0], SHELF_A[1]) and t > shelf_a_inner(ang):
         return 'R'
 
     # A few small strands elsewhere on the coast, so the rest of the shore is
@@ -150,7 +179,7 @@ def region(c, r):
         return 'G'
 
     # Rich rim around the lake.
-    if ell(dx, dz, 25.0, 3.0, 21.0, 18.0):
+    if ell(dx, dz, 12.0, 22.0, 21.0, 18.0):
         return 'H'
 
     # The dense block: east and north-east, behind the ridge. Its south end
@@ -234,12 +263,13 @@ def main():
     print("region P rock=shale rock2=peridotite fertility=medium surface=grass forest=0.0015 trees=englishoak scatter=cornflower:0.010,forgetmenot:0.008,wilddaisy:0.006 wildgrass=0.40 height=0.45 shore=30 rough=0.05")
     print("region F rock=shale rock2=whitemarble fertility=medium surface=grass forest=0.030 trees=englishoak,sugarmaple,silverbirch,scotspine sticks=0.04 litter=0.8 scatter=eaglefern:0.020,fieldmushroom:0.005 height=0.55 shore=30 rough=0.07")
     print("region J rock=slate rock2=whitemarble fertility=medium surface=grass forest=0.070 trees=kapok,vineykapok,largekapok,purpleheart,ebony sticks=0.05 litter=0.9 stones=0.018 scatter=eaglefern:0.030,deerfern:0.015 height=0.70 shore=24 rough=0.14")
-    print("region R rock=slate rock2=whitemarble sand=sand-chalk surface=rock ores=copper:0.02 boulders=0.010 stones=0.020 height=0.88 shore=4  rough=0.13")
+    print("region R rock=slate rock2=whitemarble sand=sand-chalk surface=rock ores=copper:0.02 boulders=0.010 stones=0.020 height=0.82 shore=4  rough=0.13")
+    print("region Q rock=slate rock2=whitemarble sand=sand-chalk surface=rock ores=copper:0.02 boulders=0.014 stones=0.022 height=1.00 shore=4  rough=0.15")
     print("region B rock=slate sand=sand-chalk surface=sand shells=0.025 height=0.18 shore=8  rough=0.03")
     print("region H rock=shale rock2=peridotite fertility=high surface=grass forest=0.008 trees=riverbirch clay=0.25 scatter=horsetail:0.012,cornflower:0.012 height=0.52 shore=30 rough=0.04")
     print("region S rock=shale rock2=peridotite fertility=medium surface=grass wildgrass=0.12 stones=0.002 height=0.48 shore=30 rough=0.02")
     print("region G rock=shale rock2=peridotite fertility=terrapreta surface=grass wildgrass=0.15 height=0.48 shore=30 rough=0.03")
-    print("region w rock=shale rock2=peridotite fertility=high surface=grass pond=5 cattails=0.35 lilies=0.10 clay=0.4 height=0.52 shore=30")
+    print("region w rock=shale rock2=peridotite fertility=high surface=grass pond=30 pondslope=16 cattails=0.35 lilies=0.10 clay=0.4 height=0.52 shore=30")
     print("tree O oak 2.4")
     print("cave M heading=auto dip=18 length=190 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=5 branchdepth=2 branchlen=0.7 depth=45 mouth=5 entry=6 ores=copper:0.06 seed=12")
     print()

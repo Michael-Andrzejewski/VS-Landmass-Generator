@@ -646,3 +646,27 @@ Practical mitigation until it is understood: fly the area first so its chunks
 are already generated, THEN run `/genisland`. The pre-load has nothing left to
 trigger, and the chat line tells you it worked ("Loading N chunk column(s)"
 with a small N, or no line at all).
+
+## A big pond was a flat box: the bed ramp was a fixed 4 blocks (fixed 0.57.0)
+
+`pond=N` carves `depth = 1 + round((N-1) * Smooth(dEdge / 4.0))`, and
+`PondEdgeDist` searched a 6 cell window. Both constants suit a farm pond and
+neither scales: at three blocks per cell the ramp saturates 4 blocks in from
+the reeds and the window cannot see further than 18 blocks, so a 70 block mere
+came out as a flat-bottomed box with a lip, which is exactly what the code's
+own comment says it is avoiding.
+
+Fixed with a per-region `pondslope=` (default 4, so every existing pond is
+untouched) that sets the ramp length in blocks, and a search window sized from
+it. `pond=30 pondslope=16` now measures 29 deep in the middle and slopes the
+whole way in.
+
+The second half of the same bug: the bed was pinned at `SeaLevel - 2`. A lake
+whose rim sits 9 above the water line could therefore never be more than 11
+deep no matter what you asked for, and it failed SILENTLY: you get a shallow
+pond and no note. The bed may now sink into the island's own rock, floored at
+`SeaLevel - MaxDepth + 8` so it cannot punch through into the sea.
+
+The lesson to carry: a constant that reads as a sensible default at one scale
+is a silent cap at another. Both of these were written for ponds a few cells
+wide and neither announced itself when asked for something ten times bigger.
