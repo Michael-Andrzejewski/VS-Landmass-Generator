@@ -80,21 +80,43 @@ def ell(dx, dz, cx, cz, rx, rz):
 # The beach runs from its EAST end round the bottom to its WEST end. It is a
 # strip at the east, under the ridge, and opens into a broad strand by the time
 # it reaches the south-west.
-BEACH_E, BEACH_W = 48.0, 156.0
+BEACH_E, BEACH_W = 22.0, 156.0
 # The ridge covers the east coast and dies away before it reaches the south.
-RIDGE_E, RIDGE_W = -26.0, 100.0
+RIDGE_E, RIDGE_W = -26.0, 94.0
+
+
+def beach_width(ang):
+    """How much of the radius the strand takes, as a fraction.
+
+    Expressed as a WIDTH rather than an inner edge so it can go to zero: a
+    constant inner edge makes the sand stop dead on an arc, which is what the
+    east end used to do. It ramps in over the first fifth of the arc and out
+    over the last tenth, so both ends taper into the grass.
+    """
+    u = clamp01((ang - BEACH_E) / (BEACH_W - BEACH_E))
+    ramp = min(1.0, u / 0.20) * min(1.0, (1.0 - u) / 0.10)
+    base = 0.048 + 0.080 * u          # a strip at the east, a strand at the west
+    w = base + wob(ang, (0.012, 5, 1.1), (0.008, 9, 2.7))
+    return max(0.0, w * ramp)
 
 
 def beach_inner(ang):
-    u = clamp01((ang - BEACH_E) / (BEACH_W - BEACH_E))
-    return 0.945 - 0.085 * u + wob(ang, (0.012, 5, 1.1), (0.008, 9, 2.7))
+    return 1.0 - beach_width(ang)
 
 
 def ridge_inner(ang):
     """Climbs westward so the rock band pinches out instead of wrapping the
     bottom of the island in grey."""
     u = clamp01((ang - RIDGE_E) / (RIDGE_W - RIDGE_E))
-    return 0.755 + 0.235 * (u ** 1.5) + wob(ang, (0.022, 4, 0.5), (0.014, 7, 2.2))
+    # The wobble fades out as the shelf pinches. Without that, a bay in the
+    # boundary can dip below the beach line past the taper and leave an
+    # isolated patch of rock sitting on the bottom of the island, which is the
+    # thing he keeps crossing out. A thinning shelf should not have big lobes
+    # on its thin end anyway.
+    damp = 1.0 - u ** 1.2
+    return (0.735 + 0.250 * (u ** 1.5)
+            + damp * wob(ang, (0.052, 3, 0.5), (0.034, 5, 2.2),
+                              (0.019, 8, 4.4), (0.011, 13, 1.7)))
 
 
 def region(c, r):
@@ -131,9 +153,17 @@ def region(c, r):
     if ell(dx, dz, 25.0, 3.0, 21.0, 18.0):
         return 'H'
 
-    # The dense block: east and north-east, behind the ridge.
-    if arc_has(ang, -58.0, 86.0) and t > 0.30 + wob(ang, (0.06, 3, 1.4), (0.035, 6, 0.2)):
-        return 'J'
+    # The dense block: east and north-east, behind the ridge. Its south end
+    # retreats inland instead of running down to the sand; that wedge of trees
+    # over the bottom of the shelf is what he crossed out.
+    if arc_has(ang, -62.0, 84.0):
+        inner = 0.30 + wob(ang, (0.06, 3, 1.4), (0.035, 6, 0.2))
+        # Capped at the OUTER edge, not pushed in at the inner one: the block is
+        # a band from `inner` to the coast, so raising its floor would have
+        # driven it toward the sand rather than away from it.
+        outer = 1.0 - 0.44 * (clamp01((ang - 36.0) / 46.0) ** 1.3)
+        if inner < t < outer:
+            return 'J'
 
     # Prairie over the west, south-west and north.
     if t > 0.40 + wob(ang, (0.09, 2, 2.9), (0.05, 5, 0.6), (0.03, 8, 4.1)):
@@ -182,8 +212,12 @@ def main():
     # Two cells in from the waterline: right on the coast a mouth can drown.
     x, z = find_on(grid, 56.0, 'B', 0.975, 0.90)
     place(grid, x, z, 'M', 'B')
-    x, z = find_on(grid, 104.0, 'B', 0.975, 0.86)
-    place(grid, x, z, 'N', 'B')
+    # The iron mine is GONE for this pass. It sat on the open south strand,
+    # where its rock headwall read as a weird boulder field dumped on the sand,
+    # which is what he crossed out. The east shelf is no home for it either:
+    # that shelf is a 60 block plateau at one height, so a mouth in the middle
+    # of it reports as buried and a mouth at its lip bores out into the sea.
+    # Mines are a layer to put back once the landform is settled.
 
     print("# ideal_house_island - landform template, second pass.")
     print("# Regenerate: python tools/gen_ideal_house_island.py > shapes/ideal_house_island.txt")
@@ -208,7 +242,6 @@ def main():
     print("region w rock=shale rock2=peridotite fertility=high surface=grass pond=5 cattails=0.35 lilies=0.10 clay=0.4 height=0.52 shore=30")
     print("tree O oak 2.4")
     print("cave M heading=auto dip=18 length=190 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=5 branchdepth=2 branchlen=0.7 depth=45 mouth=5 entry=6 ores=copper:0.06 seed=12")
-    print("cave N heading=auto dip=16 length=220 radius=3.0 squash=0.75 weave=0.5 scale=0.9 branches=5 branchdepth=2 branchlen=0.7 branchradius=0.6 depth=55 mouth=5 entry=6 ores=iron:0.06,coal:0.04 seed=7")
     print()
     print("map")
     for row in grid:
