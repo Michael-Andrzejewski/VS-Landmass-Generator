@@ -830,3 +830,38 @@ Verify by MEASURING, not by eye: `buildIsland(currentShape, 600, 18)
 a sweep of bearings prints the real widths and heights in blocks. Every claim
 above came from that, and each round of his feedback was a number I could
 check before rebuilding.
+
+## The full Rustfall layout (0.58.0)
+
+`shapes/worldplan.example.txt` is the whole world: 23 drawn islands and seven
+story locations, copied to `worldplan.txt` in the data folder. How it was laid
+out, so the next change stays consistent:
+
+- Positions come from Michael's map (Obsidian vault, Excalidraw drawing
+  2026-07-14). Decompress the drawing (LZString base64 in the
+  `compressed-json` block), take each labelled ellipse's centre, and scale by
+  **6.33 blocks per drawing unit with the Starter Island at 0,0**. That scale
+  is a least-squares fit to the six story pins approved earlier and reproduces
+  them to within ~40 blocks, so new islands land where the map says relative
+  to them. The drawn circle SIZES are not to scale; each island uses its
+  shape's designed diameter.
+- The five unnamed circles around the Great Machine are the Scattered Ruins:
+  the four granary climate variants plus `flatcave_ruin_base` (scrap and gear
+  piles, no castle).
+- The Great Machine is Spreading Devastation's `greatmachine` story structure;
+  `storyloc greatmachine 0 -5330` pins it like the vanilla codes. A plan whose
+  storyloc fails (mod missing) now skips that location instead of aborting.
+- Check spacing with each story structure's real footprint, not its schematic:
+  forced land is about `(landformRadius + 32) * 1.41` in radius. The
+  devastation area is ~1170, the rest 160 to 330.
+- Dangerous Swamplands (`dangerous_swamplands`, new) is the warm opposite of
+  Blackfen: four tidal creeks of ocean cells wind inland to a deep serpent
+  lagoon, every salt edge is flood=1 cypress, two flood=2 drowned groves choke
+  the creeks, fresh meres and bayous sit in the west, jungle hummocks are the
+  only dry ground, and the devastated rot heart holds a giant tainted drifter
+  spawner. Lesson from its first preview: creeks plus their drowned bands read
+  as separate islands when wider than ~2.5 cells each side; keep them narrow
+  for a maze.
+- A full first-run setup takes about 35 minutes of live pass after the world
+  opens (21 islands, then the story areas). Islands are decorated one at a
+  time; the to-do list survives restarts.

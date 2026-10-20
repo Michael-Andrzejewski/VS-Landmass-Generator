@@ -1,18 +1,75 @@
-# World setup plan for /genworldsetup. Lines:
+# Rustfall world plan for /genworldsetup (and the automatic first-run setup
+# of a world created with the Rustfall preset). Lines:
 #   pureocean                 no natural land at all (landcover 0, upheavel 0)
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
 #       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
+#   pregenstory               also generate every story area during setup
+#       (off: they generate when a player first comes near, like vanilla)
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
 #   island <mapX> <mapZ> <genisland options>   build a drawn island (runs
 #       before the story pregeneration; shape file must be installed)
-# Codes: resonancearchive, lazaret, village, devastationarea, tobiascave, treasurehunter
+# Codes: resonancearchive, lazaret, village, devastationarea, tobiascave,
+# treasurehunter, greatmachine (Spreading Devastation)
+#
+# Layout traced from Michael's Rustfall map (Obsidian Excalidraw drawing
+# 2026-07-14) at 6.33 blocks per drawing unit with the Starter Island at 0,0;
+# that scale reproduces the six story pins already approved to within ~40
+# blocks. Island sizes are each shape's designed diameter, not the drawn
+# circle. The five unnamed circles around the Great Machine are the
+# Scattered Ruins: four granary ruins and the flatcave ruin.
 pureocean
 clearspawn 16
+
+# Home waters
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
-island 265 0 shape=cattail_isles diameter=210 height=4 water=34
+# Cattail isles off the north-west shore. Plan coordinates are for the
+# 150-block starter; the starter diameter slider slides them straight
+# outward, so with the starter at 360 they land at -136, -238.
+island -84 -147 shape=cattail_isles diameter=210 height=4 water=34
+island 1950 -290 shape=forester_island diameter=300 height=34
+# Harbor turned south, toward the Forest Island and home.
+island 1850 -1610 shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
+
+# The western passage: Lazaret -> Swamplands -> Blackfen -> Salt Teeth -> Crater Lake
+island -2720 -1460 shape=dangerous_swamplands diameter=480 height=6 water=30
+island -3060 30 shape=blackfen_island diameter=260 height=7
+island -5100 -700 shape=saltteeth_island diameter=300 height=26
+island -3280 -3210 shape=volcano_ring diameter=700 height=46 water=60 climate=lush
+island -1530 -3680 shape=forge_volcano diameter=400 height=80 water=40 stone=rock-basalt sand=sand-basalt
+
+# Village coast: Iron Mine, Ideal Home, Lighthouse, Ruined Fortress
+island -5290 -2550 shape=ironmine_island diameter=560 height=30 water=45
+island -5140 -3910 shape=ideal_house_island diameter=600 height=18
+island -4500 -5100 shape=lighthouse diameter=120 height=6 water=40
+island -3230 -5210 shape=lone_bastion_1 diameter=100 height=27 water=40
+
+# Toward the Devastation: Wreckage Field, Chainfield Sphere, Sunken Colossus
+island -3440 -6820 shape=wreckage_maelstrom diameter=240 height=10 water=70 stone=rock-basalt sand=sand-basalt
+island -5040 -7570 shape=chainfield diameter=200 height=6 water=60 stone=rock-basalt sand=sand-basalt
+island -800 -8080 shape=colossus_deep diameter=160 height=6 water=95 maxdepth=120 stone=rock-basalt sand=sand-basalt
+
+# Eastern sea: Serpent's Skeleton, Diving Bell Mine
+island 2800 -3580 shape=giant_serpent_skeleton diameter=300 height=8 water=38
+island 3740 -5030 shape=divingbell_mine diameter=460 height=26 water=30 stone=rock-limestone sand=sand-limestone
+
+# Scattered Ruins around the Great Machine
+island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40
+island -2070 -6510 shape=granary_cold diameter=150 height=26 stone=rock-slate sand=sand-slate
+island 1970 -6670 shape=granary_temperate diameter=150 height=26 stone=rock-granite sand=sand-granite
+island 2010 -4880 shape=granary_lush diameter=150 height=26 stone=rock-claystone sand=sand-limestone
+island 660 -3550 shape=granary_arid diameter=150 height=26 stone=rock-sandstone sand=sand-sandstone
+
+# Story locations (the game builds these islands itself around each site)
 storyloc treasurehunter 2400 -250
 storyloc lazaret -1400 -2500
 storyloc tobiascave 1500 -8450
 storyloc resonancearchive 5550 -3200
 storyloc village -6250 -5550
 storyloc devastationarea -2550 -8750
+storyloc greatmachine 0 -5330
+
+# Story structures from other mods (Better Ruins) are placed by the game and
+# force their own islands. The crossroads ruin makes a ~1600 wide ruin island and
+# with seed 20261020 rolled onto the Diving Bell Mine, so it is pinned out in
+# open sea east of the map. Skipped harmlessly when Better Ruins is absent.
+storyloc crossroads 7600 -5600

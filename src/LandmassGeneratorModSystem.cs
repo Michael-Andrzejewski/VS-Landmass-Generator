@@ -39,7 +39,7 @@ namespace LandmassGenerator;
 /// Ore is placed deliberately: the game's ore pass only runs during natural
 /// worldgen, so stone we place is otherwise completely barren.
 /// </summary>
-public class LandmassGeneratorModSystem : ModSystem
+public partial class LandmassGeneratorModSystem : ModSystem
 {
     private ICoreServerAPI sapi;
     private string shapeFolder;
@@ -171,6 +171,13 @@ public class LandmassGeneratorModSystem : ModSystem
                 .RequiresPlayer()
                 .WithArgs(p.Word("code"), p.OptionalInt("range"))
                 .HandleWith(OnGenStoryLoc));
+
+        RegisterCmd(api, "genscan", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Find the natural islands of this world: generates one chunk column every [step] blocks (default 128) across the plan's area plus [margin] (default 1500), then measures every patch of land no plan island or story location explains. Results go to chat, the log and natural_islands.txt. The sampled chunks stay generated.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.OptionalInt("step"), p.OptionalInt("margin"))
+                .HandleWith(OnGenScan));
 
         RegisterCmd(api, "genworldsetup", name =>
             api.ChatCommands.Create(name)
@@ -438,7 +445,11 @@ public class LandmassGeneratorModSystem : ModSystem
     private void TryAutoRustfallSetup()
     {
         if (!sapi.World.Config.GetBool("rustfallWorld", false)) return;
-        if (sapi.WorldManager.SaveGame.GetData<bool>("lgRustfallSetupDone", false)) return;
+        if (sapi.WorldManager.SaveGame.GetData<bool>("lgRustfallSetupDone", false))
+        {
+            TryResumeRustfallSetup();
+            return;
+        }
         sapi.WorldManager.SaveGame.StoreData("lgRustfallSetupDone", true);
 
         // Run synchronously, right here. On a fresh world this fires during
@@ -456,6 +467,87 @@ public class LandmassGeneratorModSystem : ModSystem
         TextCommandResult result = RunWorldSetup(caller, "worldplan", auto: true);
         sapi.Logger.Notification("[genworldsetup] " + (result.StatusMessage ?? "done"));
         sapi.BroadcastMessageToAllGroups("[genworldsetup] " + (result.StatusMessage ?? "done"), EnumChatType.Notification);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  First-run setup that survives a restart
+    //
+    //  The live pass for a full Rustfall plan takes tens of minutes, and the
+    //  "setup done" flag is stored before it starts (so a restart never pins
+    //  the story locations twice). Without a to-do list, quitting or a crash
+    //  halfway left every remaining island undecorated forever. The list of
+    //  islands and story areas still to do lives in the save; each finished
+    //  one is crossed off, and a restart picks up where it stopped.
+    // ─────────────────────────────────────────────────────────────────────
+
+    private const string SetupIslandsKey = "lgSetupIslandsTodo";
+    private const string SetupStoryKey = "lgSetupStoryTodo";
+    private bool _setupResumeStarted;
+
+    private void SaveSetupTodo(List<(int MapX, int MapZ, string Options)> islands, List<string> storyCodes)
+    {
+        var save = sapi.WorldManager.SaveGame;
+        save.StoreData(SetupIslandsKey, string.Join("\n", islands.ConvertAll(i => $"{i.MapX} {i.MapZ} {i.Options}")));
+        save.StoreData(SetupStoryKey, string.Join(",", storyCodes));
+    }
+
+    private List<(int MapX, int MapZ, string Options)> LoadSetupTodoIslands()
+    {
+        var list = new List<(int MapX, int MapZ, string Options)>();
+        string raw = sapi.WorldManager.SaveGame.GetData<string>(SetupIslandsKey, null);
+        if (string.IsNullOrEmpty(raw)) return list;
+        foreach (string line in raw.Split('\n'))
+        {
+            string[] parts = line.Split((char[])null, 3, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 3 && int.TryParse(parts[0], out int x) && int.TryParse(parts[1], out int z)) list.Add((x, z, parts[2]));
+        }
+        return list;
+    }
+
+    private List<string> LoadSetupTodoStory()
+    {
+        string raw = sapi.WorldManager.SaveGame.GetData<string>(SetupStoryKey, null);
+        return string.IsNullOrEmpty(raw) ? new List<string>() : new List<string>(raw.Split(',', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private void DropSetupTodoIsland(int mapX, int mapZ)
+    {
+        var islands = LoadSetupTodoIslands();
+        if (islands.RemoveAll(i => i.MapX == mapX && i.MapZ == mapZ) > 0) SaveSetupTodo(islands, LoadSetupTodoStory());
+    }
+
+    private void DropSetupTodoStory(string code)
+    {
+        var codes = LoadSetupTodoStory();
+        if (codes.Remove(code)) SaveSetupTodo(LoadSetupTodoIslands(), codes);
+    }
+
+    private void TryResumeRustfallSetup()
+    {
+        if (_setupResumeStarted) return;
+        var islands = LoadSetupTodoIslands();
+        var codes = LoadSetupTodoStory();
+        if (islands.Count == 0 && codes.Count == 0) return;
+        _setupResumeStarted = true;
+
+        var genStory = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
+        var queue = new List<(string Code, int Cx1, int Cz1, int Cx2, int Cz2)>();
+        foreach (string code in codes)
+        {
+            var loc = genStory?.Structures?.Get(code);
+            if (loc == null) continue;
+            int radius = Math.Max(loc.LandformRadius, loc.GenerationRadius) + 64;
+            queue.Add((code, (loc.CenterPos.X - radius) / 32, (loc.CenterPos.Z - radius) / 32,
+                (loc.CenterPos.X + radius) / 32, (loc.CenterPos.Z + radius) / 32));
+        }
+        var caller = ConsoleCaller();
+        sapi.Logger.Notification("[genworldsetup] Resuming the first-run setup: {0} island(s) and {1} story area(s) left.", islands.Count, queue.Count);
+        // Give a joining player a moment, then carry on exactly as the setup would have.
+        sapi.Event.RegisterCallback(_ =>
+        {
+            sapi.BroadcastMessageToAllGroups($"[genworldsetup] Resuming world setup: {islands.Count} island(s) and {queue.Count} story area(s) left.", EnumChatType.Notification);
+            RunNextPlanIsland(islands, 0, queue, caller, auto: true);
+        }, 8000);
     }
 
     private void RegisterCmd(ICoreServerAPI api, string name, Action<string> build)
@@ -643,23 +735,81 @@ public class LandmassGeneratorModSystem : ModSystem
     // ─────────────────────────────────────────────────────────────────────
 
     private const string DefaultWorldPlan =
-@"# World setup plan for /genworldsetup. Lines:
+@"# Rustfall world plan for /genworldsetup (and the automatic first-run setup
+# of a world created with the Rustfall preset). Lines:
 #   pureocean                 no natural land at all (landcover 0, upheavel 0)
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
+#       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
+#   pregenstory               also generate every story area during setup
+#       (off: they generate when a player first comes near, like vanilla)
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
 #   island <mapX> <mapZ> <genisland options>   build a drawn island (runs
 #       before the story pregeneration; shape file must be installed)
-# Codes: resonancearchive, lazaret, village, devastationarea, tobiascave, treasurehunter
+# Codes: resonancearchive, lazaret, village, devastationarea, tobiascave,
+# treasurehunter, greatmachine (Spreading Devastation)
+#
+# Layout traced from Michael's Rustfall map (Obsidian Excalidraw drawing
+# 2026-07-14) at 6.33 blocks per drawing unit with the Starter Island at 0,0;
+# that scale reproduces the six story pins already approved to within ~40
+# blocks. Island sizes are each shape's designed diameter, not the drawn
+# circle. The five unnamed circles around the Great Machine are the
+# Scattered Ruins: four granary ruins and the flatcave ruin.
 pureocean
 clearspawn 16
+
+# Home waters
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
-island 265 0 shape=cattail_isles diameter=210 height=4 water=34
+# Cattail isles off the north-west shore. Plan coordinates are for the
+# 150-block starter; the starter diameter slider slides them straight
+# outward, so with the starter at 360 they land at -136, -238.
+island -84 -147 shape=cattail_isles diameter=210 height=4 water=34
+island 1950 -290 shape=forester_island diameter=300 height=34
+# Harbor turned south, toward the Forest Island and home.
+island 1850 -1610 shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
+
+# The western passage: Lazaret -> Swamplands -> Blackfen -> Salt Teeth -> Crater Lake
+island -2720 -1460 shape=dangerous_swamplands diameter=480 height=6 water=30
+island -3060 30 shape=blackfen_island diameter=260 height=7
+island -5100 -700 shape=saltteeth_island diameter=300 height=26
+island -3280 -3210 shape=volcano_ring diameter=700 height=46 water=60 climate=lush
+island -1530 -3680 shape=forge_volcano diameter=400 height=80 water=40 stone=rock-basalt sand=sand-basalt
+
+# Village coast: Iron Mine, Ideal Home, Lighthouse, Ruined Fortress
+island -5290 -2550 shape=ironmine_island diameter=560 height=30 water=45
+island -5140 -3910 shape=ideal_house_island diameter=600 height=18
+island -4500 -5100 shape=lighthouse diameter=120 height=6 water=40
+island -3230 -5210 shape=lone_bastion_1 diameter=100 height=27 water=40
+
+# Toward the Devastation: Wreckage Field, Chainfield Sphere, Sunken Colossus
+island -3440 -6820 shape=wreckage_maelstrom diameter=240 height=10 water=70 stone=rock-basalt sand=sand-basalt
+island -5040 -7570 shape=chainfield diameter=200 height=6 water=60 stone=rock-basalt sand=sand-basalt
+island -800 -8080 shape=colossus_deep diameter=160 height=6 water=95 maxdepth=120 stone=rock-basalt sand=sand-basalt
+
+# Eastern sea: Serpent's Skeleton, Diving Bell Mine
+island 2800 -3580 shape=giant_serpent_skeleton diameter=300 height=8 water=38
+island 3740 -5030 shape=divingbell_mine diameter=460 height=26 water=30 stone=rock-limestone sand=sand-limestone
+
+# Scattered Ruins around the Great Machine
+island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40
+island -2070 -6510 shape=granary_cold diameter=150 height=26 stone=rock-slate sand=sand-slate
+island 1970 -6670 shape=granary_temperate diameter=150 height=26 stone=rock-granite sand=sand-granite
+island 2010 -4880 shape=granary_lush diameter=150 height=26 stone=rock-claystone sand=sand-limestone
+island 660 -3550 shape=granary_arid diameter=150 height=26 stone=rock-sandstone sand=sand-sandstone
+
+# Story locations (the game builds these islands itself around each site)
 storyloc treasurehunter 2400 -250
 storyloc lazaret -1400 -2500
 storyloc tobiascave 1500 -8450
 storyloc resonancearchive 5550 -3200
 storyloc village -6250 -5550
 storyloc devastationarea -2550 -8750
+storyloc greatmachine 0 -5330
+
+# Story structures from other mods (Better Ruins) are placed by the game and
+# force their own islands. The crossroads ruin makes a ~1600 wide ruin island and
+# with seed 20261020 rolled onto the Diving Bell Mine, so it is pinned out in
+# open sea east of the map. Skipped harmlessly when Better Ruins is absent.
+storyloc crossroads 7600 -5600
 ";
 
     private TextCommandResult OnGenWorldSetup(TextCommandCallingArgs args)
@@ -691,6 +841,7 @@ storyloc devastationarea -2550 -8750
 
         // Parse the plan.
         bool pureOcean = false;
+        bool pregenStory = false;
         int clearSpawnRange = 0;
         var sites = new List<(string Code, int MapX, int MapZ)>();
         var islands = new List<(int MapX, int MapZ, string Options)>();
@@ -709,6 +860,9 @@ storyloc devastationarea -2550 -8750
                 case "clearspawn":
                     clearSpawnRange = parts.Length > 1 && int.TryParse(parts[1], out int csr) ? GameMath.Clamp(csr, 1, 50) : 10;
                     break;
+                case "pregenstory":
+                    pregenStory = true;
+                    break;
                 case "storyloc":
                     if (parts.Length < 4 || !int.TryParse(parts[2], out int mx) || !int.TryParse(parts[3], out int mz))
                     {
@@ -724,7 +878,7 @@ storyloc devastationarea -2550 -8750
                     islands.Add((imx, imz, string.Join(" ", parts, 3, parts.Length - 3)));
                     break;
                 default:
-                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, storyloc, island.");
+                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, storyloc, island.");
             }
         }
         if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0 && islands.Count == 0)
@@ -765,9 +919,13 @@ storyloc devastationarea -2550 -8750
                 r => sub = r);
             if (sub == null || sub.Status != EnumCommandStatus.Success)
             {
-                return TextCommandResult.Error($"setpos for {site.Code} failed: {sub?.StatusMessage ?? "no response"}. Locations pinned so far are kept.");
+                // One missing location (e.g. greatmachine without Spreading
+                // Devastation installed) must not cost the world its islands.
+                notes.Add($"WARNING: {site.Code} not pinned ({sub?.StatusMessage ?? "no response"})");
+                sapi.Logger.Warning("[genworldsetup] setpos for {0} failed: {1}; skipping that location.", site.Code, sub?.StatusMessage ?? "no response");
             }
         }
+        sites.RemoveAll(s => genStory.Structures.Get(s.Code) == null);
 
         // 3. Restart-equivalent rebuild: new ocean config takes effect and
         //    the auto-rolled locations' forced-land entries are dropped.
@@ -842,6 +1000,14 @@ storyloc devastationarea -2550 -8750
                 (loc.CenterPos.X - radius) / 32, (loc.CenterPos.Z - radius) / 32,
                 (loc.CenterPos.X + radius) / 32, (loc.CenterPos.Z + radius) / 32));
         }
+        // Story areas generate by themselves the first time anyone comes near,
+        // like any vanilla story structure: the pins are in place before a
+        // single chunk there exists, the forced land survives restarts, and
+        // the devastation systems are re-pointed above. Pregenerating them
+        // up front cost about half of a full Rustfall setup (the devastation
+        // island alone is ~2700 chunk columns), so it is opt-in now.
+        if (!pregenStory) queue.Clear();
+
         // On the automatic first-run setup we are still inside the RunGame
         // phase transition: no tick loop, no connected players, and the
         // spawn chunks are blocking-loaded. Decorate the worldgen-rendered
@@ -883,6 +1049,7 @@ storyloc devastationarea -2550 -8750
                 notes.Add($"{islands.Count - deferred.Count} island(s) decorated before world open");
             }
             islands = deferred;
+            SaveSetupTodo(islands, queue.ConvertAll(q => q.Code));
         }
 
         // Let the spawn-area churn settle, then: regenerate the wiped spawn
@@ -994,6 +1161,7 @@ storyloc devastationarea -2550 -8750
         if (sub == null || sub.Status != EnumCommandStatus.Success)
         {
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {isl.MapX}, {isl.MapZ} failed to start ({sub?.StatusMessage ?? "no response"}); skipping it.", EnumChatType.Notification);
+            if (auto) DropSetupTodoIsland(isl.MapX, isl.MapZ);
             sapi.Event.RegisterCallback(_ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto, then), 2000);
             return;
         }
@@ -1010,8 +1178,98 @@ storyloc devastationarea -2550 -8750
                 return;
             }
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {islands[idx].MapX}, {islands[idx].MapZ} finished.", EnumChatType.Notification);
+            if (auto) DropSetupTodoIsland(islands[idx].MapX, islands[idx].MapZ);
             sapi.Event.RegisterCallback(__ => RunNextPlanIsland(islands, idx + 1, pregenQueue, caller, auto, then), 2000);
         }, 2000);
+    }
+
+    // The land work rect: the island's land bounding box plus a margin for
+    // tree crowns and waterline reeds, plus room for caves to run under the
+    // sea floor. Jobs with megastructures, wrecks or bastions keep the whole
+    // job area (those build out over open water).
+    private void ComputeWorkRect(IslandJob job)
+    {
+        job.UseWorkRect = false;
+        var s = job.Shape;
+        if (s == null || s.Structs.Count > 0 || s.Wrecks.Count > 0 || s.Bastions.Count > 0) return;
+        GetDecorationChunkRect(job, out int cx1, out int cz1, out int cx2, out int cz2);
+        int cs = GlobalConstants.ChunkSize;
+        int x1 = cx1 * cs, z1 = cz1 * cs, x2 = (cx2 + 1) * cs - 1, z2 = (cz2 + 1) * cs - 1;
+        if (s.Caves.Count > 0)
+        {
+            // Caves may run out under the sea floor: walk them dry and cover
+            // exactly where they go. If the dry walk fails, keep the whole job.
+            try
+            {
+                var dry = new CaveWork { DryRun = true };
+                CarveCaves(job, dry);
+                if (dry.BX2 >= dry.BX1)
+                {
+                    x1 = Math.Min(x1, dry.BX1 - 8); z1 = Math.Min(z1, dry.BZ1 - 8);
+                    x2 = Math.Max(x2, dry.BX2 + 8); z2 = Math.Max(z2, dry.BZ2 + 8);
+                }
+            }
+            catch (Exception e)
+            {
+                sapi.Logger.Warning("[landmassgenerator] Cave dry run failed ({0}); decorating the whole job area.", e.Message);
+                return;
+            }
+        }
+        job.WorkX1 = Math.Max(job.MinX, x1);
+        job.WorkZ1 = Math.Max(job.MinZ, z1);
+        job.WorkX2 = Math.Min(job.MinX + job.W - 1, x2);
+        job.WorkZ2 = Math.Min(job.MinZ + job.H - 1, z2);
+        job.UseWorkRect = job.WorkX2 >= job.WorkX1 && job.WorkZ2 >= job.WorkZ1;
+        if (job.UseWorkRect)
+        {
+            long full = (long)job.W * job.H, work = (long)(job.WorkX2 - job.WorkX1 + 1) * (job.WorkZ2 - job.WorkZ1 + 1);
+            sapi.Logger.Notification("[landmassgenerator] Decoration work area {0} x {1} blocks ({2:0}% of the job area).",
+                job.WorkX2 - job.WorkX1 + 1, job.WorkZ2 - job.WorkZ1 + 1, 100.0 * work / Math.Max(1, full));
+        }
+    }
+
+    // Decoration walks the land work rect, not the whole job with its ring.
+    private static void UseWorkRectForIteration(IslandJob job)
+    {
+        job.I = 0;
+        if (!job.UseWorkRect) return;
+        job.IterX0 = job.WorkX1;
+        job.IterZ0 = job.WorkZ1;
+        job.IterW = job.WorkX2 - job.WorkX1 + 1;
+        job.Total = (long)job.IterW * (job.WorkZ2 - job.WorkZ1 + 1);
+    }
+
+    // KeepLoaded chunks are never unloaded unless asked, so every island
+    // used to stay in memory for the rest of the session. Release them a
+    // little after the build (the relight queue drains in seconds), except
+    // columns a player can see.
+    private void ReleaseKeptChunks(IslandJob job)
+    {
+        if (job.Dim != 0 || job.PreCx2 < job.PreCx1) return;
+        int x1 = job.PreCx1, x2 = job.PreCx2, z1 = job.PreCz1, z2 = job.PreCz2;
+        sapi.Event.RegisterCallback(_ =>
+        {
+            int cs = GlobalConstants.ChunkSize;
+            const int keepChunks = 12;   // view distance 256 plus a margin
+            var near = new List<(int Cx, int Cz)>();
+            foreach (IPlayer p in sapi.World.AllOnlinePlayers)
+            {
+                if (p.Entity == null) continue;
+                near.Add(((int)p.Entity.Pos.X / cs, (int)p.Entity.Pos.Z / cs));
+            }
+            int released = 0;
+            for (int cx = x1; cx <= x2; cx++)
+                for (int cz = z1; cz <= z2; cz++)
+                {
+                    bool seen = false;
+                    foreach (var q in near)
+                        if (Math.Abs(q.Cx - cx) <= keepChunks && Math.Abs(q.Cz - cz) <= keepChunks) { seen = true; break; }
+                    if (seen || sapi.WorldManager.GetChunk(cx, 0, cz) == null) continue;
+                    sapi.WorldManager.UnloadChunkColumn(cx, cz);
+                    released++;
+                }
+            sapi.Logger.Notification("[landmassgenerator] Released {0} kept chunk column(s) after the island build.", released);
+        }, 15000);
     }
 
     // The chunk rect decoration actually touches: the island's land plus a
@@ -1121,6 +1379,7 @@ storyloc devastationarea -2550 -8750
         if (idx >= queue.Count)
         {
             sapi.BroadcastMessageToAllGroups("[genworldsetup] All story areas are generated. Teleport with /wgen story tp code, e.g. /wgen story tp devastationarea.", EnumChatType.Notification);
+            if (LoadSetupTodoStory().Count > 0 || LoadSetupTodoIslands().Count > 0) SaveSetupTodo(LoadSetupTodoIslands(), new List<string>());
             return;
         }
         var s = queue[idx];
@@ -1137,6 +1396,7 @@ storyloc devastationarea -2550 -8750
         if (bandCz1 > s.Cz2)
         {
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] {s.Code} area generated.", EnumChatType.Notification);
+            DropSetupTodoStory(s.Code);
             sapi.Event.RegisterCallback(_ => PregenNextStoryArea(queue, idx + 1), 2000);
             return;
         }
@@ -1441,6 +1701,7 @@ storyloc devastationarea -2550 -8750
 
         // Shape mode
         public ShapeDef Shape;
+        public string ShapeName;
         public double WorldPerCell;
         public NormalizedSimplexNoise JitterX, JitterZ;
         public double RotCos = 1.0, RotSin = 0.0;   // rotate=: spins the drawn map
@@ -1453,6 +1714,11 @@ storyloc devastationarea -2550 -8750
         // Chunk preload gate: all columns under the island must be loaded
         // before the first block write, or writes are silently dropped.
         public bool ChunksRequested, ChunksLoaded;
+        // Banded preload: one request of at most PregenBatchColumns columns
+        // at a time, the next only after the last finished loading.
+        public int PreloadNextRow;
+        public volatile bool PreloadInFlight;
+        public long PreloadReadyAtMs;
         public int WaitTicks;
         public int LastMissing = int.MaxValue;
 
@@ -1480,6 +1746,13 @@ storyloc devastationarea -2550 -8750
 
         public int MinX, MinZ, W, H;
         public long I, Total, Placed, Trees, Plants;
+        // Current iteration rect (the whole job for terrain, the land work
+        // rect for decoration) and the land work rect itself, inclusive.
+        public int IterX0, IterZ0, IterW = 1;
+        public bool UseWorkRect;
+        public int WorkX1, WorkZ1, WorkX2, WorkZ2;
+        // Chunk rect force-loaded with KeepLoaded, released when done.
+        public int PreCx1, PreCz1, PreCx2 = -1, PreCz2 = -1;
         public List<(int X, int Z, OreBitSpec Spec)> OreBitCenters = new();
         public List<(int X, int Z, Region Reg)> DevastationCenters = new();
         public List<(int X, int Z, Region Reg)> PumpkinCenters = new();
@@ -1536,8 +1809,12 @@ storyloc devastationarea -2550 -8750
         int cz1 = FloorDiv(job.MinZ, cs), cz2 = FloorDiv(job.MinZ + job.H - 1, cs);
 
         _islandBusy = true;
-        sapi.WorldManager.LoadChunkColumnPriority(cx1, cz1, cx2, cz2,
-            new ChunkLoadOptions { KeepLoaded = false, OnLoaded = () => StartIslandJob(job) });
+        // No separate load here: the tick gate loads the area once, banded
+        // and kept loaded until the job is done. A KeepLoaded=false load
+        // first used to let every column unload again, so a big island was
+        // generated, dropped and read back from disk (minutes on a 700 wide
+        // island).
+        StartIslandJob(job);
 
         string shapeName = OptStr(opt, "shape", null);
         string msg = shapeName != null
@@ -1546,6 +1823,37 @@ storyloc devastationarea -2550 -8750
         msg += " It builds over a few seconds without freezing the server.";
         if (problems.Count > 0) msg += " Notes: " + string.Join("; ", problems) + ".";
         return TextCommandResult.Success(msg);
+    }
+
+    // Load (and generate) a chunk rect in bands of at most PregenBatchColumns
+    // columns, one band at a time, then call onDone. Vanilla serves a priority
+    // request with one blocking area load, and on ~1700 columns that load
+    // gives up with "worldgen has become stuck in an endless loop" and stops
+    // the server. Every big area request in this mod goes through here.
+    private void LoadChunkAreaBanded(int cx1, int cz1, int cx2, int cz2, bool keepLoaded, Action onDone, int bandCz1 = int.MinValue)
+    {
+        if (bandCz1 == int.MinValue) bandCz1 = cz1;
+        if (bandCz1 > cz2)
+        {
+            onDone();
+            return;
+        }
+        int width = cx2 - cx1 + 1;
+        int rows = Math.Max(1, PregenBatchColumns / width);
+        int bandCz2 = Math.Min(cz2, bandCz1 + rows - 1);
+        try
+        {
+            sapi.WorldManager.LoadChunkColumnPriority(cx1, bandCz1, cx2, bandCz2, new ChunkLoadOptions
+            {
+                KeepLoaded = keepLoaded,
+                OnLoaded = () => sapi.Event.RegisterCallback(_ => LoadChunkAreaBanded(cx1, cz1, cx2, cz2, keepLoaded, onDone, bandCz2 + 1), 300)
+            });
+        }
+        catch (Exception e)
+        {
+            sapi.Logger.Error("[landmassgenerator] Chunk band {0}..{1} x {2}..{3} failed: {4}; retrying in 5 s", cx1, cx2, bandCz1, bandCz2, e.Message);
+            sapi.Event.RegisterCallback(_ => LoadChunkAreaBanded(cx1, cz1, cx2, cz2, keepLoaded, onDone, bandCz1), 5000);
+        }
     }
 
     // The option tokens of /genisland (and of a plan file's island line):
@@ -1709,6 +2017,7 @@ storyloc devastationarea -2550 -8750
             if (shape == null) return null;
 
             job.Shape = shape;
+            job.ShapeName = shapeName;
             job.NaturalDeposits = shape.NaturalDeposits;
             job.WorldPerCell = diameter / (double)Math.Max(shape.W, shape.H);
             job.OceanRing = Math.Max(24.0, diameter * 0.22);
@@ -1758,6 +2067,7 @@ storyloc devastationarea -2550 -8750
         job.MinX = ox - reach; job.MinZ = oz - reach;
         job.W = reach * 2 + 1; job.H = reach * 2 + 1;
         job.Total = (long)job.W * job.H;
+        job.IterX0 = job.MinX; job.IterZ0 = job.MinZ; job.IterW = job.W;
         return job;
     }
 
@@ -2674,11 +2984,13 @@ storyloc devastationarea -2550 -8750
     // ─────────────────────────────────────────────────────────────────────
     private void StartIslandJob(IslandJob job)
     {
+        ComputeWorkRect(job);
         // Terrain already rendered at worldgen: jump straight to the
         // decoration phase, or to the finish passes if nothing plants.
         if (job.SkipTerrain && job.Phase == 0)
         {
             job.Phase = 1;
+            UseWorkRectForIteration(job);
             if (!HasForest(job) && !HasFlora(job)) job.I = job.Total;
         }
         _islandJob = job;
@@ -2698,13 +3010,43 @@ storyloc devastationarea -2550 -8750
         if (job.Dim == 0 && !job.ChunksLoaded)
         {
             int cs = GlobalConstants.ChunkSize;
-            int px1 = FloorDiv(job.MinX, cs) - 1, px2 = FloorDiv(job.MinX + job.W - 1, cs) + 1;
-            int pz1 = FloorDiv(job.MinZ, cs) - 1, pz2 = FloorDiv(job.MinZ + job.H - 1, cs) + 1;
+            // Terrain builds need the whole job area; decoration-only jobs
+            // (skipterrain, terrain already rendered at worldgen) only the land
+            // work rect: a third of the columns on a big island with a wide
+            // offshore ring.
+            bool landOnly = job.SkipTerrain && job.UseWorkRect;
+            int bx1 = landOnly ? job.WorkX1 : job.MinX, bx2 = landOnly ? job.WorkX2 : job.MinX + job.W - 1;
+            int bz1 = landOnly ? job.WorkZ1 : job.MinZ, bz2 = landOnly ? job.WorkZ2 : job.MinZ + job.H - 1;
+            int px1 = FloorDiv(bx1, cs) - 1, px2 = FloorDiv(bx2, cs) + 1;
+            int pz1 = FloorDiv(bz1, cs) - 1, pz2 = FloorDiv(bz2, cs) + 1;
+            job.PreCx1 = px1; job.PreCx2 = px2; job.PreCz1 = pz1; job.PreCz2 = pz2;
+            // One request for the whole area used to be fine for small islands,
+            // but a 700 wide island with its offshore ring is ~1700 columns,
+            // and vanilla's blocking area loader gave up on that with a FATAL
+            // "worldgen has become stuck in an endless loop" (papercuts). So
+            // request it in bands, like the story pregen does, one at a time.
             if (!job.ChunksRequested)
             {
                 job.ChunksRequested = true;
-                sapi.WorldManager.LoadChunkColumnPriority(px1, pz1, px2, pz2,
-                    new ChunkLoadOptions { KeepLoaded = true });
+                job.PreloadNextRow = pz1;
+            }
+            if (!job.PreloadInFlight && job.PreloadNextRow <= pz2 && sapi.World.ElapsedMilliseconds >= job.PreloadReadyAtMs)
+            {
+                int width = px2 - px1 + 1;
+                int rows = Math.Max(1, PregenBatchColumns / width);
+                int r1 = job.PreloadNextRow, r2 = Math.Min(pz2, r1 + rows - 1);
+                job.PreloadNextRow = r2 + 1;
+                job.PreloadInFlight = true;
+                sapi.WorldManager.LoadChunkColumnPriority(px1, r1, px2, r2, new ChunkLoadOptions
+                {
+                    KeepLoaded = true,
+                    OnLoaded = () =>
+                    {
+                        // A short gap between bands, as in the story pregen.
+                        job.PreloadReadyAtMs = sapi.World.ElapsedMilliseconds + 300;
+                        job.PreloadInFlight = false;
+                    }
+                });
             }
             int missing = 0;
             for (int cx = px1; cx <= px2; cx++)
@@ -2735,11 +3077,17 @@ storyloc devastationarea -2550 -8750
         var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
         var pos = new BlockPos(0, 0, 0, job.Dim);
 
-        int budget = job.ColumnsPerTick;
-        while (budget-- > 0 && job.HasNext)
+        // Time budget, not a fixed column count: 400 columns a tick was a
+        // crawl over a 700 wide island's 1.7 million columns. With a player
+        // online keep each tick light; with nobody online (headless setup,
+        // or the world still loading) work most of the tick.
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        long budgetMs = sapi.World.AllOnlinePlayers.Length > 0 ? 20 : 150;
+        int n = 0;
+        while (job.HasNext && (n++ < job.ColumnsPerTick || sw.ElapsedMilliseconds < budgetMs))
         {
-            int x = job.MinX + (int)(job.I % job.W);
-            int z = job.MinZ + (int)(job.I / job.W);
+            int x = job.IterX0 + (int)(job.I % job.IterW);
+            int z = job.IterZ0 + (int)(job.I / job.IterW);
             job.I++;
 
             if (job.Phase == 0) { if (FillColumn(job, ba, pos, x, z)) job.Placed++; }
@@ -2752,7 +3100,7 @@ storyloc devastationarea -2550 -8750
         if (job.Phase == 0 && (HasForest(job) || HasFlora(job)))
         {
             job.Phase = 1;
-            job.I = 0;
+            UseWorkRectForIteration(job);
             return;
         }
 
@@ -2784,6 +3132,7 @@ storyloc devastationarea -2550 -8750
             if (climRegions > 0) done += $", climate retinted across {climRegions} map region(s)";
             else if (job.HasClimate) done += ". WARNING: climate= touched no loaded map regions";
             ReportIsland(job, done + ". " + extra);
+            ReleaseKeptChunks(job);
         }
         catch (Exception e)
         {
@@ -3092,7 +3441,28 @@ storyloc devastationarea -2550 -8750
         // requireLandAt is a public field (and the ocean map generator holds
         // a reference to the same list, so clearing it here sticks).
         var genMaps = sapi.ModLoader.GetModSystem<Vintagestory.ServerMods.GenMaps>();
-        if (genMaps != null) genMaps.requireLandAt.Clear();
+        // Remove ONLY the vanilla spawn patch (GenMaps.initWorldGen's
+        // ForceRandomLandArea, radius 128 around map center). Clearing the
+        // whole list also dropped the forced land of every story location:
+        // on a restart before their areas generated, the village, Tobias'
+        // cave, the Great Machine and the rest came out as open ocean
+        // (papercuts). Ocean map cells are oceanMapScale blocks wide.
+        // On the FIRST load the whole list goes, as before: the story
+        // locations in it are the game's auto-rolled ones (one usually near
+        // spawn), and the setup re-pins and re-forces them right after.
+        if (genMaps != null && sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) == null)
+        {
+            genMaps.requireLandAt.Clear();
+        }
+        else if (genMaps != null)
+        {
+            int cell = Vintagestory.ServerMods.TerraGenConfig.oceanMapScale;
+            int midX = sapi.WorldManager.MapSizeX / 2, midZ = sapi.WorldManager.MapSizeZ / 2;
+            int reach = 4 * GlobalConstants.ChunkSize + 3 * cell;
+            int removed = genMaps.requireLandAt.RemoveAll(xz =>
+                Math.Abs(xz.X * cell - midX) <= reach && Math.Abs(xz.Z * cell - midZ) <= reach);
+            sapi.Logger.Notification("[landmassgenerator] Dropped {0} vanilla spawn land cell(s); {1} forced land cell(s) kept for story locations.", removed, genMaps.requireLandAt.Count);
+        }
         else sapi.Logger.Warning("[landmassgenerator] GenMaps not found; the vanilla forced spawn land stays and a vanilla landmass will appear at map center.");
 
         string planName = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) ?? "worldplan";
@@ -3206,10 +3576,19 @@ storyloc devastationarea -2550 -8750
         int bx = request.ChunkX * cs;
         int bz = request.ChunkZ * cs;
         IMapChunk mapChunk = request.Chunks[0].MapChunk;
+        bool unpacked = false;
         for (int j = 0; j < jobs.Count; j++)
         {
             IslandJob job = jobs[j];
             if (bx + cs - 1 < job.MinX || bx > job.MinX + job.W - 1 || bz + cs - 1 < job.MinZ || bz > job.MinZ + job.H - 1) continue;
+            // Direct chunk writes need unpacked data; a column can sit between
+            // passes long enough for the compressor to pack it. Unpack once
+            // before the first write.
+            if (!unpacked)
+            {
+                foreach (var chunk in request.Chunks) chunk.Unpack();
+                unpacked = true;
+            }
             for (int lz = 0; lz < cs; lz++)
             {
                 int z = bz + lz;
@@ -3248,7 +3627,7 @@ storyloc devastationarea -2550 -8750
         {
             int idx = (y % cs * cs + lz) * cs + lx;
             IChunkBlocks data = chunks[y / cs].Data;
-            data.SetBlockUnsafe(idx, ColumnBlockAt(job, reg, ores, topMat, y, topY, stoneId, stoneId2, sandId, soilId, grassId, x, z));
+            SetBlockWorldgen(data, idx, ColumnBlockAt(job, reg, ores, topMat, y, topY, stoneId, stoneId2, sandId, soilId, grassId, x, z));
             if (y < job.SeaLevel) data.SetFluid(idx, 0);
         }
 
@@ -3259,12 +3638,22 @@ storyloc devastationarea -2550 -8750
         {
             int idx = (y % cs * cs + lz) * cs + lx;
             IChunkBlocks data = chunks[y / cs].Data;
-            data.SetBlockUnsafe(idx, 0);
+            data.SetBlockAir(idx);
             data.SetFluid(idx, y <= waterTopY ? waterId : 0);
         }
 
         mapChunk.WorldGenTerrainHeightMap[hidx] = (ushort)topY;
         mapChunk.RainHeightMap[hidx] = (ushort)Math.Max(topY, waterTopY);
+    }
+
+    // Vanilla's SetBlockUnsafe(idx, 0) dereferences a null bit array when the
+    // chunk's block layer exists but is still empty (palette null), which
+    // happens to chunk sections recycled from the pool. Air goes through the
+    // null-safe SetBlockAir instead (papercuts: 83 columns with no terrain).
+    private static void SetBlockWorldgen(IChunkBlocks data, int idx, int blockId)
+    {
+        if (blockId == 0) data.SetBlockAir(idx);
+        else data.SetBlockUnsafe(idx, blockId);
     }
 
     // Stone for a below-surface block: an ore vein if one claims it, else the
@@ -3976,14 +4365,23 @@ storyloc devastationarea -2550 -8750
         public List<(double X, double Y, double Z, double R, double V, CaveDef Def)> Steps = new();
         public int TotalSteps;   // runaway guard across the whole system
         public int Blocks;
+        // Dry run: walk every tunnel exactly as the real carve would (the walk
+        // never depends on what it carved), record how far it reaches, write
+        // nothing. Used to size the chunk area a decoration job must load.
+        public bool DryRun;
+        public int BX1 = int.MaxValue, BZ1 = int.MaxValue, BX2 = int.MinValue, BZ2 = int.MinValue;
     }
 
-    private string CarveCaves(IslandJob job)
+    private string CarveCaves(IslandJob job, CaveWork dryWork = null)
     {
         var caves = job.Shape?.Caves;
         if (caves == null || caves.Count == 0) return "";
 
-        var w = new CaveWork { Job = job, Ba = sapi.World.GetBlockAccessorBulkUpdate(true, true) };
+        // A dry run stages its headwall writes in a bulk accessor that is
+        // never committed, so nothing reaches the world.
+        var w = dryWork ?? new CaveWork { Job = job };
+        w.Job = job;
+        w.Ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
         var notes = new List<string>();
         int tunnels = 0;
 
@@ -4096,6 +4494,7 @@ storyloc devastationarea -2550 -8750
             tunnels++;
         }
 
+        if (w.DryRun) return "";
         w.Ba.Commit();
         int oreBlocks = LineCaveOres(w);
 
@@ -4322,6 +4721,14 @@ storyloc devastationarea -2550 -8750
     // never opened), 0 = normal.
     private void CarveStep(CaveWork w, CaveDef def, double cx, double cy, double cz, double hr, double vr, int mouthKind)
     {
+        if (w.DryRun)
+        {
+            w.BX1 = Math.Min(w.BX1, (int)Math.Floor(cx - hr - 2));
+            w.BZ1 = Math.Min(w.BZ1, (int)Math.Floor(cz - hr - 2));
+            w.BX2 = Math.Max(w.BX2, (int)Math.Ceiling(cx + hr + 2));
+            w.BZ2 = Math.Max(w.BZ2, (int)Math.Ceiling(cz + hr + 2));
+            return;
+        }
         IslandJob job = w.Job;
         var world = sapi.World.BlockAccessor;
         var pos = new BlockPos(0, 0, 0, job.Dim);
@@ -7498,6 +7905,13 @@ storyloc devastationarea -2550 -8750
         int cs = GlobalConstants.ChunkSize;
         int cx1 = FloorDiv(job.MinX, cs), cx2 = FloorDiv(job.MinX + job.W - 1, cs);
         int cz1 = FloorDiv(job.MinZ, cs), cz2 = FloorDiv(job.MinZ + job.H - 1, cs);
+        if (job.UseWorkRect)
+        {
+            // Ocean ring columns hold no island rock: no deposits, no land
+            // heights to sync. Only the land work rect (and its margin).
+            cx1 = FloorDiv(job.WorkX1, cs); cx2 = FloorDiv(job.WorkX2, cs);
+            cz1 = FloorDiv(job.WorkZ1, cs); cz2 = FloorDiv(job.WorkZ2, cs);
+        }
 
         // 1. Engine heightmaps -> designed surface, land columns only. Ocean
         // columns keep their engine values (their reshape blended back into the

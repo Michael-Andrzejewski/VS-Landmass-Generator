@@ -670,3 +670,118 @@ pond and no note. The bed may now sink into the island's own rock, floored at
 The lesson to carry: a constant that reads as a sensible default at one scale
 is a silent cap at another. Both of these were written for ponds a few cells
 wide and neither announced itself when asked for something ten times bigger.
+
+## A 700 wide island killed the server: one chunk request was too big (fixed 0.58.0)
+
+First full Rustfall world (23 plan islands, all in one first-run setup) died
+while the live pass loaded Crater Lake (`volcano_ring`, 700 wide, water=60):
+
+    [Server Fatal] Caught unhandled exception in thread 'chunkdbthread'.
+    Exception: Somehow worldgen has become stuck in an endless loop
+       at ServerSystemSupplyChunks.loadChunkAreaBlocking
+
+The pre-build gate asked for the island's FULL job bounds (island plus offshore
+ring) in ONE `LoadChunkColumnPriority`: a 41 x 42 rect, 1722 columns. Vanilla
+serves a priority request with a blocking area load on the chunk-db thread, and
+on that size it stalled at worldgen passes 2 and 3 and raised the fatal. Islands
+up to ~110 columns (forester 76, swamplands 108) never showed it. Michael's
+earlier "huge chunk error" on the 600 wide ideal house island (357 columns) may
+have been the same thing in a milder form; its logs were gone.
+
+There were TWO such requests: `/genisland` itself loads the job bounds before
+`StartIslandJob`, and the tick gate loads them again with `KeepLoaded`. Fixing
+only the gate changed nothing (second run died on the identical rect). Both now
+go through `LoadChunkAreaBanded`: bands of at most `PregenBatchColumns` (256)
+columns, one at a time, the next only after the previous band's `OnLoaded` plus
+a 300 ms gap. That is the pattern the story pregen always used, and it handles
+the 1650 wide devastation area. `/genscan`'s measuring pass uses it too.
+
+Lesson: anything that asks vanilla for chunks must cap the request size, not
+just the waiting time.
+
+Second problem the same crash exposed: the first-run setup stores its "done"
+flag BEFORE the live pass starts (so a restart never pins the story locations
+twice), so a world that died or was closed mid-setup never decorated its
+remaining islands. With 21 live-pass islands that is half an hour in which a
+player can quit. Since 0.58.0 the islands and story areas still to do are kept
+in the save (`lgSetupIslandsTodo`, `lgSetupStoryTodo`), each finished one is
+crossed off, and the next load resumes from there ("Resuming world setup" in
+chat). An island that was halfway through when the world stopped is redone
+from the start of its decoration.
+
+## Writing air with SetBlockUnsafe crashed island columns (fixed 0.58.0)
+
+The third full run built every island, but the log held 83 of these, on the
+swamplands, iron mine and ideal home islands:
+
+    An error was thrown in pass Vegetation when generating chunk column X=15906,Z=15948
+    System.NullReferenceException at ChunkDataLayer.SetUnsafe
+       at LandmassGeneratorModSystem.FillColumnWorldgen
+
+Each one is a column whose island terrain was never written: a strip of
+missing land, and the live pass with `skipterrain=1` does not repair it.
+
+First guess was packed chunks (the swamp's failures sat on one chunk row, the
+edge of a load band), and `Unpack()` before writing changed nothing: the
+fourth run failed the same way on the iron mine's rect edges. The real cause,
+from the decompiled `ChunkDataLayer.SetUnsafe`: with `value == 0` it clears
+bits in `dataBit0` WITHOUT checking `palette`, so writing AIR into a block
+layer that exists but is still empty (palette null, as in a chunk section
+recycled from the pool) is a null dereference. `ChunkData.SetBlockUnsafe` only
+guards a null layer, not an empty one. Whether a section is in that state
+depends on pool reuse, which is why it looked random and only appeared once
+the load pattern changed. `SetBlockAir` goes through `SetZero`, which does
+check the palette.
+
+Fix: `FillColumnWorldgen` writes air with `SetBlockAir` and real blocks with
+`SetBlockUnsafe` (`SetBlockWorldgen`). Rule: never pass 0 to
+`SetBlockUnsafe`. The `Unpack()` stays; direct chunk writes should unpack first
+anyway.
+
+## A restart wiped every story location's land (fixed 0.58.0)
+
+`InitWorldgenIslandJobs` cleared `GenMaps.requireLandAt` on EVERY load to kill
+the vanilla spawn continent. On the first load that is right (the list holds
+the game's auto-rolled story spots, re-pinned moments later). On any LATER
+load the list holds the forced land of the pinned story locations, so a world
+restarted before its story areas generated built them in open ocean. The Great
+Machine's 105 deep lab then landed on the seabed and ran below y=0: 30
+`IndexOutOfRangeException` at `BlockSchematicPartial.PlacePartial`. A
+single-boot run never shows it; the setup resume made mid-setup restarts a
+normal path, which is how it surfaced.
+
+Fix: the full clear only while the world has no plan yet (`lgWorldPlanName`
+unset). After that, only the cells of the vanilla spawn patch
+(ForceRandomLandArea radius 128 at map centre, `oceanMapScale` 32 blocks per
+cell) are removed. The log says how many were dropped and kept ("Dropped 127
+vanilla spawn land cell(s); 24661 forced land cell(s) kept").
+
+## The first-run setup took 36 minutes; now ~9 (0.58.0)
+
+Measured on the full Rustfall plan (21 live-pass islands). Where the time went,
+Crater Lake as the example (5 min 20 s):
+
+- `/genisland` loaded the job area with `KeepLoaded=false`, then the tick gate
+  loaded it AGAIN with `KeepLoaded=true`: every column generated, unloaded, and
+  read back from disk. Now the gate loads once.
+- Decoration walked the whole job area including the offshore ring (1.7 million
+  columns) at a fixed 400 columns per 40 ms tick. Now a decoration-only job
+  (`skipterrain`) walks and loads only a land work rect: the land bounding box
+  plus 24 blocks, widened to cover every cave (a dry run walks each tunnel with
+  an uncommitted accessor and records how far it reaches; the walk only reads
+  the designed ground, so it is exact). Islands with megastructures, wrecks or
+  bastions keep the whole area. Typical work rect: 28 to 52 percent of the job.
+- The loop is time budgeted (20 ms of each tick with a player online, 150 ms
+  with none) instead of a column count.
+- Natural deposits re-roll only the work rect's chunks.
+- `KeepLoaded` chunks are never unloaded unless asked, so every island used to
+  stay in memory all session. They are released 15 s after the build, except
+  columns within 12 chunks of a player.
+- Story areas are no longer pregenerated (that was ~9 minutes, mostly the
+  devastation island); they generate on approach like any vanilla story
+  structure. `pregenstory` in the plan brings it back.
+
+Result: islands 28 min to 9 min, whole setup 36 min to ~9. Build summaries were
+identical island for island (trees, plants, cave blocks, wall ore, landmarks,
+markers); surface ore bits differ by under 1 percent, because which leaves win
+where two trees overlap depends on where a tick's batch ends.

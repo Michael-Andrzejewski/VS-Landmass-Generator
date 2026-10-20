@@ -434,9 +434,11 @@ One-shot setup for a fresh world from a plan file
 defaults on first run). Plan directives: `pureocean` (landcover and upheavel
 to 0, applied immediately; land then only exists where forced), `clearspawn N`
 (wipe the vanilla spawn land patch at map center), and
-`storyloc <code> <mapX> <mapZ>` lines. Pins all locations, rebuilds the
-worldgen maps (dropping the auto-rolled story spots), then pregenerates each
-story area one by one with progress in chat.
+`storyloc <code> <mapX> <mapZ>` lines. Pins all locations and rebuilds the
+worldgen maps (dropping the auto-rolled story spots). Story areas then
+generate the first time a player comes near, like any vanilla story
+structure; add a `pregenstory` line to generate them all during setup instead
+(slow: the devastation island alone is ~2700 chunk columns).
 
 ### World creation screen (0.56.0+)
 
@@ -454,6 +456,24 @@ natural islands on. Press Customize for the **Rustfall** tab:
 Everything else about the world (which islands, where, story coordinates)
 still comes from `worldplan.txt`. The Rustfall tab also appears on the other
 presets, so a Standard world with "Rustfall world" ticked behaves the same.
+
+The full Rustfall layout (23 drawn islands, seven story locations including
+Spreading Devastation's `greatmachine`) ships as `shapes/worldplan.example.txt`.
+Copy it to `worldplan.txt` in the LandmassGenerator data folder.
+
+    /genscan [step] [margin]
+
+Finds the natural islands of the current world. With natural islands on, tall
+landforms under the sea breach wherever the seed puts them, so the only way to
+know where is to generate terrain and look. Generates one chunk column every
+`step` blocks (default 128) over the plan's whole area plus `margin` (default
+1500), keeps every sample with land above sea level that no plan island or
+story location explains, then generates the full neighbourhood of each find
+to measure it: HUD centre, size, peak height above sea, nearest planned site.
+Results go to chat, the log, and `natural_islands.txt` in the LandmassGenerator
+folder. The sampled chunks stay generated in the save. Same seed and settings
+give the same natural islands, so one scan describes every world made with
+that seed.
 
     /timereset
 
