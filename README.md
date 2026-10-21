@@ -461,6 +461,33 @@ The full Rustfall layout (23 drawn islands, seven story locations including
 Spreading Devastation's `greatmachine`) ships as `shapes/worldplan.example.txt`.
 Copy it to `worldplan.txt` in the LandmassGenerator data folder.
 
+### Chests and lore (0.58.0+)
+
+A shape line `chest <char> <type> <contents> [cave=<char>] [near=<char>] [at=gx,gz] [rust=N] [trunk=1]`
+places a filled chest. `<type>` is a vanilla chest type (`normal-aged`,
+`collapsed1` to `collapsed4`, `golden-aged`, `owl-aged`, `normal-generic`).
+`<contents>` is a comma list of `lore:<id>` (a read-only written book from
+`lore/<id>.txt` in the LandmassGenerator folder) and item or block codes with an
+optional `*count` (`game:gear-rusty*6`). Place it by drawing `<char>` on the map,
+or with `at=` (grid cell), `near=` (two cells inland of a marker such as a landmark
+tree) or `cave=` (on the floor of that cave's deepest open step). `rust=N` stains
+the ground around it with devastated soil.
+
+Lore files (`lore/*.txt` in the repo, copied to the data folder):
+
+    title: To Seraph
+    by: Jonas Falx
+    book: aged-darkbeige
+    ---
+    The text. The game splits it into pages.
+
+    /genchests
+
+Places every plan island's chests, and any marker block missing from the world
+(the anchors), into a world generated before they existed. Re-running is safe:
+spots with a chest already nearby are skipped, and a marker block already standing
+near its spot is not doubled.
+
     /genscan [step] [margin]
 
 Finds the natural islands of the current world. With natural islands on, tall

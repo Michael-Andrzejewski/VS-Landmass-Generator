@@ -1,0 +1,4 @@
+title: The Ticking
+book: aged-darkgreen
+---
+I hear a ticking beneath the surface. The ticking never stops. Machines, consumed by malaise, still working endlessly in the dark. Perhaps the surface Rust is merely a symptom of something deeper below.

@@ -201,6 +201,21 @@ def main():
     # water guard, bottom galleries 85 below sea.
     print("cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 seed=17")
     print()
+    def _cell_of(letters):
+        pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]
+        if not pts:
+            raise SystemExit(f"no cells of {letters}")
+        mx = sum(p[0] for p in pts) / len(pts)
+        mz = sum(p[1] for p in pts) / len(pts)
+        return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
+    # Lore (2026-10-20): the lab's notice and chart on the north arm (T), the
+    # broken translocator beside it, and the madman's note at the bottom of
+    # the mine with Jonas parts and a ward that failed him.
+    lx, lz = _cell_of("T")
+    print(f"chest L normal-aged lore:tin_lab_notice,lore:tin_chart at={lx},{lz}")
+    print("chest Z collapsed2 lore:tin_mine_depths,game:jonasparts-tank01,game:jonasparts-valve01,game:jonasparts-cylinder01,game:gear-rusty*6,game:riftward cave=V rust=3")
+    print("block Y game:statictranslocator-broken-north")
+    grid[lz][min(len(grid[lz]) - 1, lx + 3)] = "Y"
     print("map")
     for row in grid:
         print("".join(row))

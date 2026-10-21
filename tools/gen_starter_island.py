@@ -156,6 +156,21 @@ def main():
     # 30 below sea.
     print("cave M heading=auto dip=20 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=4 ores=copper:0.06 seed=12")
     print()
+    def _cell_of(letters):
+        pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]
+        if not pts:
+            raise SystemExit(f"no cells of {letters}")
+        mx = sum(p[0] for p in pts) / len(pts)
+        mz = sum(p[1] for p in pts) / len(pts)
+        return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
+    # Lore and the anchor (2026-10-20): Jonas' letter beside the great oak,
+    # Tobias' note at the bottom of the copper mine, the broken translocator
+    # Tobias calls the anchor on the rocky summit.
+    print("chest J normal-aged lore:jonas_letter near=O")
+    print("chest K collapsed1 lore:tobias_anchor cave=M")
+    ax, az = _cell_of("R")
+    print(f"block Y game:statictranslocator-broken-north")
+    grid[az][ax] = "Y"
     print("map")
     for row in grid:
         print("".join(row))

@@ -196,6 +196,20 @@ def main():
     print("cave d heading=0 dip=20 length=130 radius=2.2 squash=0.75 weave=0.55 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=30 mouth=6 entry=10 ores=iron:0.05 seed=1")
     print("deposits natural")
     print()
+    def _cell_of(letters):
+        pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]
+        if not pts:
+            raise SystemExit(f"no cells of {letters}")
+        mx = sum(p[0] for p in pts) / len(pts)
+        mz = sum(p[1] for p in pts) / len(pts)
+        return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
+    # Lore (2026-10-20): John Vintage's farewell at the bottom of the great
+    # mine, and his second note hidden by a landmark pine in the pine wood.
+    print("chest Z collapsed1 lore:john_vintage cave=K")
+    px, pz = _cell_of("P")
+    print("tree Q scotspine 2.2")
+    grid[pz][px] = "Q"
+    print("chest H normal-aged lore:john_vintage_alive near=Q")
     print("map")
     for row in grid:
         print("".join(row))

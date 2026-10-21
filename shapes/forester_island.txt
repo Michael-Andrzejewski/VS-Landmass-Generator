@@ -28,6 +28,7 @@ tree A sugarmaple 2.6
 cave V heading=auto dip=20 length=170 radius=2.8 squash=0.8 weave=0.5 scale=1.35 branches=3 branchdepth=2 branchlen=0.6 depth=70 mouth=2 entry=6 seed=26
 deposits natural
 
+chest Z collapsed3 lore:forest_ticking cave=V
 map
 ........................................................................................................................
 ........................................................................................................................

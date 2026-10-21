@@ -1,0 +1,10 @@
+title: Notice of Withdrawal
+book: aged-gray
+---
+On the orders of Saint Tobias, we are withdrawing from this mine. Our rudimentary lab failed to replicate Jonas' research and the flux experiments have resulted in patches of Rust appearing across the island.
+
+If you are an adventurer stumbling across the island, DO NOT ENTER THE MINE. It is filled with seething horrors that will rip you limb from limb.
+
+The patches of Rust and devastation do not appear to spread, but they attract the drifters like flies. We have abandoned the mine and are withdrawing to other sources of tin.
+
+I have left a map marking some of the islands nearby. The surface here is relatively safe but you should not linger. Go to the trading post, or another island.

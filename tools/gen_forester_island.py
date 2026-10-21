@@ -190,6 +190,8 @@ def main():
     print("cave V heading=auto dip=20 length=170 radius=2.8 squash=0.8 weave=0.5 scale=1.35 branches=3 branchdepth=2 branchlen=0.6 depth=70 mouth=2 entry=6 seed=26")
     print("deposits natural")
     print()
+    # Lore (2026-10-20): the ticking, at the bottom of the coal mine.
+    print("chest Z collapsed3 lore:forest_ticking cave=V")
     print("map")
     for row in grid:
         print("".join(row))

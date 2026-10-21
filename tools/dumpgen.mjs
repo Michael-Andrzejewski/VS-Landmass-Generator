@@ -156,6 +156,11 @@ function prepare(reset) {
 function copyShapes() {
   for (const f of fs.readdirSync(path.join(repo, 'shapes')))
     if (f.endsWith('.txt')) fs.copyFileSync(path.join(repo, 'shapes', f), path.join(shapeDir, f));
+  // Lore books for chest markers live beside the shapes, in lore/.
+  const loreDir = path.join(shapeDir, 'lore');
+  fs.mkdirSync(loreDir, { recursive: true });
+  for (const f of fs.readdirSync(path.join(repo, 'lore')))
+    if (f.endsWith('.txt')) fs.copyFileSync(path.join(repo, 'lore', f), path.join(loreDir, f));
 }
 
 function writeJobs(shapes, full) {

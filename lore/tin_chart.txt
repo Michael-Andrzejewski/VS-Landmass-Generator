@@ -1,0 +1,10 @@
+title: Chart of the Near Isles
+book: aged-orangebrown
+---
+(A rough chart, the coastlines sketched in charcoal. Distances are marked in paces from the old copper island.)
+
+The copper island: 0, 0
+This tin island: 1850, -1610
+The forested isle: 1950, -290
+The trading post: 2400, -250
+The Lazaret: -1400, -2500

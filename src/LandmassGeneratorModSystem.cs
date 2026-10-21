@@ -172,6 +172,12 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.Word("code"), p.OptionalInt("range"))
                 .HandleWith(OnGenStoryLoc));
 
+        RegisterCmd(api, "genchests", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Place the chests (lore books and loot) of every plan island into this world: for worlds generated before the chests were added, or after editing lore. Safe to repeat; spots that already have a chest are skipped.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .HandleWith(OnGenChests));
+
         RegisterCmd(api, "genscan", name =>
             api.ChatCommands.Create(name)
                 .WithDescription("Find the natural islands of this world: generates one chunk column every [step] blocks (default 128) across the plan's area plus [margin] (default 1500), then measures every patch of land no plan island or story location explains. Results go to chat, the log and natural_islands.txt. The sampled chunks stay generated.")
@@ -1350,6 +1356,7 @@ storyloc crossroads 7600 -5600
             caveNote += BuildBastions(job);
             caveNote += BuildWrecks(job);
             caveNote += BuildStructs(job);
+            extra += PlaceChests(job);
             StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
             sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
@@ -1664,6 +1671,7 @@ storyloc crossroads 7600 -5600
         public List<BastionMarker> Bastions = new();
         public List<WreckMarker> Wrecks = new();
         public List<StructMarker> Structs = new();
+        public List<ChestPlacement> Chests = new();
         public bool NaturalDeposits;  // `deposits natural`: run the game's own ore pass
         // `ocean plunge=N`: the reshaped sea floor starts N below sea right at
         // the coastline. The default 2 makes a wading shelf (and a visible
@@ -1702,6 +1710,8 @@ storyloc crossroads 7600 -5600
         // Shape mode
         public ShapeDef Shape;
         public string ShapeName;
+        // Cave walk steps of the last carve (or dry run): where cave chests go.
+        public List<(double X, double Y, double Z, double R, double V, CaveDef Def)> CaveSteps;
         public double WorldPerCell;
         public NormalizedSimplexNoise JitterX, JitterZ;
         public double RotCos = 1.0, RotSin = 0.0;   // rotate=: spins the drawn map
@@ -2115,6 +2125,8 @@ storyloc crossroads 7600 -5600
         var wreckDefs = new Dictionary<char, WreckDef>();
         var structDefs = new Dictionary<char, StructDef>();
         var blockDefs = new Dictionary<char, (string code, int up)>();
+        var chestDefs = new Dictionary<char, ChestDef>();
+        var firstCell = new Dictionary<char, (int X, int Z)>();
         var rows = new List<string>();
         bool inMap = false;
         int oreIdx = 0;
@@ -2164,6 +2176,10 @@ storyloc crossroads 7600 -5600
             {
                 structDefs[tok[1][0]] = ParseStruct(tok, problems);
             }
+            else if (tok[0].Equals("chest", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
+            {
+                chestDefs[tok[1][0]] = ParseChest(tok, problems);
+            }
             else if (tok[0].Equals("block", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
             {
                 int up = tok.Length > 3 && int.TryParse(tok[3], out int u) ? Math.Clamp(u, 0, 60) : 0;
@@ -2201,7 +2217,13 @@ storyloc crossroads 7600 -5600
             for (int x = 0; x < w; x++)
             {
                 char c = x < rows[z].Length ? rows[z][x] : '.';
-                if (markerDefs.ContainsKey(c))
+                if (!firstCell.ContainsKey(c)) firstCell[c] = (x, z);
+                if (chestDefs.ContainsKey(c))
+                {
+                    shape.Chests.Add(new ChestPlacement { Def = chestDefs[c], Gx = x, Gz = z });
+                    c = '?';
+                }
+                else if (markerDefs.ContainsKey(c))
                 {
                     shape.Markers.Add(new TreeMarker { Gx = x, Gz = z, Gen = markerDefs[c].gen, Size = markerDefs[c].size });
                     c = '?'; // resolved to a neighbouring region below
@@ -2237,6 +2259,8 @@ storyloc crossroads 7600 -5600
                 }
                 shape.Cells[x, z] = c;
             }
+
+        if (chestDefs.Count > 0) ResolveChestPlacements(shape, chestDefs, caveDefs, firstCell, problems);
 
         // A marker cell still needs terrain, so adopt a neighbouring region.
         // '!' (block marker) cells go to ocean unless a direct neighbour is
@@ -3118,6 +3142,7 @@ storyloc crossroads 7600 -5600
             caveNote += BuildBastions(job);
             caveNote += BuildWrecks(job);
             caveNote += BuildStructs(job);
+            extra += PlaceChests(job);
             int climRegions = StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
 
@@ -4496,6 +4521,7 @@ storyloc crossroads 7600 -5600
 
         if (w.DryRun) return "";
         w.Ba.Commit();
+        job.CaveSteps = w.Steps;
         int oreBlocks = LineCaveOres(w);
 
         string note = $", {tunnels} cave(s) carved ({w.Blocks} blocks";
@@ -4727,6 +4753,7 @@ storyloc crossroads 7600 -5600
             w.BZ1 = Math.Min(w.BZ1, (int)Math.Floor(cz - hr - 2));
             w.BX2 = Math.Max(w.BX2, (int)Math.Ceiling(cx + hr + 2));
             w.BZ2 = Math.Max(w.BZ2, (int)Math.Ceiling(cz + hr + 2));
+            w.Steps.Add((cx, cy, cz, hr, vr, def));
             return;
         }
         IslandJob job = w.Job;
