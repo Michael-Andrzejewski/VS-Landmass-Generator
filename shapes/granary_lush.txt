@@ -26,6 +26,7 @@ region w rock=claystone rock2=limestone climate=lush fertility=high surface=gras
 tree O largekapok 2.2
 struct G kind=granary size=20 seed=4
 
+chest R normal-aged randomlore:jonas:game:lore-paper,randomlore:jonas:game:lore-paper near=O
 map
 ............................................................................................................................................
 ............................................................................................................................................

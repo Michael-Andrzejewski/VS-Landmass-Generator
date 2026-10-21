@@ -26,6 +26,7 @@ region w rock=sandstone rock2=limestone climate=arid fertility=high surface=gras
 tree O acacia 2.4
 struct G kind=granary size=20 seed=4
 
+chest R normal-aged randomlore:jonas:game:lore-paper,randomlore:jonas:game:lore-paper near=O
 map
 ............................................................................................................................................
 ............................................................................................................................................

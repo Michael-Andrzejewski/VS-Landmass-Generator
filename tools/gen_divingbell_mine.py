@@ -96,6 +96,16 @@ def main():
     print("ocean basin=150 depth=33 plunge=5")
     print("struct D kind=divingbell size=130 seed=7")
     print()
+    def _cell_of(letters):
+        pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]
+        if not pts:
+            raise SystemExit(f"no cells of {letters}")
+        mx = sum(p[0] for p in pts) / len(pts)
+        mz = sum(p[1] for p in pts) / len(pts)
+        return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
+    # Random Jonas lore (2026-10-20): a lore book on the hills above the bells.
+    rx, rz = _cell_of("h")
+    print(f"chest R normal-aged randomlore:jonas:game:lore-book-aged-cherryred at={rx},{rz}")
     print("map")
     for row in grid:
         print("".join(row))

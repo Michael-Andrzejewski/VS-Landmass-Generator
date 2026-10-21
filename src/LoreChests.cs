@@ -19,6 +19,7 @@ namespace LandmassGenerator;
 // <type> is a vanilla chest type: normal-aged, collapsed1..4, golden-aged,
 // owl-aged, normal-generic. <contents> is a comma-separated list:
 //   lore:<id>                a written, read-only book from lore/<id>.txt
+//   randomlore:<category>    a vanilla lore book revealing a random unread page of that category
 //   <domain:code>[*count]    any item or block, e.g. game:jonasparts-tank01*2
 // Placement: the <char> drawn on the map, OR at=gx,gz (a grid cell), OR
 // near=<char> (beside the first cell of that marker, e.g. a landmark tree),
@@ -254,6 +255,20 @@ public partial class LandmassGeneratorModSystem
     private ItemStack MakeChestStack(string spec, List<string> notes)
     {
         if (spec.StartsWith("lore:", StringComparison.OrdinalIgnoreCase)) return MakeLoreBook(spec.Substring(5), notes);
+        if (spec.StartsWith("randomlore:", StringComparison.OrdinalIgnoreCase))
+        {
+            // A vanilla lore item: reading it reveals the next unread page of
+            // a journal in this category (vanilla's own, Better Ruins', or
+            // the Rustfall Lore mod's). randomlore:<category>[:<item code>]
+            string[] parts = spec.Split(':');
+            string category = parts.Length > 1 ? parts[1] : "jonas";
+            string loreCode = parts.Length > 2 ? string.Join(":", parts.Skip(2)) : "game:lore-book-aged-orangebrown";
+            Item item = sapi.World.GetItem(new AssetLocation(loreCode));
+            if (item == null) { notes.Add($"'{loreCode}' is not in this game"); return null; }
+            var st = new ItemStack(item);
+            st.Attributes.SetString("category", category);
+            return st;
+        }
         int count = 1;
         string code = spec;
         int star = spec.LastIndexOf('*');

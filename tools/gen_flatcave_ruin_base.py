@@ -184,6 +184,8 @@ def main():
     print("cave F flooded=1 heading=auto dip=40 length=80 radius=2.2 squash=0.8 weave=0.5 scale=1 branches=1 branchdepth=1 branchlen=0.5 depth=18 entry=4 ores=iron:0.05 seed=3")
     print("deposits natural")
     print()
+    # Random Jonas lore (2026-10-20): a lore book at the bottom of the dungeon cave.
+    print("chest R collapsed2 randomlore:jonas:game:lore-book-aged-darkgray cave=K")
     print("map")
     for row in grid:
         print("".join(row))

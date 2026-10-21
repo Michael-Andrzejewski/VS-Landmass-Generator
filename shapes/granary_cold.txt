@@ -26,6 +26,7 @@ region w rock=slate rock2=andesite climate=cold fertility=high surface=grass hei
 tree O scotspine 2.6
 struct G kind=granary size=20 seed=4
 
+chest R normal-aged randomlore:jonas:game:lore-paper,randomlore:jonas:game:lore-paper near=O
 map
 ............................................................................................................................................
 ............................................................................................................................................

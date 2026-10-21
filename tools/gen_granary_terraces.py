@@ -228,6 +228,8 @@ def main():
     print(f"tree O {p['landmark']}")
     print("struct G kind=granary size=20 seed=4")
     print()
+    # Random Jonas lore (2026-10-20): torn pages in a weathered chest by the oak.
+    print("chest R normal-aged randomlore:jonas:game:lore-paper,randomlore:jonas:game:lore-paper near=O")
     print("map")
     for row in grid:
         print("".join(row))
