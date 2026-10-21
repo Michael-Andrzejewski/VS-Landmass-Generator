@@ -785,3 +785,37 @@ Result: islands 28 min to 9 min, whole setup 36 min to ~9. Build summaries were
 identical island for island (trees, plants, cave blocks, wall ore, landmarks,
 markers); surface ore bits differ by under 1 percent, because which leaves win
 where two trees overlap depends on where a tick's batch ends.
+
+## Chests "placed" then gone: UnloadChunkColumn throws away unsaved chunks (fixed 0.59.0)
+
+`/genchests` logged every chest with its contents read back, yet Michael
+found none on the starter island until he ran it a second time while
+standing there. Cause: `ReleaseKeptChunks` freed the KeepLoaded columns with
+`sapi.WorldManager.UnloadChunkColumn`, and in 1.22 that only removes the
+chunks from memory (`loadedChunks.Remove`): no save, dirty or not. Everything
+written since the last autosave was lost, for every island build that
+released its chunks, not just the chests (the mine props too, while their
+"done" flag in the save survived). Only columns a player could see escaped,
+because the release skipped them. Fix: never unload; take the columns off
+the server's force-loaded list instead (`ServerMain.RemoveChunkColumnFromForceLoadedList`,
+public on the server class, reached by reflection). The normal unloader then
+saves each dirty chunk when no player is near. Rule: to let go of a chunk
+you wrote to, un-force it; never unload it yourself.
+
+## Natural islands cut by an ocean ring kept their trees floating (fixed 0.59.0)
+
+Michael saw the wreckage maelstrom "destroy an island but not the leaves and
+grass". A natural island (scan #26) reached into the maelstrom's ocean ring;
+the worldgen renderer lowered its ground to the sea floor, but vanilla's own
+trees and grass were already standing (same Vegetation pass, earlier in the
+order). The renderer only cleared up to the old ground height, so trunks,
+canopies and tall grass hung over open water. Two gaps: (1) nothing cleared
+above the old ground; (2) a tree rooted in the NEXT chunk spreads its crown
+into this one after this one was rendered, so no per-column scan at render
+time can catch it. Fix: the renderer records every column it lowers, and a
+second handler in the NeighbourSunLightFlood pass (which the engine only
+runs once all eight neighbours finished Vegetation) sweeps leaves, logs and
+plants above the new ground in those columns, plus stray leaves over any
+open sea in the island's rect. Measured over scan #26: 1033 floating
+vegetation blocks before, 19 after the first try (shore grass on columns
+lowered by one block), then the threshold went to "lowered at all".

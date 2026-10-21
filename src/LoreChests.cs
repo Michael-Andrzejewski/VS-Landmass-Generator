@@ -24,7 +24,8 @@ namespace LandmassGenerator;
 // Placement: the <char> drawn on the map, OR at=gx,gz (a grid cell), OR
 // near=<char> (beside the first cell of that marker, e.g. a landmark tree),
 // OR cave=<char> (on the floor of that cave's deepest reachable step).
-// rust=N stains N blocks around it with devastated soil.
+// rust=N stains N blocks around it with devastated soil. near=<char> with
+// side=<east|west|north|south> puts it right against that tree's trunk.
 //
 // Lore files live in <LandmassGenerator folder>/lore/<id>.txt:
 //   title: Letter to Seraph
@@ -43,6 +44,7 @@ public partial class LandmassGeneratorModSystem
         public char Cave, Near;
         public int AtX = -1, AtZ = -1;
         public int Rust;
+        public string Side;   // with near=: right against the trunk on this side
     }
 
     private class ChestPlacement
@@ -71,6 +73,7 @@ public partial class LandmassGeneratorModSystem
                 case "cave": d.Cave = v.Length > 0 ? v[0] : '\0'; break;
                 case "near": d.Near = v.Length > 0 ? v[0] : '\0'; break;
                 case "rust": d.Rust = int.TryParse(v, out int r) ? Math.Clamp(r, 0, 8) : 0; break;
+                case "side": d.Side = ParseSide(v, problems, $"chest {d.Key}"); break;
                 case "trunk": d.Trunk = v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase); break;
                 case "at":
                     var p = v.Split(',');
@@ -103,6 +106,12 @@ public partial class LandmassGeneratorModSystem
             else if (d.Near != '\0')
             {
                 if (!firstCell.TryGetValue(d.Near, out var at)) { problems.Add($"chest {d.Key}: no map cell '{d.Near}'"); continue; }
+                if (d.Side != null)
+                {
+                    // On the landmark's own cell; PlaceChests walks out of the trunk.
+                    shape.Chests.Add(new ChestPlacement { Def = d, Gx = at.X, Gz = at.Z });
+                    continue;
+                }
                 // Two cells toward the island centre, so it sits beside the
                 // landmark, not under its trunk or out on the beach.
                 double dx = shape.W / 2.0 - at.X, dz = shape.H / 2.0 - at.Z, len = Math.Max(1, Math.Sqrt(dx * dx + dz * dz));
@@ -125,7 +134,7 @@ public partial class LandmassGeneratorModSystem
 
         foreach (var cp in chests)
         {
-            BlockPos at = cp.Cave != null ? CaveChestPos(job, cp.Cave) : GroundChestPos(job, cp.Gx, cp.Gz);
+            BlockPos at = cp.Cave != null ? CaveChestPos(job, cp.Cave) : GroundChestPos(job, cp.Gx, cp.Gz, cp.Def.Side);
             if (at == null) { notes.Add($"chest {cp.Def.Key}: no place to stand"); continue; }
             if (HasChestNear(world, at)) { skipped++; continue; }
 
@@ -165,6 +174,46 @@ public partial class LandmassGeneratorModSystem
         return note;
     }
 
+    private static string ParseSide(string v, List<string> problems, string what)
+    {
+        v = v.ToLowerInvariant();
+        if (v is "east" or "west" or "north" or "south") return v;
+        problems.Add($"{what}: side= wants east, west, north or south, got '{v}'");
+        return null;
+    }
+
+    // From a landmark tree's root (x, z), step out along `side` until the
+    // trunk ends: the first column with no log in the few blocks above the
+    // ground. The world's own blocks decide, so it works for any trunk width.
+    private void BesideTrunk(IslandJob job, ref int x, ref int z, string side)
+    {
+        int sx = side == "east" ? 1 : side == "west" ? -1 : 0;
+        int sz = side == "south" ? 1 : side == "north" ? -1 : 0;
+        var world = sapi.World.BlockAccessor;
+        var p = new BlockPos(0, 0, 0, job.Dim);
+        int g0 = -1;
+        for (int y = Math.Min(sapi.WorldManager.MapSizeY - 3, job.SeaLevel + job.DomeHeight + 40); y > job.SeaLevel - 3; y--)
+        {
+            // the ground under the trunk: scan down through canopy and logs
+            p.Set(x, y, z);
+            Block b = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
+            if (b == null || b.Id == 0 || b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves or EnumBlockMaterial.Wood) continue;
+            g0 = y; break;
+        }
+        if (g0 < 0) return;
+        for (int k = 1; k <= 8; k++)
+        {
+            bool log = false;
+            for (int dy = 1; dy <= 4 && !log; dy++)
+            {
+                p.Set(x + sx * k, g0 + dy, z + sz * k);
+                log = world.GetBlock(p, BlockLayersAccess.SolidBlocks)?.BlockMaterial == EnumBlockMaterial.Wood;
+            }
+            if (!log) { x += sx * k; z += sz * k; return; }
+        }
+        x += sx * 8; z += sz * 8;
+    }
+
     private static bool HasChestNear(IBlockAccessor world, BlockPos at)
     {
         var p = new BlockPos(0, 0, 0, at.dimension);
@@ -181,9 +230,10 @@ public partial class LandmassGeneratorModSystem
 
     // Top of the ground at a grid cell: skips plants, leaves and logs so a
     // chest beside a tree lands on the forest floor, not in the canopy.
-    private BlockPos GroundChestPos(IslandJob job, int gx, int gz)
+    private BlockPos GroundChestPos(IslandJob job, int gx, int gz, string side = null)
     {
         MarkerWorld(job, gx, gz, out int x, out int z);
+        if (side != null) BesideTrunk(job, ref x, ref z, side);
         var world = sapi.World.BlockAccessor;
         var pos = new BlockPos(x, 0, z, job.Dim);
         int floor = Math.Max(1, job.SeaLevel - 2);
@@ -323,6 +373,7 @@ public partial class LandmassGeneratorModSystem
             Block block = sapi.World.GetBlock(new AssetLocation(m.Code));
             if (block == null) continue;
             MarkerWorld(job, m.Gx, m.Gz, out int x, out int z);
+            if (m.Side != null) BesideTrunk(job, ref x, ref z, m.Side);
             var pos = new BlockPos(x, 0, z, job.Dim);
             bool present = false;
             var q = new BlockPos(0, 0, 0, job.Dim);
@@ -340,6 +391,7 @@ public partial class LandmassGeneratorModSystem
                 pos.Y = y;
                 Block b = world.GetBlock(pos, BlockLayersAccess.SolidBlocks);
                 if (b == null || b.Id == 0 || b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves) continue;
+                if (m.Side != null && b.BlockMaterial == EnumBlockMaterial.Wood) continue;
                 int py = y + 1 + m.Up;
                 if (y < job.SeaLevel - 1) py = Math.Min(py, job.SeaLevel - 3);
                 pos.Y = Math.Max(py, y + 1);
@@ -434,6 +486,7 @@ public partial class LandmassGeneratorModSystem
         foreach (var m in job.Shape.BlockMarkers)
         {
             MarkerWorld(job, m.Gx, m.Gz, out int x, out int z);
+            if (m.Side != null) BesideTrunk(job, ref x, ref z, m.Side);
             x1 = Math.Min(x1, x); x2 = Math.Max(x2, x); z1 = Math.Min(z1, z); z2 = Math.Max(z2, z);
         }
         foreach (var sm in job.Shape.Structs.Where(s => NewStructKinds.Contains(s.Def.Kind)))

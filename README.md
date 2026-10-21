@@ -132,7 +132,7 @@ Shape files live in `%APPDATA%\VintagestoryData\LandmassGenerator\` (the mod pri
 | `ores`, `forest`, `trees` | As above, but per region. `ores=` also accepts the ungraded minerals (`coal`, `quartz`, `sulfur`, `olivine`, `lapislazuli`, ...): they place their single ungraded block at every richness roll. |
 | `tree <char> <type> <size>` | A landmark tree at that spot on the map. |
 | `cave <char> [key=value ...]` | A cave system entering at that spot on the map. See below. |
-| `block <char> <blockcode> [lift]` | One block placed resting on the actual ground at that spot, on the sea floor when the spot is underwater. Meant for spawners and props from other mods (e.g. `block X underwaterhorrors:serpentspawner 15`), so the code is resolved at placement time: a block the game does not know is reported as a note, never an error. The optional lift raises it that many blocks off the ground (underwater it never rises past 3 below the surface), for spawners whose trigger range must reach swimmers at the surface. Unlike tree and cave markers, a block marker may stand in open ocean; it only joins a region if one directly touches it. |
+| `block <char> <blockcode> [lift] [beside=<char> side=<east\|west\|north\|south>]` | One block placed resting on the actual ground at that spot (with `beside=`, not drawn on the map: right against that landmark tree's trunk on the given side, e.g. `block Y game:statictranslocator-broken-north beside=O side=west`), on the sea floor when the spot is underwater. Meant for spawners and props from other mods (e.g. `block X underwaterhorrors:serpentspawner 15`), so the code is resolved at placement time: a block the game does not know is reported as a note, never an error. The optional lift raises it that many blocks off the ground (underwater it never rises past 3 below the surface), for spawners whose trigger range must reach swimmers at the surface. Unlike tree and cave markers, a block marker may stand in open ocean; it only joins a region if one directly touches it. |
 
 ### Caves (`cave <char> ...`)
 
@@ -463,15 +463,17 @@ Copy it to `worldplan.txt` in the LandmassGenerator data folder.
 
 ### Chests and lore (0.58.0+)
 
-A shape line `chest <char> <type> <contents> [cave=<char>] [near=<char>] [at=gx,gz] [rust=N] [trunk=1]`
+A shape line `chest <char> <type> <contents> [cave=<char>] [near=<char> [side=<dir>]] [at=gx,gz] [rust=N] [trunk=1]`
 places a filled chest. `<type>` is a vanilla chest type (`normal-aged`,
 `collapsed1` to `collapsed4`, `golden-aged`, `owl-aged`, `normal-generic`).
 `<contents>` is a comma list of `lore:<id>` (a read-only written book from
 `lore/<id>.txt` in the LandmassGenerator folder) and item or block codes with an
 optional `*count` (`game:gear-rusty*6`). Place it by drawing `<char>` on the map,
 or with `at=` (grid cell), `near=` (two cells inland of a marker such as a landmark
-tree) or `cave=` (on the floor of that cave's deepest open step). `rust=N` stains
-the ground around it with devastated soil.
+tree; add `side=east|west|north|south` to put it right against the tree's trunk,
+found from the world's own logs, so any trunk width works) or `cave=` (on the
+floor of that cave's deepest open step). `rust=N` stains the ground around it
+with devastated soil.
 
 Lore files (`lore/*.txt` in the repo, copied to the data folder):
 
@@ -490,7 +492,14 @@ nothing.
 Structure kinds `lab` (Tin Island's half-underground flux lab: sunken brick
 room, stair, fallen roof on rusted girders, benches, the glowing lens rig, Rust
 bleeding out of the door) and `hut` (a timber trader's hut on a levelled footing;
-it fells the trees around it first).
+it fells the trees around it first). `gearhill` (0.59.0) is the Starter Island's
+buried Machine: anchor it on a cell beside a landmark tree standing on a hill and
+it finds the trunk itself, then sinks huge rusted gears (each at its own angle and
+lean, one fallen flat), drive shafts and pipe ends into the hill's flanks, scatters
+loose gears, part piles and gear clutter, sets two of vanilla's huge cast gears at
+the foot, and digs a machine room under the tree with a gear in its back wall. It
+never writes within 4.5 blocks of the trunk, so the tree, a `side=` chest and a
+`beside=` block stay untouched.
 
     /genchests
 
@@ -532,3 +541,10 @@ Early standalone build, kept separate from Building Commands until it proves sta
 ## Building
 
 `dotnet build -c Release` compiles the mod and deploys `LandmassGenerator_<version>.zip` to `%APPDATA%\VintagestoryData\Mods`, replacing the previous build. Requires the Vintage Story API DLLs at `%APPDATA%\Vintagestory`.
+
+### Inspecting a built world: `/gendumparea x z [radius] [name]` (0.59.0)
+
+Writes the world around HUD x z (a square, default radius 64) to
+`LandmassGenerator/dumps/<name>.lmd`, natural terrain included, for the
+previewer. Works headless, so a test world can be checked spot by spot
+without walking it (through the Pilot bridge: `/cmd?c=gendumparea -3618 -6737 90 nat26`).

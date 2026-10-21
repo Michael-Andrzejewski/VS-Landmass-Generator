@@ -192,6 +192,13 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.OptionalWord("plan"))
                 .HandleWith(OnGenWorldSetup));
 
+        RegisterCmd(api, "gendumparea", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Write the world around HUD x z (a square of the given radius, default 64) to LandmassGenerator/dumps/<name>.lmd for the previewer, block for block, natural terrain included. For checking a built world without walking it.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.Int("x"), p.Int("z"), p.OptionalInt("radius", 64), p.OptionalWord("name"))
+                .HandleWith(OnGenDumpArea));
+
         RegisterCmd(api, "timereset", name =>
             api.ChatCommands.Create(name)
                 .WithDescription("Rewind the calendar to 8am on the 1st of May, year 0, the date and time a brand new world starts on. Use after building out a world, right before handing the save file to a new player, so their story begins on day one.")
@@ -266,6 +273,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // then only adds decoration, with the same deterministic seed.
         api.Event.InitWorldGenerator(InitWorldgenIslandJobs, "standard");
         api.Event.ChunkColumnGeneration(OnChunkColumnGenIslands, EnumWorldGenPass.Vegetation, "standard");
+        api.Event.ChunkColumnGeneration(OnChunkColumnClearFloaters, EnumWorldGenPass.NeighbourSunLightFlood, "standard");
 
         // Pure ocean, part 2. landcover 0 stops the continent roll and
         // upheavelCommonness 0 stops raised seafloors, but GenTerra only
@@ -1247,35 +1255,49 @@ storyloc crossroads 7600 -5600
 
     // KeepLoaded chunks are never unloaded unless asked, so every island
     // used to stay in memory for the rest of the session. Release them a
-    // little after the build (the relight queue drains in seconds), except
-    // columns a player can see.
+    // little after the build (the relight queue drains in seconds).
+    //
+    // WorldManager.UnloadChunkColumn must NOT be used for this: it drops the
+    // chunks from memory without saving them, so every block the build
+    // wrote since the last autosave was lost (chests "placed", then gone).
+    // Instead only take the columns off the server's force-loaded list; the
+    // normal unloader then saves each dirty chunk and unloads it once no
+    // player is near, exactly as for any chunk a player walked away from.
     private void ReleaseKeptChunks(IslandJob job)
     {
         if (job.Dim != 0 || job.PreCx2 < job.PreCx1) return;
         int x1 = job.PreCx1, x2 = job.PreCx2, z1 = job.PreCz1, z2 = job.PreCz2;
         sapi.Event.RegisterCallback(_ =>
         {
-            int cs = GlobalConstants.ChunkSize;
-            const int keepChunks = 12;   // view distance 256 plus a margin
-            var near = new List<(int Cx, int Cz)>();
-            foreach (IPlayer p in sapi.World.AllOnlinePlayers)
+            var unforce = ForceLoadRemover();
+            if (unforce == null)
             {
-                if (p.Entity == null) continue;
-                near.Add(((int)p.Entity.Pos.X / cs, (int)p.Entity.Pos.Z / cs));
+                sapi.Logger.Warning("[landmassgenerator] Could not find the server's force-load list; leaving the island's chunks loaded (they are saved with the world).");
+                return;
             }
             int released = 0;
             for (int cx = x1; cx <= x2; cx++)
                 for (int cz = z1; cz <= z2; cz++)
                 {
-                    bool seen = false;
-                    foreach (var q in near)
-                        if (Math.Abs(q.Cx - cx) <= keepChunks && Math.Abs(q.Cz - cz) <= keepChunks) { seen = true; break; }
-                    if (seen || sapi.WorldManager.GetChunk(cx, 0, cz) == null) continue;
-                    sapi.WorldManager.UnloadChunkColumn(cx, cz);
+                    unforce(sapi.WorldManager.MapChunkIndex2D(cx, cz));
                     released++;
                 }
-            sapi.Logger.Notification("[landmassgenerator] Released {0} kept chunk column(s) after the island build.", released);
+            sapi.Logger.Notification("[landmassgenerator] Released {0} kept chunk column(s) after the island build (saved by the normal unloader).", released);
         }, 15000);
+    }
+
+    // ServerMain.RemoveChunkColumnFromForceLoadedList is public on the
+    // server class but not on the API, so reach it by reflection.
+    private Action<long> forceLoadRemover;
+    private Action<long> ForceLoadRemover()
+    {
+        if (forceLoadRemover != null) return forceLoadRemover;
+        object server = sapi.World;
+        var m = server.GetType().GetMethod("RemoveChunkColumnFromForceLoadedList",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null, new[] { typeof(long) }, null);
+        if (m == null) return null;
+        return forceLoadRemover = idx => m.Invoke(server, new object[] { idx });
     }
 
     // The chunk rect decoration actually touches: the island's land plus a
@@ -1556,6 +1578,7 @@ storyloc crossroads 7600 -5600
         public int Gx, Gz;
         public string Code;
         public int Up;   // blocks above the ground; underwater it never rises past SeaLevel - 3
+        public string Side;   // beside=<char> side=<dir>: right against that landmark tree's trunk
     }
 
     // One cave design: where it enters the island and how it descends.
@@ -1752,6 +1775,10 @@ storyloc crossroads 7600 -5600
         // bare dump keeps chains, stumps and debris standing in open ocean
         // outside the terrain-pass footprint.
         public HashSet<long> TouchedCols = new();
+        // Columns the worldgen renderer LOWERED (natural land cut down into
+        // this island's sea). The next pass sweeps vanilla vegetation that
+        // still hangs over them; see OnChunkColumnClearFloaters.
+        public HashSet<long> LoweredCols = new();
 
         public NormalizedSimplexNoise CoastNoise, SurfNoise, RockBlend;
         public int StoneId, SoilId, GrassId, SandId, WaterId, SaltWaterId;
@@ -2127,6 +2154,7 @@ storyloc crossroads 7600 -5600
         var wreckDefs = new Dictionary<char, WreckDef>();
         var structDefs = new Dictionary<char, StructDef>();
         var blockDefs = new Dictionary<char, (string code, int up)>();
+        var blockBeside = new Dictionary<char, (char At, string Side)>();
         var chestDefs = new Dictionary<char, ChestDef>();
         var firstCell = new Dictionary<char, (int X, int Z)>();
         var rows = new List<string>();
@@ -2184,8 +2212,19 @@ storyloc crossroads 7600 -5600
             }
             else if (tok[0].Equals("block", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
             {
-                int up = tok.Length > 3 && int.TryParse(tok[3], out int u) ? Math.Clamp(u, 0, 60) : 0;
+                // block <char> <code> [up] [beside=<char> side=<east|west|north|south>]
+                int up = 0; char beside = '\0'; string side = null;
+                for (int ti = 3; ti < tok.Length; ti++)
+                {
+                    int eq = tok[ti].IndexOf('=');
+                    if (eq < 0) { if (int.TryParse(tok[ti], out int u)) up = Math.Clamp(u, 0, 60); continue; }
+                    string k = tok[ti].Substring(0, eq).ToLowerInvariant(), v = tok[ti].Substring(eq + 1);
+                    if (k == "beside" && v.Length > 0) beside = v[0];
+                    else if (k == "side") side = ParseSide(v, problems, $"block {tok[1][0]}");
+                    else problems.Add($"block {tok[1][0]}: unknown key '{k}'");
+                }
                 blockDefs[tok[1][0]] = (tok[2], up);
+                if (beside != '\0') blockBeside[tok[1][0]] = (beside, side ?? "east");
             }
             else if (tok[0].Equals("deposits", StringComparison.OrdinalIgnoreCase) && tok.Length >= 2)
             {
@@ -2263,6 +2302,13 @@ storyloc crossroads 7600 -5600
             }
 
         if (chestDefs.Count > 0) ResolveChestPlacements(shape, chestDefs, caveDefs, firstCell, problems);
+        // beside= blocks that are not drawn on the map stand against a tree.
+        foreach (var kv in blockBeside)
+        {
+            if (firstCell.ContainsKey(kv.Key)) continue;   // drawn on the map: that cell wins
+            if (!firstCell.TryGetValue(kv.Value.At, out var at)) { problems.Add($"block {kv.Key}: no map cell '{kv.Value.At}'"); continue; }
+            shape.BlockMarkers.Add(new BlockMarker { Gx = at.X, Gz = at.Z, Code = blockDefs[kv.Key].code, Up = blockDefs[kv.Key].up, Side = kv.Value.Side });
+        }
 
         // A marker cell still needs terrain, so adopt a neighbouring region.
         // '!' (block marker) cells go to ocean unless a direct neighbour is
@@ -3327,6 +3373,29 @@ storyloc crossroads 7600 -5600
         ReportIsland(job, note);
     }
 
+    // /gendumparea: load the square, then dump it like a dump=1 island with
+    // dumpfull on (nothing is skipped: the point is to see what is there).
+    private TextCommandResult OnGenDumpArea(TextCommandCallingArgs args)
+    {
+        int hx = (int)args[0], hz = (int)args[1], r = Math.Clamp((int)args[2], 8, 400);
+        string name = args[3] as string;
+        if (string.IsNullOrWhiteSpace(name)) name = $"area_{hx}_{hz}";
+        int x = hx + sapi.WorldManager.MapSizeX / 2, z = hz + sapi.WorldManager.MapSizeZ / 2;
+        var job = new IslandJob
+        {
+            Cx = x, Cz = z, Dim = 0, SeaLevel = sapi.World.SeaLevel,
+            MinX = x - r, MinZ = z - r, W = 2 * r + 1, H = 2 * r + 1,
+            DumpName = name, DumpFull = true,
+        };
+        int cs = GlobalConstants.ChunkSize;
+        LoadChunkAreaBanded(FloorDiv(x - r - 16, cs), FloorDiv(z - r - 16, cs), FloorDiv(x + r + 16, cs), FloorDiv(z + r + 16, cs), false, () =>
+        {
+            try { WriteDump(job); }
+            catch (Exception e) { sapi.Logger.Error(e); }
+        });
+        return TextCommandResult.Success($"Dumping {2 * r + 1} x {2 * r + 1} blocks around HUD {hx}, {hz} to dumps/{name}.lmd.");
+    }
+
     private static bool HasForest(IslandJob job)
     {
         if (job.Shape == null) return job.ForestDensity > 0 && job.ForestTrees.Count > 0;
@@ -3672,8 +3741,84 @@ storyloc crossroads 7600 -5600
             data.SetFluid(idx, y <= waterTopY ? waterId : 0);
         }
 
+        // Vanilla's own trees and grass are already standing when this runs
+        // (they belong to the same Vegetation pass, earlier in the order). Where
+        // a natural island reached into this job's ocean ring, its ground was
+        // lowered above but its plants were not, so trunks, leaves and tall
+        // grass floated over open water. Keep clearing upward while anything
+        // remains, the same scan FillColumn does live: a 4-block gap ends it
+        // under open sky while still stepping through a canopy.
+        int gap = 0;
+        for (int y = clearTop + 1; y <= maxY && gap < 4; y++)
+        {
+            int idx = (y % cs * cs + lz) * cs + lx;
+            IChunkBlocks data = chunks[y / cs].Data;
+            bool occupied;
+            try { occupied = data[idx] != 0; }
+            catch (NullReferenceException) { occupied = false; }   // an empty, recycled section
+            if (!occupied) { gap++; continue; }
+            gap = 0;
+            data.SetBlockAir(idx);
+            data.SetFluid(idx, 0);
+        }
+
+        if (topY < naturalY) lock (job.LoweredCols) job.LoweredCols.Add(((long)x << 32) | (uint)z);
+
         mapChunk.WorldGenTerrainHeightMap[hidx] = (ushort)topY;
         mapChunk.RainHeightMap[hidx] = (ushort)Math.Max(topY, waterTopY);
+    }
+
+    // One pass after Vegetation, every neighbouring column has finished its
+    // own Vegetation pass (the engine guarantees it before a Neighbour pass
+    // runs). That matters: a vanilla tree rooted in the NEXT chunk spreads
+    // its crown into this one after this one was already rendered, so when
+    // the renderer then cuts that tree's natural island down into the sea,
+    // its leaves were left floating over the water (the wreckage maelstrom
+    // over natural island 26). Now every column this island turned into sea
+    // or cut down gets swept: leaves, logs and plants above its new ground
+    // go. Only vegetation is touched; terrain and structures never are.
+    private void OnChunkColumnClearFloaters(IChunkColumnGenerateRequest request)
+    {
+        var jobs = _wgIslandJobs;
+        if (jobs == null) return;
+        int cs = GlobalConstants.ChunkSize;
+        int bx = request.ChunkX * cs, bz = request.ChunkZ * cs;
+        IMapChunk mapChunk = request.Chunks[0].MapChunk;
+        int maxY = sapi.WorldManager.MapSizeY - 2;
+        var blocks = sapi.World.Blocks;
+        bool unpacked = false;
+        foreach (IslandJob job in jobs)
+        {
+            if (bx + cs - 1 < job.MinX || bx > job.MinX + job.W - 1 || bz + cs - 1 < job.MinZ || bz > job.MinZ + job.H - 1) continue;
+            for (int lz = 0; lz < cs; lz++)
+                for (int lx = 0; lx < cs; lx++)
+                {
+                    int x = bx + lx, z = bz + lz;
+                    if (x < job.MinX || x >= job.MinX + job.W || z < job.MinZ || z >= job.MinZ + job.H) continue;
+                    int ground = mapChunk.WorldGenTerrainHeightMap[lz * cs + lx];
+                    long key = ((long)x << 32) | (uint)z;
+                    bool lowered;
+                    lock (job.LoweredCols) lowered = job.LoweredCols.Remove(key);
+                    bool sea = ground < job.SeaLevel - 1;
+                    if (!lowered && !sea) continue;
+                    if (!unpacked) { foreach (var c in request.Chunks) c.Unpack(); unpacked = true; }
+                    int top = Math.Min(maxY, Math.Max(ground, job.SeaLevel) + 72);
+                    for (int y = Math.Max(ground + 1, job.SeaLevel); y <= top; y++)
+                    {
+                        int idx = (y % cs * cs + lz) * cs + lx;
+                        IChunkBlocks data = request.Chunks[y / cs].Data;
+                        int id;
+                        try { id = data.GetBlockIdUnsafe(idx); }
+                        catch (NullReferenceException) { continue; }
+                        if (id == 0 || id >= blocks.Count) continue;
+                        var mat = blocks[id]?.BlockMaterial;
+                        // Open sea the renderer did not cut keeps its wood
+                        // (a wreck's mast); only stray leaves go there.
+                        if (mat == EnumBlockMaterial.Leaves || (lowered && mat is EnumBlockMaterial.Wood or EnumBlockMaterial.Plant))
+                            data.SetBlockAir(idx);
+                    }
+                }
+        }
     }
 
     // Vanilla's SetBlockUnsafe(idx, 0) dereferences a null bit array when the
@@ -5780,8 +5925,8 @@ storyloc crossroads 7600 -5600
         }
         if (d.Kind == "beacon") d.Kind = "lighthouse";
         if (d.Kind != "lighthouse" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent"
-            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary" && d.Kind != "lab" && d.Kind != "hut")
-            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary, lab, hut)");
+            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary" && d.Kind != "lab" && d.Kind != "hut" && d.Kind != "gearhill")
+            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary, lab, hut, gearhill)");
         return d;
     }
 
@@ -7700,6 +7845,251 @@ storyloc crossroads 7600 -5600
                 break;
             }
 
+            // ── THE GEAR HILL ─────────────────────────────────────────────
+            // The Starter Island's great oak grows out of a buried piece of
+            // the Machine. Huge rusted gears stand half sunk in the hill's
+            // flanks (one pair meshing, one fallen flat into the slope), drive
+            // shafts poke out of the soil, scrap and loose gears litter the
+            // grass, and a low hollow under the south-west flank opens into
+            // the machine room under the tree: a gear in its back wall,
+            // gearboxes and chains, parts piled on the floor.
+            // The trunk is found from the world (the tree is planted first),
+            // and nothing is written within a few blocks of it, so the oak,
+            // its chest and the translocator beside it stay untouched.
+            case "gearhill":
+            {
+                var wld = sapi.World.BlockAccessor;
+                var wp = new BlockPos(0, 0, 0, job.Dim);
+                int[] gearPiles = { Id("loosegears-1"), Id("loosegears-3"), Id("loosegears-4"),
+                    Id("metalpartpile-small"), Id("metalpartpile-tiny"), Id("metal-scraps"), Id("metal-parts") };
+                string[] gearClutter = { "gear12", "gear24", "gear24b", "gear36", "gear12short", "gearbox1", "geartrain3" };
+                string[] junk = { "junkpipe1", "junkpipe2", "junkpipe3", "valve2-aged", "gauge2", "junksheet2", "junktanksmall1" };
+                string[] chains = { "junkchain1", "junkchain2", "junkchain3" };
+
+                // 1. Find the trunk: the log column nearest the marker.
+                int tx = cx, tz = cz;
+                {
+                    double best = double.MaxValue;
+                    int g = Ground(cx, cz);
+                    for (int dx = -5; dx <= 5; dx++)
+                        for (int dz = -5; dz <= 5; dz++)
+                            for (int dy = 1; dy <= 4; dy++)
+                            {
+                                wp.Set(cx + dx, g + dy, cz + dz);
+                                if (wld.GetBlock(wp, BlockLayersAccess.SolidBlocks)?.BlockMaterial != EnumBlockMaterial.Wood) continue;
+                                double d2 = dx * dx + dz * dz;
+                                if (d2 < best) { best = d2; tx = cx + dx; tz = cz + dz; }
+                                break;
+                            }
+                }
+                int tg = Ground(tx, tz);
+                const double keep = 4.5;   // trunk, the chest and the translocator
+
+                bool Kept(int x, int z) => (x - tx) * (x - tx) + (z - tz) * (z - tz) < keep * keep;
+                void SetG(int x, int y, int z, int id)
+                {
+                    if (Kept(x, z) && y > tg - 6) return;
+                    wp.Set(x, y, z);
+                    var b = wld.GetBlock(wp, BlockLayersAccess.SolidBlocks);
+                    if (b?.BlockMaterial == EnumBlockMaterial.Wood) return;   // never cut a root or a trunk
+                    if ((wld.GetBlock(wp, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) return;   // never touch the pond
+                    Set(x, y, z, id);
+                }
+
+                // A gear: rim, teeth, spokes and hub, `thick` blocks deep along
+                // `axis`, drawn in the plane spanned by u and v. Holes rust
+                // through the rim here and there.
+                void Gear(double gx, double gy, double gz, double[] u, double[] v, double[] axis, double R, int thick, int spokes, double phase)
+                {
+                    int teeth = Math.Max(8, (int)Math.Round(R * 1.6));
+                    for (double a = -R - 1.5; a <= R + 1.5; a += 0.45)
+                        for (double b = -R - 1.5; b <= R + 1.5; b += 0.45)
+                        {
+                            double r = Math.Sqrt(a * a + b * b);
+                            double th = Math.Atan2(b, a) + phase;
+                            bool solid;
+                            if (r <= 1.4) solid = true;                                         // hub
+                            else if (r >= R - 1.3 && r <= R) solid = true;                      // rim
+                            else if (r > R && r <= R + 1.3) solid = Math.Cos(teeth * th) > 0.25; // teeth
+                            else if (r < R - 1.3)
+                            {
+                                solid = false;
+                                for (int sp = 0; sp < spokes && !solid; sp++)
+                                {
+                                    double sa = phase + sp * Math.PI * 2 / spokes;
+                                    double perp = Math.Abs(-Math.Sin(sa) * a + Math.Cos(sa) * b);
+                                    double along = Math.Cos(sa) * a + Math.Sin(sa) * b;
+                                    solid = along > 0 && perp < 0.75;
+                                }
+                            }
+                            else solid = false;
+                            if (!solid) continue;
+                            int ix0 = (int)Math.Round(a * 7 + b * 3), iz0 = (int)Math.Round(b * 7 - a * 3);
+                            if (r > R - 1.4 && Hash01(ix0, iz0) < 0.07) continue;           // rusted through
+                            for (int k = 0; k < thick; k++)
+                            {
+                                double wx = gx + u[0] * a + v[0] * b + axis[0] * k;
+                                double wy = gy + u[1] * a + v[1] * b + axis[1] * k;
+                                double wz = gz + u[2] * a + v[2] * b + axis[2] * k;
+                                SetG((int)Math.Round(wx), (int)Math.Round(wy), (int)Math.Round(wz), Rust());
+                            }
+                        }
+                }
+                (double X, double Z) Dir(double deg) => (Math.Cos(deg * Math.PI / 180), Math.Sin(deg * Math.PI / 180));
+
+                // 2. Huge gears half buried in the flanks, each at its own
+                // angle, so they read as wheels the hill swallowed rather
+                // than a fence: Turn 0 shows the face outward, 90 stands the
+                // wheel edge-on like a fin out of the slope; Lean tips it
+                // over. Sunk is the buried fraction of the diameter.
+                // (angle, distance, radius, depth, sunk, turn, lean)
+                var gears = new (double Ang, double Dist, double R, int Thick, double Sunk, double Turn, double Lean)[]
+                {
+                    (-30, 11.0, 6.5, 2, 0.58, 15, 10),
+                    (8, 14.0, 3.4, 1, 0.45, 15, 10),       // the small one it drove, beside it
+                    (-118, 12.0, 7.5, 2, 0.62, 80, -12),
+                    (-178, 12.5, 4.8, 1, 0.55, 55, 18),
+                    (62, 11.0, 4.2, 1, 0.50, -30, 22),
+                    (95, 15.0, 2.8, 1, 0.40, 70, 0),
+                };
+                foreach (var gd in gears)
+                {
+                    var (dx, dz) = Dir(gd.Ang);
+                    double gx = tx + dx * gd.Dist, gz = tz + dz * gd.Dist;
+                    double gy = Ground((int)Math.Round(gx), (int)Math.Round(gz)) + gd.R * (1 - 2 * gd.Sunk);
+                    // the wheel's horizontal axis, turned from radial
+                    var (ax, az) = Dir(gd.Ang + gd.Turn);
+                    double lean = gd.Lean * Math.PI / 180, cl = Math.Cos(lean), sl = Math.Sin(lean);
+                    // lean tips the wheel's up direction toward its axis
+                    double[] u = { -az, 0, ax };
+                    double[] v = { ax * sl, cl, az * sl };
+                    double[] axis = { ax * cl, -sl, az * cl };
+                    Gear(gx, gy, gz, u, v, axis, gd.R, gd.Thick, gd.R > 5 ? 6 : 4, gd.Ang * 0.37);
+                    // its drive shaft runs back into the hill
+                    for (int k = 1; k <= 5; k++)
+                        SetG((int)Math.Round(gx - ax * k), (int)Math.Round(gy), (int)Math.Round(gz - az * k), Rust());
+                }
+
+                // 3. One great gear fallen flat into the northern slope,
+                // tilted with the hill so its rim breaks the grass like a
+                // terrace edge.
+                {
+                    var (dx, dz) = Dir(-72);
+                    double gx = tx + dx * 16, gz = tz + dz * 16;
+                    double tilt = 0.30;
+                    double[] u = { -dz, 0, dx };
+                    double[] v = { dx * Math.Cos(tilt), Math.Sin(tilt), dz * Math.Cos(tilt) };
+                    double[] axis = { -dx * Math.Sin(tilt), Math.Cos(tilt), -dz * Math.Sin(tilt) };
+                    double gy = Ground((int)Math.Round(gx), (int)Math.Round(gz)) - 0.6;
+                    Gear(gx, gy, gz, u, v, axis, 6.0, 1, 5, 0.4);
+                }
+
+                // 4. Drive shafts and pipe ends breaking out of the slope.
+                foreach (double ang in new double[] { -70, -130, 15, 150, 200 })
+                {
+                    var (dx, dz) = Dir(ang);
+                    int lastX = 0, lastY = 0, lastZ = 0;
+                    for (int k = 0; k <= 7; k++)
+                    {
+                        double d = 6 + k;
+                        int x = (int)Math.Round(tx + dx * d), z = (int)Math.Round(tz + dz * d);
+                        int y = Ground(tx + (int)Math.Round(dx * 6), tz + (int)Math.Round(dz * 6)) - 3 + k / 2;
+                        SetG(x, y, z, Rust());
+                        lastX = x; lastY = y; lastZ = z;
+                    }
+                    if (lastY >= Ground(lastX, lastZ)) Clutter(lastX, lastY + 1, lastZ, junk[(int)(rand.NextDouble() * 3)], ang * Math.PI / 180);
+                }
+
+                // 5. The machine room under the tree: a low hollow under the
+                // south-west flank with its mouth in the slope.
+                {
+                    var (dx, dz) = Dir(125);
+                    double ccx = tx + dx * 8.0, ccz = tz + dz * 8.0;          // chamber centre
+                    double mx = tx + dx * 14.0, mz = tz + dz * 14.0;          // mouth, out on the slope
+                    int floorY = Ground((int)Math.Round(mx), (int)Math.Round(mz));
+                    // the chamber
+                    for (int x = (int)(ccx - 6); x <= (int)(ccx + 6); x++)
+                        for (int z = (int)(ccz - 6); z <= (int)(ccz + 6); z++)
+                        {
+                            double ex = (x + 0.5 - ccx) / 4.6, ez = (z + 0.5 - ccz) / 4.2;
+                            if (ex * ex + ez * ez > 1) continue;
+                            int roof = Math.Min(floorY + 3 + (ex * ex + ez * ez < 0.35 ? 1 : 0), Ground(x, z) - 2);
+                            for (int y = floorY + 1; y <= roof; y++) SetG(x, y, z, 0);
+                            if (roof >= floorY + 2 && Hash01(x * 5, z * 3) < 0.12) Clutter(x, roof, z, chains[(int)(rand.NextDouble() * chains.Length)], 0);
+                        }
+                    // the tunnel out to the mouth
+                    for (double t = 0; t <= 1.0; t += 0.04)
+                    {
+                        double px = ccx + (mx - ccx) * t, pz = ccz + (mz - ccz) * t;
+                        for (int ox = -1; ox <= 1; ox++)
+                            for (int oz = -1; oz <= 1; oz++)
+                            {
+                                int x = (int)Math.Round(px + ox * 0.8), z = (int)Math.Round(pz + oz * 0.8);
+                                for (int y = floorY + 1; y <= floorY + 3; y++) SetG(x, y, z, 0);
+                            }
+                    }
+                    // rusted door frame at the mouth
+                    {
+                        double[] u = { -dz, 0, dx };
+                        for (int y = floorY + 1; y <= floorY + 4; y++)
+                            foreach (int sgn in new[] { -2, 2 })
+                                SetG((int)Math.Round(mx - dx * 1.5 + u[0] * sgn), y, (int)Math.Round(mz - dz * 1.5 + u[2] * sgn), Rust());
+                        for (int w = -2; w <= 2; w++)
+                            SetG((int)Math.Round(mx - dx * 1.5 + u[0] * w), floorY + 4, (int)Math.Round(mz - dz * 1.5 + u[2] * w), Rust());
+                    }
+                    // a gear set into the back wall, facing the door
+                    {
+                        double bx = ccx - dx * 4.4, bz = ccz - dz * 4.4;
+                        double[] axis = { -dx, 0, -dz }, u = { -dz, 0, dx }, v = { 0, 1, 0 };
+                        Gear(bx, floorY + 2.5, bz, u, v, axis, 2.6, 1, 4, 0.2);
+                    }
+                    // the floor: parts, gears, gearboxes
+                    for (int i = 0; i < 26; i++)
+                    {
+                        double a = rand.NextDouble() * Math.PI * 2, r = Math.Sqrt(rand.NextDouble()) * 3.6;
+                        int x = (int)Math.Round(ccx + Math.Cos(a) * r), z = (int)Math.Round(ccz + Math.Sin(a) * r);
+                        if (i % 3 == 0) Clutter(x, floorY + 1, z, gearClutter[(int)(rand.NextDouble() * gearClutter.Length)], a);
+                        else
+                        {
+                            int pid = gearPiles[(int)(rand.NextDouble() * gearPiles.Length)];
+                            if (pid != 0) SetG(x, floorY + 1, z, pid);
+                        }
+                    }
+                }
+
+                // 6. Scrap across the hill: loose gears, part piles, small gear
+                // and pipe clutter, thinning out toward the meadow.
+                for (int x = tx - 20; x <= tx + 20; x++)
+                    for (int z = tz - 20; z <= tz + 20; z++)
+                    {
+                        double d = Math.Sqrt((x - tx) * (x - tx) + (z - tz) * (z - tz));
+                        if (d < 5 || d > 20) continue;
+                        double pr = 0.16 * (1 - (d - 5) / 15.0) + 0.01;
+                        double roll = Hash01(x * 11 + 3, z * 17 - 5);
+                        if (roll > pr) continue;
+                        int g = Ground(x, z);
+                        if (g < sea) continue;
+                        wp.Set(x, g + 1, z);
+                        if ((wld.GetBlock(wp, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) continue;
+                        if (roll < pr * 0.35) Clutter(x, g + 1, z, roll < pr * 0.18 ? gearClutter[(int)(rand.NextDouble() * gearClutter.Length)] : junk[(int)(rand.NextDouble() * junk.Length)], rand.NextDouble() * Math.PI * 2);
+                        else
+                        {
+                            int pid = gearPiles[(int)(rand.NextDouble() * gearPiles.Length)];
+                            if (pid != 0) SetG(x, g + 1, z, pid);
+                        }
+                    }
+
+                // 7. Two of the Machine's own huge cast gears (vanilla's
+                // devastation models) lying at the foot of the hill.
+                foreach (var (ang, dist, model) in new[] { (115.0, 17.0, "gearhugemetal9"), (160.0, 18.0, "gearhugemetal15"), (-150.0, 17.0, "gearhugemetal9") })
+                {
+                    var (dx, dz) = Dir(ang);
+                    int x = (int)Math.Round(tx + dx * dist), z = (int)Math.Round(tz + dz * dist);
+                    Clutter(x, Ground(x, z) + 1, z, model, ang * Math.PI / 180);
+                }
+                break;
+            }
+
             // ── THE HILL GRANARY ──────────────────────────────────────────
             // What the terraces were farmed for, gone to ruin: a round silo
             // with its top courses fallen away, a barn whose footings and
@@ -8558,14 +8948,16 @@ storyloc crossroads 7600 -5600
             if (block == null) { if (!missing.Contains(m.Code)) missing.Add(m.Code); continue; }
 
             MarkerWorld(job, m.Gx, m.Gz, out int x, out int z);
+            if (m.Side != null) BesideTrunk(job, ref x, ref z, m.Side);
             var pos = new BlockPos(x, 0, z, job.Dim);
             int floor = Math.Max(1, job.SeaLevel - job.MaxDepth);
-            for (int y = job.SeaLevel + job.DomeHeight + 8; y >= floor; y--)
+            for (int y = job.SeaLevel + job.DomeHeight + 30; y >= floor; y--)
             {
                 pos.Y = y;
                 Block b = ba.GetBlock(pos, BlockLayersAccess.SolidBlocks);
                 if (b == null || b.Id == 0) continue;
                 if (b.BlockMaterial == EnumBlockMaterial.Plant || b.BlockMaterial == EnumBlockMaterial.Leaves) continue;
+                if (m.Side != null && b.BlockMaterial == EnumBlockMaterial.Wood) continue;   // a root flare, not the ground
                 // The optional lift raises the block off the ground (a
                 // spawner needs to sit within trigger range of swimmers at
                 // the surface), but underwater it never breaches the sea.

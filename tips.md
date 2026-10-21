@@ -865,3 +865,14 @@ out, so the next change stays consistent:
 - A full first-run setup takes about 35 minutes of live pass after the world
   opens (21 islands, then the story areas). Islands are decorated one at a
   time; the to-do list survives restarts.
+
+## Checking a whole built world headless
+
+Build the world on a scratch server (its own `--dataPath`, its own port,
+`PILOT_BRIDGE_PORT` set so it does not clash with anything else), then ask
+for any spot with `/gendumparea x z radius name` through the Pilot bridge and
+read the `.lmd` with a script: count what you care about (vegetation over
+open water, metal blocks, chests) instead of eyeballing. Copy Michael's own
+Mods folder into the scratch data folder and keep `"Mods"` in `ModPaths`
+(it is the game install's core mods; dropping it fails with `game@1.22.0 -
+Missing`); a stale second path in `ModPaths` silently loads an old mod build.

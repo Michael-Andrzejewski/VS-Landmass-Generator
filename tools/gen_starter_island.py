@@ -8,8 +8,13 @@ a smooth, idyllic, mostly-grassy round island ~150 blocks across.
     small ~5 block slate cliff, then higher bare slate behind it. This is
     where the devastated mine will go, so its copper is rich.
   - Low-fertility slate ground along the south rim (kept smooth).
-  - Giant oak at the centre; cattail pond just south-east of it, wrapped
-    in a rich-soil meadow; wild flax meadow east of centre.
+  - Giant oak at the centre, on a small hill (regions G and h) that is
+    really a buried piece of the Machine: huge rusted gears half sunk in
+    its flanks, drive shafts, scrap, and a machine room under the tree
+    (struct kind gearhill, marker Q). Jonas' letter in a chest right
+    against the trunk on the east, the broken translocator on the west.
+  - Cattail pond just south-east of the hill, wrapped in a rich-soil
+    meadow; wild flax meadow east of centre.
 
 The outline is a radial harmonic curve rather than a polygon, so the coast
 has no corners. All the non-slate regions use low rough values and wide
@@ -58,6 +63,13 @@ def region(c, r):
         return '.'
     t = rho / rc                       # 0 at centre, 1 at the coast
 
+    # The oak's hill: a summit cap and a wider shoulder, smoothed into one
+    # round knoll by the height field. Comes first so nothing cuts it.
+    if math.hypot(dx + 0.5, dz) <= 4.5:
+        return 'G'
+    if math.hypot(dx + 0.5, dz) <= 9.0:
+        return 'h'
+
     # Little pond, south-east of the giant oak.
     if ((dx - 7.0) / 5.2) ** 2 + ((dz - 14.0) / 3.6) ** 2 <= 1.0:
         return 'w'
@@ -105,10 +117,11 @@ def region(c, r):
 def main():
     grid = [[region(c, r) for c in range(W)] for r in range(H)]
 
-    # Giant oak at the centre.
+    # Giant oak at the centre, on top of the hill; the gear hill structure
+    # is anchored on the cell beside it and finds the trunk itself.
     oak = (47, 45)
-    if grid[oak[1]][oak[0]] != '.':
-        grid[oak[1]][oak[0]] = 'O'
+    grid[oak[1]][oak[0]] = 'O'
+    grid[oak[1] + 1][oak[0]] = 'Q'
 
     # Haunted copper mine entrance: at the base of the slate headland's
     # steep waterline apron (region C at angle -15), so the adit enters a
@@ -132,8 +145,9 @@ def main():
     print("# R high slate) where the devastated mine will go.")
     print("# The haunted copper mine's CAVE is carved (marker M in the slate face,")
     print("# descending diagonal adit, weaving and branching, copper-lined walls).")
-    print("# Deferred (add later): ruined chest, teleporter, mine structure work")
-    print("# (timbers, cobwebs, lighting) inside the cave, shoreline boulders.")
+    print("# The oak stands on a hill of buried Machine (struct Q, kind gearhill):")
+    print("# huge gears in its flanks and a machine room under the tree. Jonas'")
+    print("# letter sits against the trunk (east), the broken translocator (west).")
     print()
     print("region P rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   bushes=raspberry:0.002,blueberry:0.002 scatter=cornflower:0.010,forgetmenot:0.010,cowparsley:0.005 height=0.70 shore=16 rough=0.08")
     print("region F rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   forest=0.015 trees=oak copperbits=0.0012 bushes=raspberry:0.012 sticks=0.04 litter=0.8 scatter=fieldmushroom:0.006,flyagaric:0.003,eaglefern:0.025,deerfern:0.012,horsetail:0.010 height=0.75 shore=16 rough=0.08")
@@ -146,6 +160,11 @@ def main():
     print("region R rock=slate rock2=peridotite surface=rock     ores=copper:0.02   copperbits=0.0025 boulders=0.010 height=1.0 shore=16 rough=0.12")
     print("region V rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:0.02   height=0.70 shore=16 rough=0.06")
     print("region c rock=slate rock2=peridotite fertility=medium surface=grass clay=0.95 ores=copper:0.02   height=0.75 shore=16 rough=0.08")
+    # The hill: summit and shoulder. Same ground as the meadow; the height
+    # field smooths the two into one knoll about 7 blocks over the grass.
+    print("region G rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   scatter=cornflower:0.006,forgetmenot:0.006 height=2.0 shore=16 rough=0.05")
+    print("region h rock=slate rock2=peridotite fertility=medium surface=grass ores=copper:0.02   scatter=cornflower:0.008,forgetmenot:0.008,cowparsley:0.004 height=1.3 shore=16 rough=0.06")
+    print("struct Q kind=gearhill seed=7")
     print("region w rock=slate rock2=peridotite fertility=medium surface=grass height=0.70 shore=16 pond=4 cattails=0.45 lilies=0.10 clay=0.5")
     print("tree O oak 2.4")
     # Narrow spidery copper mine (the big scale=1.6 chamber look is reserved
@@ -163,14 +182,13 @@ def main():
         mx = sum(p[0] for p in pts) / len(pts)
         mz = sum(p[1] for p in pts) / len(pts)
         return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
-    # Lore and the anchor (2026-10-20): Jonas' letter beside the great oak,
-    # Tobias' note at the bottom of the copper mine, the broken translocator
-    # Tobias calls the anchor on the rocky summit.
-    print("chest J normal-aged lore:jonas_letter near=O")
+    # Lore and the anchor: Jonas' letter in a chest right against the great
+    # oak's trunk (east side), Tobias' note at the bottom of the copper mine,
+    # and the broken translocator Tobias calls the anchor against the trunk
+    # on the other side (west). Repairable like any vanilla broken one.
+    print("chest J normal-aged lore:jonas_letter near=O side=east")
     print("chest K collapsed1 lore:tobias_anchor cave=M")
-    ax, az = _cell_of("R")
-    print(f"block Y game:statictranslocator-broken-north")
-    grid[az][ax] = "Y"
+    print("block Y game:statictranslocator-broken-north beside=O side=west")
     print("map")
     for row in grid:
         print("".join(row))
