@@ -830,3 +830,23 @@ on a ground height that no longer existed and hovered one block up. Found by
 a probe logging the blocks under the tree after every decoration step: the
 grass was already gone BEFORE the tree went in, which pointed at worldgen.
 Rule: any "clear above the ground" loop starts at max(its ceiling, topY) + 1.
+
+## A struct anchored to a knoll top stuck out of the meadow (0.59.0)
+
+The first buried machine chamber put its roof 5 blocks under the TRUNK's
+ground. The trunk stands on a knoll; 7 blocks out the meadow is 4 lower, so
+the chamber's roof came out of the grass as a rusted plate shelf. Anything
+meant to be buried has to clear the LOWEST ground over its whole footprint.
+
+## Runaway sows on the Starter Island (guarded in 0.59.0, cause not pinned)
+
+384 adult and elder female pigs on the starter island after one short
+session, every one tagged origin=entityspawner, and not one boar or piglet;
+the old world showed the same female-only pattern at a lower rate (7). The
+built world had no animals on the island at all. Pig herds spawn as a male
+leader plus companions and the cap is checked against the leader's kind,
+so groups whose leader never appeared kept the cap open. The leader's fate
+was not traced (needs a live client: the runtime spawner does nothing
+without one). HerdCap.cs refuses natural spawns past 12 of a kind within 48
+blocks in Rustfall worlds. If it ever happens again, `/gencount x z r`
+counts creatures by type and logs one sample with its attributes.

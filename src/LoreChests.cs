@@ -163,7 +163,11 @@ public partial class LandmassGeneratorModSystem
             be.MarkDirty(true);
             placed++;
             // Read the chest back, so the log proves what it holds.
-            int held = (world.GetBlockEntity(at) as BlockEntityGenericTypedContainer)?.Inventory.Count(sl => !sl.Empty) ?? -1;
+            var inv = (world.GetBlockEntity(at) as BlockEntityGenericTypedContainer)?.Inventory;
+            int held = inv?.Count(sl => !sl.Empty) ?? -1;
+            if (inv != null)
+                sapi.Logger.Debug("[landmassgenerator] chest {0} items: {1}", cp.Def.Key, string.Join(", ", inv.Where(sl => !sl.Empty).Select(sl =>
+                    sl.Itemstack.Collectible.Code + (sl.Itemstack.Attributes.HasAttribute("discoveryCode") ? " (journal " + sl.Itemstack.Attributes.GetString("discoveryCode") + ")" : ""))));
             sapi.Logger.Notification("[landmassgenerator] chest {0} ({1}) at HUD {2}, {3}, {4} holds {5} stack(s): {6}", cp.Def.Key, cp.Def.Type,
                 at.X - sapi.WorldManager.MapSizeX / 2, at.Y, at.Z - sapi.WorldManager.MapSizeZ / 2, held, string.Join(", ", cp.Def.Contents));
         }
@@ -353,6 +357,25 @@ public partial class LandmassGeneratorModSystem
             }
             text.Add(line);
         }
+        // With the Rustfall Lore mod installed, the note is a journal entry
+        // (config/lore/rf-<id>.json): hand out a vanilla lore book that names
+        // that entry (discoveryCode + chapterIds, the same attributes a found
+        // lore page carries), so reading it files the text under Lore in the
+        // journal (J). Without the mod it stays a plain written book.
+        if (sapi.Assets.Exists(new AssetLocation("rustfalllore", $"config/lore/rf-{id}.json")))
+        {
+            Item lore = sapi.World.GetItem(new AssetLocation("game", "lore-book-" + color))
+                ?? sapi.World.GetItem(new AssetLocation("game", "lore-book-aged-orangebrown"));
+            if (lore != null)
+            {
+                var ls = new ItemStack(lore);
+                ls.Attributes.SetString("category", "rustfall");
+                ls.Attributes.SetString("discoveryCode", "rf-" + id);
+                ls.Attributes["chapterIds"] = new IntArrayAttribute(new[] { 0 });
+                return ls;
+            }
+        }
+
         Item book = sapi.World.GetItem(new AssetLocation("game", "book-" + color)) ?? sapi.World.GetItem(new AssetLocation("game", "book-aged-orangebrown"));
         if (book == null) { notes.Add("no book item in this game"); return null; }
         var stack = new ItemStack(book);

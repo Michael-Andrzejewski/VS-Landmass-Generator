@@ -199,6 +199,13 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.Int("x"), p.Int("z"), p.OptionalInt("radius", 64), p.OptionalWord("name"))
                 .HandleWith(OnGenDumpArea));
 
+        RegisterCmd(api, "gencount", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Count the creatures around HUD x z (radius, default 96) by type, loading the area first. For checking a built world headless.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.Int("x"), p.Int("z"), p.OptionalInt("radius", 96))
+                .HandleWith(OnGenCount));
+
         RegisterCmd(api, "timereset", name =>
             api.ChatCommands.Create(name)
                 .WithDescription("Rewind the calendar to 8am on the 1st of May, year 0, the date and time a brand new world starts on. Use after building out a world, right before handing the save file to a new player, so their story begins on day one.")
@@ -212,6 +219,13 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // already underway before the player is fully in the world.
         // PlayerJoin stays as a fallback for worlds loaded before this.
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, TryAutoRustfallSetup);
+        // Runaway herd guard, Rustfall worlds only (see HerdCap.cs).
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, () =>
+        {
+            if (!sapi.World.Config.GetBool("rustfallWorld", false)) return;
+            herdCapMainThread = System.Environment.CurrentManagedThreadId;
+            sapi.Event.OnTrySpawnEntity += OnTrySpawnHerdCap;
+        });
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
 
         // Headless dump pipeline (tools/dumpgen.mjs): a dumpjobs.txt in the
@@ -3394,6 +3408,47 @@ storyloc crossroads 7600 -5600
             catch (Exception e) { sapi.Logger.Error(e); }
         });
         return TextCommandResult.Success($"Dumping {2 * r + 1} x {2 * r + 1} blocks around HUD {hx}, {hz} to dumps/{name}.lmd.");
+    }
+
+    private TextCommandResult OnGenCount(TextCommandCallingArgs args)
+    {
+        int hx = (int)args[0], hz = (int)args[1], r = Math.Clamp((int)args[2], 8, 600);
+        int x = hx + sapi.WorldManager.MapSizeX / 2, z = hz + sapi.WorldManager.MapSizeZ / 2;
+        int cs = GlobalConstants.ChunkSize;
+        LoadChunkAreaBanded(FloorDiv(x - r, cs), FloorDiv(z - r, cs), FloorDiv(x + r, cs), FloorDiv(z + r, cs), false, () =>
+        {
+            var counts = new Dictionary<string, int>();
+            foreach (var e in sapi.World.LoadedEntities.Values)
+            {
+                if (Math.Abs(e.Pos.X - x) > r || Math.Abs(e.Pos.Z - z) > r) continue;
+                string k = e.Code?.ToShortString() ?? "?";
+                if (e is Vintagestory.API.Common.EntityItem ei) k = "item:" + (ei.Itemstack?.Collectible?.Code?.ToShortString() ?? "?");
+                counts[k] = counts.TryGetValue(k, out int c) ? c + 1 : 1;
+            }
+            // One sample of the commonest kind, with its attributes, to say
+            // where it came from (herd id, generation, spawner marks).
+            Vintagestory.API.Common.Entities.Entity sample = null; int best = 0;
+            foreach (var kv in counts) if (kv.Value > best) { best = kv.Value; }
+            foreach (var e in sapi.World.LoadedEntities.Values)
+                if (Math.Abs(e.Pos.X - x) <= r && Math.Abs(e.Pos.Z - z) <= r && counts.TryGetValue(e.Code?.ToShortString() ?? "?", out int n) && n == best) { sample = e; break; }
+            if (sample != null)
+                sapi.Logger.Notification("[gencount-sample] {0} id {1} at {2}: herd {3}; watched {4}; attrs {5}", sample.Code, sample.EntityId, sample.Pos.XYZ,
+                    (sample as EntityAgent)?.HerdId, sample.WatchedAttributes?.ToJsonToken(), sample.Attributes?.ToJsonToken());
+            var mr = sapi.World.BlockAccessor.GetMapRegion(x / sapi.WorldManager.RegionSize, z / sapi.WorldManager.RegionSize);
+            int rs = sapi.WorldManager.RegionSize;
+            var dens = new List<string>();
+            if (mr?.AnimalSpawnMaps != null)
+                foreach (var kv in mr.AnimalSpawnMaps)
+                {
+                    var m = kv.Value; int n2 = m.InnerSize;
+                    float fx = Math.Clamp((float)(x % rs) / rs * n2, 0, n2 - 1), fz = Math.Clamp((float)(z % rs) / rs * n2, 0, n2 - 1);
+                    dens.Add(kv.Key + "=" + (int)m.GetUnpaddedLerped(fx, fz));
+                }
+            sapi.Logger.Notification("[gencount-maps] region {0},{1}: {2} animal maps: {3}", x / rs, z / rs, mr == null ? "NO REGION" : "", string.Join(", ", dens));
+            sapi.Logger.Notification("[gencount] around HUD {0},{1} r{2}: {3}", hx, hz, r,
+                string.Join(", ", System.Linq.Enumerable.Select(System.Linq.Enumerable.OrderByDescending(counts, kv => kv.Value), kv => kv.Key + " " + kv.Value)));
+        });
+        return TextCommandResult.Success("Counting; see the log.");
     }
 
     private static bool HasForest(IslandJob job)
@@ -7848,28 +7903,27 @@ storyloc crossroads 7600 -5600
                 break;
             }
 
-            // ── THE GEAR HILL ─────────────────────────────────────────────
-            // The Starter Island's great oak grows out of a buried piece of
-            // the Machine. Huge rusted gears stand half sunk in the hill's
-            // flanks (one pair meshing, one fallen flat into the slope), drive
-            // shafts poke out of the soil, scrap and loose gears litter the
-            // grass, and a low hollow under the south-west flank opens into
-            // the machine room under the tree: a gear in its back wall,
-            // gearboxes and chains, parts piled on the floor.
-            // The trunk is found from the world (the tree is planted first),
-            // and nothing is written within a few blocks of it, so the oak,
-            // its chest and the translocator beside it stay untouched.
+            // ── THE BURIED MACHINE (gearhill) ─────────────────────────────
+            // The Starter Island's great oak grows over a buried piece of the
+            // Machine, and nothing of it shows: the surface is untouched. Dig
+            // straight down under the trunk and, a few blocks into the soil,
+            // you break through a rusted plate ceiling into a sealed chamber:
+            // a huge gear standing half sunk in the floor with a smaller one
+            // in mesh beside it, a drive shaft running wall to wall through
+            // their hubs, pipe runs and chains along the ceiling, gearboxes
+            // and loose parts across the floor. The plate shell seals it, so
+            // a cave passing nearby never opens into it.
             case "gearhill":
             {
                 var wld = sapi.World.BlockAccessor;
                 var wp = new BlockPos(0, 0, 0, job.Dim);
-                int[] gearPiles = { Id("loosegears-1"), Id("loosegears-3"), Id("loosegears-4"),
+                int[] floorJunk = { Id("loosegears-1"), Id("loosegears-3"), Id("loosegears-4"),
                     Id("metalpartpile-small"), Id("metalpartpile-tiny"), Id("metal-scraps"), Id("metal-parts") };
                 string[] gearClutter = { "gear12", "gear24", "gear24b", "gear36", "gear12short", "gearbox1", "geartrain3" };
-                string[] junk = { "junkpipe1", "junkpipe2", "junkpipe3", "valve2-aged", "gauge2", "junksheet2", "junktanksmall1" };
+                string[] pipes = { "pipelong3-aged", "pipelong4-aged", "pipelong2" };
                 string[] chains = { "junkchain1", "junkchain2", "junkchain3" };
 
-                // 1. Find the trunk: the log column nearest the marker.
+                // 1. The trunk: the log column nearest the marker.
                 int tx = cx, tz = cz;
                 {
                     double best = double.MaxValue;
@@ -7886,209 +7940,90 @@ storyloc crossroads 7600 -5600
                             }
                 }
                 int tg = Ground(tx, tz);
-                const double keep = 4.5;   // trunk, the chest and the translocator
+                // Room: 13 x 11 x 7 inside. Its shell sits at least 3 blocks
+                // under the LOWEST ground over its footprint (the knoll falls
+                // away to the meadow, and a roof set from the trunk's ground
+                // stuck out of the grass), and at least 5 under the trunk.
+                const int RX = 6, RZ = 5;
+                int minG = tg;
+                for (int x = tx - RX - 1; x <= tx + RX + 1; x++)
+                    for (int z = tz - RZ - 1; z <= tz + RZ + 1; z++) minG = Math.Min(minG, Ground(x, z));
+                int ceil = Math.Min(tg - 6, minG - 5), floorY = ceil - 7;
+                int ceilTopLimit = ceil + 1;     // the shell's roof; nothing is ever written above it
+                void SetU(int x, int y, int z, int id) { if (y <= ceilTopLimit) Set(x, y, z, id); }
+                int plate = rustB != 0 ? rustB : rustA;
 
-                bool Kept(int x, int z) => (x - tx) * (x - tx) + (z - tz) * (z - tz) < keep * keep;
-                void SetG(int x, int y, int z, int id)
-                {
-                    if (Kept(x, z) && y > tg - 6) return;
-                    wp.Set(x, y, z);
-                    var b = wld.GetBlock(wp, BlockLayersAccess.SolidBlocks);
-                    if (b?.BlockMaterial == EnumBlockMaterial.Wood) return;   // never cut a root or a trunk
-                    if ((wld.GetBlock(wp, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) return;   // never touch the pond
-                    Set(x, y, z, id);
-                }
+                // 2. The shell and the hollow: rusted plate on every face
+                // (riveted courses here and there), air inside.
+                for (int x = tx - RX - 1; x <= tx + RX + 1; x++)
+                    for (int z = tz - RZ - 1; z <= tz + RZ + 1; z++)
+                        for (int y = floorY - 1; y <= ceil + 1; y++)
+                        {
+                            bool shell = x == tx - RX - 1 || x == tx + RX + 1 || z == tz - RZ - 1 || z == tz + RZ + 1 || y == floorY - 1 || y == ceil + 1;
+                            if (shell) SetU(x, y, z, Hash01(x * 3 + y, z * 5 - y) < 0.3 ? rustA : plate);
+                            else SetU(x, y, z, 0);
+                        }
 
-                // A gear: rim, teeth, spokes and hub, `thick` blocks deep along
-                // `axis`, drawn in the plane spanned by u and v. Holes rust
-                // through the rim here and there.
-                void Gear(double gx, double gy, double gz, double[] u, double[] v, double[] axis, double R, int thick, int spokes, double phase)
+                // 3. The great gear, standing across the room (its face to
+                // the east and west), sunk a third into the floor, and a
+                // smaller gear in mesh beside it.
+                void GearU(double gx, double gy, double gz, double R, int thick, int spokes, double phase)
                 {
                     int teeth = Math.Max(8, (int)Math.Round(R * 1.6));
                     for (double a = -R - 1.5; a <= R + 1.5; a += 0.45)
                         for (double b = -R - 1.5; b <= R + 1.5; b += 0.45)
                         {
-                            double r = Math.Sqrt(a * a + b * b);
-                            double th = Math.Atan2(b, a) + phase;
+                            double r = Math.Sqrt(a * a + b * b), th = Math.Atan2(b, a) + phase;
                             bool solid;
-                            if (r <= 1.4) solid = true;                                         // hub
-                            else if (r >= R - 1.3 && r <= R) solid = true;                      // rim
-                            else if (r > R && r <= R + 1.3) solid = Math.Cos(teeth * th) > 0.25; // teeth
-                            else if (r < R - 1.3)
+                            if (r <= 1.4) solid = true;
+                            else if (r >= R - 1.2 && r <= R) solid = true;
+                            else if (r > R && r <= R + 1.2) solid = Math.Cos(teeth * th) > 0.25;
+                            else if (r < R - 1.2)
                             {
                                 solid = false;
                                 for (int sp = 0; sp < spokes && !solid; sp++)
                                 {
                                     double sa = phase + sp * Math.PI * 2 / spokes;
-                                    double perp = Math.Abs(-Math.Sin(sa) * a + Math.Cos(sa) * b);
-                                    double along = Math.Cos(sa) * a + Math.Sin(sa) * b;
-                                    solid = along > 0 && perp < 0.75;
+                                    solid = Math.Cos(sa) * a + Math.Sin(sa) * b > 0 && Math.Abs(-Math.Sin(sa) * a + Math.Cos(sa) * b) < 0.7;
                                 }
                             }
                             else solid = false;
                             if (!solid) continue;
-                            int ix0 = (int)Math.Round(a * 7 + b * 3), iz0 = (int)Math.Round(b * 7 - a * 3);
-                            if (r > R - 1.4 && Hash01(ix0, iz0) < 0.07) continue;           // rusted through
                             for (int k = 0; k < thick; k++)
                             {
-                                double wx = gx + u[0] * a + v[0] * b + axis[0] * k;
-                                double wy = gy + u[1] * a + v[1] * b + axis[1] * k;
-                                double wz = gz + u[2] * a + v[2] * b + axis[2] * k;
-                                SetG((int)Math.Round(wx), (int)Math.Round(wy), (int)Math.Round(wz), Rust());
+                                int x = (int)Math.Round(gx + k), y = (int)Math.Round(gy + b), z = (int)Math.Round(gz + a);
+                                if (y < floorY - 1 || y > ceil) continue;     // stays inside the room
+                                SetU(x, y, z, Rust());
                             }
                         }
                 }
-                (double X, double Z) Dir(double deg) => (Math.Cos(deg * Math.PI / 180), Math.Sin(deg * Math.PI / 180));
+                double bigR = 4.5, smallR = 2.4;
+                double hubY = floorY + bigR * 0.65;
+                GearU(tx - 1, hubY, tz - 1.5, bigR, 2, 6, 0.3);
+                GearU(tx - 1, floorY + smallR * 0.9, tz - 1.5 + bigR + smallR + 0.9, smallR, 1, 4, 0.1);
+                // the drive shaft through the great gear's hub, wall to wall
+                for (int x = tx - RX; x <= tx + RX; x++) SetU(x, (int)Math.Round(hubY), (int)Math.Round(tz - 1.5), rustA != 0 ? rustA : plate);
 
-                // 2. Huge gears half buried in the flanks, each at its own
-                // angle, so they read as wheels the hill swallowed rather
-                // than a fence: Turn 0 shows the face outward, 90 stands the
-                // wheel edge-on like a fin out of the slope; Lean tips it
-                // over. Sunk is the buried fraction of the diameter.
-                // (angle, distance, radius, depth, sunk, turn, lean)
-                var gears = new (double Ang, double Dist, double R, int Thick, double Sunk, double Turn, double Lean)[]
+                // 4. Ceiling: pipe runs along it and chains hanging off it.
+                for (int x = tx - RX; x <= tx + RX; x += 3)
+                    Clutter(x, ceil, tz + RZ - 1, pipes[(int)(rand.NextDouble() * pipes.Length)], 0);
+                for (int i = 0; i < 7; i++)
                 {
-                    (-30, 11.0, 6.5, 2, 0.58, 15, 10),
-                    (8, 14.0, 3.4, 1, 0.45, 15, 10),       // the small one it drove, beside it
-                    (-118, 12.0, 7.5, 2, 0.62, 80, -12),
-                    (-178, 12.5, 4.8, 1, 0.55, 55, 18),
-                    (62, 11.0, 4.2, 1, 0.50, -30, 22),
-                    (95, 15.0, 2.8, 1, 0.40, 70, 0),
-                };
-                foreach (var gd in gears)
-                {
-                    var (dx, dz) = Dir(gd.Ang);
-                    double gx = tx + dx * gd.Dist, gz = tz + dz * gd.Dist;
-                    double gy = Ground((int)Math.Round(gx), (int)Math.Round(gz)) + gd.R * (1 - 2 * gd.Sunk);
-                    // the wheel's horizontal axis, turned from radial
-                    var (ax, az) = Dir(gd.Ang + gd.Turn);
-                    double lean = gd.Lean * Math.PI / 180, cl = Math.Cos(lean), sl = Math.Sin(lean);
-                    // lean tips the wheel's up direction toward its axis
-                    double[] u = { -az, 0, ax };
-                    double[] v = { ax * sl, cl, az * sl };
-                    double[] axis = { ax * cl, -sl, az * cl };
-                    Gear(gx, gy, gz, u, v, axis, gd.R, gd.Thick, gd.R > 5 ? 6 : 4, gd.Ang * 0.37);
-                    // its drive shaft runs back into the hill
-                    for (int k = 1; k <= 5; k++)
-                        SetG((int)Math.Round(gx - ax * k), (int)Math.Round(gy), (int)Math.Round(gz - az * k), Rust());
+                    int x = tx - RX + 1 + (int)(rand.NextDouble() * (2 * RX - 1)), z = tz - RZ + 1 + (int)(rand.NextDouble() * (2 * RZ - 1));
+                    Clutter(x, ceil, z, chains[(int)(rand.NextDouble() * chains.Length)], 0);
                 }
 
-                // 3. One great gear fallen flat into the northern slope,
-                // tilted with the hill so its rim breaks the grass like a
-                // terrace edge.
+                // 5. Floor: gearboxes and gear trains, loose gears and parts.
+                for (int i = 0; i < 34; i++)
                 {
-                    var (dx, dz) = Dir(-72);
-                    double gx = tx + dx * 16, gz = tz + dz * 16;
-                    double tilt = 0.30;
-                    double[] u = { -dz, 0, dx };
-                    double[] v = { dx * Math.Cos(tilt), Math.Sin(tilt), dz * Math.Cos(tilt) };
-                    double[] axis = { -dx * Math.Sin(tilt), Math.Cos(tilt), -dz * Math.Sin(tilt) };
-                    double gy = Ground((int)Math.Round(gx), (int)Math.Round(gz)) - 0.6;
-                    Gear(gx, gy, gz, u, v, axis, 6.0, 1, 5, 0.4);
-                }
-
-                // 4. Drive shafts and pipe ends breaking out of the slope.
-                foreach (double ang in new double[] { -70, -130, 15, 150, 200 })
-                {
-                    var (dx, dz) = Dir(ang);
-                    int lastX = 0, lastY = 0, lastZ = 0;
-                    for (int k = 0; k <= 7; k++)
+                    int x = tx - RX + (int)(rand.NextDouble() * (2 * RX + 1)), z = tz - RZ + (int)(rand.NextDouble() * (2 * RZ + 1));
+                    if (i % 3 == 0) Clutter(x, floorY, z, gearClutter[(int)(rand.NextDouble() * gearClutter.Length)], rand.NextDouble() * Math.PI * 2);
+                    else
                     {
-                        double d = 6 + k;
-                        int x = (int)Math.Round(tx + dx * d), z = (int)Math.Round(tz + dz * d);
-                        int y = Ground(tx + (int)Math.Round(dx * 6), tz + (int)Math.Round(dz * 6)) - 3 + k / 2;
-                        SetG(x, y, z, Rust());
-                        lastX = x; lastY = y; lastZ = z;
+                        int pid = floorJunk[(int)(rand.NextDouble() * floorJunk.Length)];
+                        wp.Set(x, floorY, z);
+                        if (pid != 0) SetU(x, floorY, z, pid);
                     }
-                    if (lastY >= Ground(lastX, lastZ)) Clutter(lastX, lastY + 1, lastZ, junk[(int)(rand.NextDouble() * 3)], ang * Math.PI / 180);
-                }
-
-                // 5. The machine room under the tree: a low hollow under the
-                // south-west flank with its mouth in the slope.
-                {
-                    var (dx, dz) = Dir(125);
-                    double ccx = tx + dx * 8.0, ccz = tz + dz * 8.0;          // chamber centre
-                    double mx = tx + dx * 14.0, mz = tz + dz * 14.0;          // mouth, out on the slope
-                    int floorY = Ground((int)Math.Round(mx), (int)Math.Round(mz));
-                    // the chamber
-                    for (int x = (int)(ccx - 6); x <= (int)(ccx + 6); x++)
-                        for (int z = (int)(ccz - 6); z <= (int)(ccz + 6); z++)
-                        {
-                            double ex = (x + 0.5 - ccx) / 4.6, ez = (z + 0.5 - ccz) / 4.2;
-                            if (ex * ex + ez * ez > 1) continue;
-                            int roof = Math.Min(floorY + 3 + (ex * ex + ez * ez < 0.35 ? 1 : 0), Ground(x, z) - 2);
-                            for (int y = floorY + 1; y <= roof; y++) SetG(x, y, z, 0);
-                            if (roof >= floorY + 2 && Hash01(x * 5, z * 3) < 0.12) Clutter(x, roof, z, chains[(int)(rand.NextDouble() * chains.Length)], 0);
-                        }
-                    // the tunnel out to the mouth
-                    for (double t = 0; t <= 1.0; t += 0.04)
-                    {
-                        double px = ccx + (mx - ccx) * t, pz = ccz + (mz - ccz) * t;
-                        for (int ox = -1; ox <= 1; ox++)
-                            for (int oz = -1; oz <= 1; oz++)
-                            {
-                                int x = (int)Math.Round(px + ox * 0.8), z = (int)Math.Round(pz + oz * 0.8);
-                                for (int y = floorY + 1; y <= floorY + 3; y++) SetG(x, y, z, 0);
-                            }
-                    }
-                    // rusted door frame at the mouth
-                    {
-                        double[] u = { -dz, 0, dx };
-                        for (int y = floorY + 1; y <= floorY + 4; y++)
-                            foreach (int sgn in new[] { -2, 2 })
-                                SetG((int)Math.Round(mx - dx * 1.5 + u[0] * sgn), y, (int)Math.Round(mz - dz * 1.5 + u[2] * sgn), Rust());
-                        for (int w = -2; w <= 2; w++)
-                            SetG((int)Math.Round(mx - dx * 1.5 + u[0] * w), floorY + 4, (int)Math.Round(mz - dz * 1.5 + u[2] * w), Rust());
-                    }
-                    // a gear set into the back wall, facing the door
-                    {
-                        double bx = ccx - dx * 4.4, bz = ccz - dz * 4.4;
-                        double[] axis = { -dx, 0, -dz }, u = { -dz, 0, dx }, v = { 0, 1, 0 };
-                        Gear(bx, floorY + 2.5, bz, u, v, axis, 2.6, 1, 4, 0.2);
-                    }
-                    // the floor: parts, gears, gearboxes
-                    for (int i = 0; i < 26; i++)
-                    {
-                        double a = rand.NextDouble() * Math.PI * 2, r = Math.Sqrt(rand.NextDouble()) * 3.6;
-                        int x = (int)Math.Round(ccx + Math.Cos(a) * r), z = (int)Math.Round(ccz + Math.Sin(a) * r);
-                        if (i % 3 == 0) Clutter(x, floorY + 1, z, gearClutter[(int)(rand.NextDouble() * gearClutter.Length)], a);
-                        else
-                        {
-                            int pid = gearPiles[(int)(rand.NextDouble() * gearPiles.Length)];
-                            if (pid != 0) SetG(x, floorY + 1, z, pid);
-                        }
-                    }
-                }
-
-                // 6. Scrap across the hill: loose gears, part piles, small gear
-                // and pipe clutter, thinning out toward the meadow.
-                for (int x = tx - 20; x <= tx + 20; x++)
-                    for (int z = tz - 20; z <= tz + 20; z++)
-                    {
-                        double d = Math.Sqrt((x - tx) * (x - tx) + (z - tz) * (z - tz));
-                        if (d < 5 || d > 20) continue;
-                        double pr = 0.16 * (1 - (d - 5) / 15.0) + 0.01;
-                        double roll = Hash01(x * 11 + 3, z * 17 - 5);
-                        if (roll > pr) continue;
-                        int g = Ground(x, z);
-                        if (g < sea) continue;
-                        wp.Set(x, g + 1, z);
-                        if ((wld.GetBlock(wp, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) continue;
-                        if (roll < pr * 0.35) Clutter(x, g + 1, z, roll < pr * 0.18 ? gearClutter[(int)(rand.NextDouble() * gearClutter.Length)] : junk[(int)(rand.NextDouble() * junk.Length)], rand.NextDouble() * Math.PI * 2);
-                        else
-                        {
-                            int pid = gearPiles[(int)(rand.NextDouble() * gearPiles.Length)];
-                            if (pid != 0) SetG(x, g + 1, z, pid);
-                        }
-                    }
-
-                // 7. Two of the Machine's own huge cast gears (vanilla's
-                // devastation models) lying at the foot of the hill.
-                foreach (var (ang, dist, model) in new[] { (115.0, 17.0, "gearhugemetal9"), (160.0, 18.0, "gearhugemetal15"), (-150.0, 17.0, "gearhugemetal9") })
-                {
-                    var (dx, dz) = Dir(ang);
-                    int x = (int)Math.Round(tx + dx * dist), z = (int)Math.Round(tz + dz * dist);
-                    Clutter(x, Ground(x, z) + 1, z, model, ang * Math.PI / 180);
                 }
                 break;
             }

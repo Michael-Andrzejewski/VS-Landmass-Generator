@@ -475,6 +475,14 @@ found from the world's own logs, so any trunk width works) or `cave=` (on the
 floor of that cave's deepest open step). `rust=N` stains the ground around it
 with devastated soil.
 
+With the Rustfall Lore mod installed (it turns every `lore/*.txt` into a one-page
+journal, code `rf-<id>`), a `lore:<id>` chest holds a vanilla lore book carrying
+that journal's code instead of a written book: reading it files the text under
+Lore in the journal (J). Without the mod it stays a plain written book.
+
+In Rustfall worlds a runaway herd guard refuses a natural spawn when 12 or more
+creatures of the same kind already live within 48 blocks (see HerdCap.cs).
+
 Lore files (`lore/*.txt` in the repo, copied to the data folder):
 
     title: To Seraph
@@ -493,13 +501,12 @@ Structure kinds `lab` (Tin Island's half-underground flux lab: sunken brick
 room, stair, fallen roof on rusted girders, benches, the glowing lens rig, Rust
 bleeding out of the door) and `hut` (a timber trader's hut on a levelled footing;
 it fells the trees around it first). `gearhill` (0.59.0) is the Starter Island's
-buried Machine: anchor it on a cell beside a landmark tree standing on a hill and
-it finds the trunk itself, then sinks huge rusted gears (each at its own angle and
-lean, one fallen flat), drive shafts and pipe ends into the hill's flanks, scatters
-loose gears, part piles and gear clutter, sets two of vanilla's huge cast gears at
-the foot, and digs a machine room under the tree with a gear in its back wall. It
-never writes within 4.5 blocks of the trunk, so the tree, a `side=` chest and a
-`beside=` block stay untouched.
+buried Machine: anchor it on a cell beside a landmark tree and it finds the trunk
+itself, then seals a rusted-plate chamber (13 x 11 x 7) under it, at least 3 blocks
+of soil below the lowest ground over its footprint, holding a great gear half sunk
+in the floor with a smaller one in mesh, a drive shaft wall to wall, pipes and
+chains on the ceiling and parts on the floor. Nothing shows at the surface; it is
+found by digging down under the tree.
 
     /genchests
 
