@@ -196,7 +196,7 @@ def main():
     gpts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch == "G"]
     gmx = sum(p[0] for p in gpts) / len(gpts); gmz = sum(p[1] for p in gpts) / len(gpts)
     hx, hz = min(gpts, key=lambda p: (p[0] - gmx) ** 2 + (p[1] - gmz) ** 2)
-    print("struct U kind=hut size=12 seed=3")
+    print("struct U kind=treasurehunter seed=3 chest=landmassgenerator:islandmap-tinmine")
     grid[hz][hx] = "U"
     print("map")
     for row in grid:

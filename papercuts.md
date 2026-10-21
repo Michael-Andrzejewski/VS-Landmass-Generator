@@ -850,3 +850,30 @@ was not traced (needs a live client: the runtime spawner does nothing
 without one). HerdCap.cs refuses natural spawns past 12 of a kind within 48
 blocks in Rustfall worlds. If it ever happens again, `/gencount x z r`
 counts creatures by type and logs one sample with its attributes.
+
+## Lore journal banner showed its raw key, and letters were signed twice (fixed in Rustfall Lore 1.2.0)
+
+Reading a Rustfall lore book printed `ingamediscovery-lore-rf-jonas_letter`:
+the game looks up `game:ingamediscovery-lore-<journal code>` for the
+"Discovered lore" banner, and the journals only had titles. The build now
+writes that key for every journal. The text also ended "-Jonas Falx" twice,
+because the build appended the `by:` name to letters that already end with it;
+it now signs only when the last line does not already name the writer.
+
+## Vanilla schematics and the mod's main file: no Newtonsoft, no LINQ (0.60.0)
+
+`IAsset.ToObject<T>()` drags in Newtonsoft's `JsonSerializerSettings`, which
+this project does not reference: load a schematic with
+`JsonUtil.FromString<BlockSchematic>(asset.ToText())` instead. Place it with the
+plain world accessor (not the bulk one) so `Place` also places its block
+entities; a meta-spawner placed that way counts as imported and spawns. In
+LandmassGeneratorModSystem.cs there is no `using System.Linq` (it clashes), so
+call `System.Linq.Enumerable` explicitly there; the newer partial files use it
+freely. `Func<...>` is ambiguous with the VS API's own `Func`: write
+`System.Func`.
+
+## Long inline scripts in the Bash tool lose backslashes
+
+Python patch scripts passed through a bash heredoc came out with `\n` turned
+into real newlines (and one failed with "unexpected EOF"). Write patch scripts
+to a file and run the file.

@@ -16,6 +16,7 @@ region F rock=granite surface=sand flood=1 cattails=0.10 shells=0.02 height=0.10
 region U rock=granite surface=sand flood=1 cattails=0.08 shells=0.02 height=0.30 shore=1 rough=0.15
 region V rock=granite surface=sand flood=3 kelp=0.35 height=0.20 shore=1 rough=0.10
 block X underwaterhorrors:serpentspawner 15
+chest C normal-aged landmassgenerator:islandmap-forest at=58,82
 
 map
 ......................................................................................................................................................

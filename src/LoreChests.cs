@@ -26,6 +26,9 @@ namespace LandmassGenerator;
 // OR cave=<char> (on the floor of that cave's deepest reachable step).
 // rust=N stains N blocks around it with devastated soil. near=<char> with
 // side=<east|west|north|south> puts it right against that tree's trunk.
+// trail=rust (cave chests) paints oxidation rust along the cave floor from
+// the mouth down to the chest. An island map, landmassgenerator:islandmap-*,
+// marks its plan island on the world map when used.
 //
 // Lore files live in <LandmassGenerator folder>/lore/<id>.txt:
 //   title: Letter to Seraph
@@ -45,6 +48,7 @@ public partial class LandmassGeneratorModSystem
         public int AtX = -1, AtZ = -1;
         public int Rust;
         public string Side;   // with near=: right against the trunk on this side
+        public bool RustTrail;  // trail=rust (cave chests): rust painted along the floor from the cave mouth to the chest
     }
 
     private class ChestPlacement
@@ -75,6 +79,7 @@ public partial class LandmassGeneratorModSystem
                 case "rust": d.Rust = int.TryParse(v, out int r) ? Math.Clamp(r, 0, 8) : 0; break;
                 case "side": d.Side = ParseSide(v, problems, $"chest {d.Key}"); break;
                 case "trunk": d.Trunk = v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase); break;
+                case "trail": d.RustTrail = v.Equals("rust", StringComparison.OrdinalIgnoreCase) || v == "1"; break;
                 case "at":
                     var p = v.Split(',');
                     if (p.Length == 2 && int.TryParse(p[0], out int ax) && int.TryParse(p[1], out int az)) { d.AtX = ax; d.AtZ = az; }
@@ -126,8 +131,8 @@ public partial class LandmassGeneratorModSystem
     // Skips any spot that already has a chest within 3 blocks (re-runs).
     private string PlaceChests(IslandJob job)
     {
-        var chests = job.Shape?.Chests;
-        if (chests == null || chests.Count == 0) return "";
+        var chests = job.Shape?.Chests ?? new List<ChestPlacement>();
+        if (chests.Count == 0 && job.StructChests.Count == 0) return "";
         var world = sapi.World.BlockAccessor;
         int placed = 0, books = 0, skipped = 0;
         var notes = new List<string>();
@@ -143,6 +148,11 @@ public partial class LandmassGeneratorModSystem
             if (chestBlock == null) { notes.Add("no chest block in this game"); break; }
 
             if (cp.Def.Rust > 0) StainRust(world, at, cp.Def.Rust);
+            if (cp.Def.RustTrail && cp.Cave != null)
+            {
+                int painted = RustTrail(job, cp.Cave, at);
+                notes.Add($"chest {cp.Def.Key}: rust trail of {painted} patch(es)");
+            }
             world.SetBlock(chestBlock.BlockId, at);
             if (world.GetBlockEntity(at) is not BlockEntityGenericTypedContainer be) { notes.Add($"chest {cp.Def.Key}: no container entity"); continue; }
             var typeStack = new ItemStack(chestBlock);
@@ -171,6 +181,24 @@ public partial class LandmassGeneratorModSystem
             sapi.Logger.Notification("[landmassgenerator] chest {0} ({1}) at HUD {2}, {3}, {4} holds {5} stack(s): {6}", cp.Def.Key, cp.Def.Type,
                 at.X - sapi.WorldManager.MapSizeX / 2, at.Y, at.Z - sapi.WorldManager.MapSizeZ / 2, held, string.Join(", ", cp.Def.Contents));
         }
+
+        // Chests the structures asked for: exact spots, contents already rolled.
+        foreach (var sc in job.StructChests)
+        {
+            if (HasChestNear(world, sc.Pos)) { skipped++; continue; }
+            Block chestBlock = sapi.World.GetBlock(new AssetLocation("game", "chest-east"));
+            if (chestBlock == null) break;
+            world.SetBlock(chestBlock.BlockId, sc.Pos);
+            if (world.GetBlockEntity(sc.Pos) is not BlockEntityGenericTypedContainer be) { notes.Add($"{sc.Label} chest: no container entity"); continue; }
+            var typeStack = new ItemStack(chestBlock);
+            typeStack.Attributes.SetString("type", sc.Type);
+            be.OnBlockPlaced(typeStack);
+            FillChest(be, sc.Contents, notes);
+            placed++;
+            sapi.Logger.Notification("[landmassgenerator] {0} chest ({1}) at HUD {2}, {3}, {4}: {5}", sc.Label, sc.Type,
+                sc.Pos.X - sapi.WorldManager.MapSizeX / 2, sc.Pos.Y, sc.Pos.Z - sapi.WorldManager.MapSizeZ / 2, string.Join(", ", sc.Contents));
+        }
+        job.StructChests.Clear();
 
         string note = placed > 0 ? $" Placed {placed} chest(s) holding {books} lore book(s)." : "";
         if (skipped > 0) note += $" {skipped} chest(s) were already there.";
@@ -431,7 +459,7 @@ public partial class LandmassGeneratorModSystem
     // /genchests builds these (and only these) where they are missing, so an
     // existing world gets the lab and the hut without any megastructure
     // being rebuilt. Each has a signature block that says "already built".
-    private static readonly HashSet<string> NewStructKinds = new() { "lab", "hut" };
+    private static readonly HashSet<string> NewStructKinds = new() { "lab", "hut", "treasurehunter" };
 
     private string BuildNewStructs(IslandJob job)
     {
@@ -443,7 +471,7 @@ public partial class LandmassGeneratorModSystem
             double lz = (sm.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
             int cx = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
             int cz = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
-            string sig = sm.Def.Kind == "lab" ? "glass-plain" : "table-aged";
+            string sig = sm.Def.Kind == "lab" ? "glass-plain" : sm.Def.Kind == "treasurehunter" ? "trough-genericwood-large-head-east" : "table-aged";
             int sigId = sapi.World.GetBlock(new AssetLocation("game", sig))?.BlockId ?? -1;
             bool present = false;
             var p = new BlockPos(0, 0, 0, job.Dim);

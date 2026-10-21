@@ -206,6 +206,19 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 .WithArgs(p.Int("x"), p.Int("z"), p.OptionalInt("radius", 96))
                 .HandleWith(OnGenCount));
 
+        RegisterCmd(api, "genstorychests", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Fill the plan's story chests now if their story structures are generated and loaded, without waiting for a player to come near. 'redo' fills them again.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.OptionalWord("redo"))
+                .HandleWith(a =>
+                {
+                    if ((a.Parsers[0].IsMissing ? "" : (string)a[0]) == "redo")
+                        foreach (string sc in sapi.WorldManager.SaveGame.GetData<List<string>>("lgStoryChests", null) ?? new List<string>())
+                            sapi.WorldManager.SaveGame.StoreData("lgStoryChestDone:" + sc.Split('|')[0], false);
+                    _storyChests = null; _storyChestForce = true; StoryChestTick(0); _storyChestForce = false; return TextCommandResult.Success("Story chests checked; see the server log.");
+                }));
+
         RegisterCmd(api, "timereset", name =>
             api.ChatCommands.Create(name)
                 .WithDescription("Rewind the calendar to 8am on the 1st of May, year 0, the date and time a brand new world starts on. Use after building out a world, right before handing the save file to a new player, so their story begins on day one.")
@@ -226,6 +239,9 @@ public partial class LandmassGeneratorModSystem : ModSystem
             herdCapMainThread = System.Environment.CurrentManagedThreadId;
             sapi.Event.OnTrySpawnEntity += OnTrySpawnHerdCap;
         });
+        // Story chests (plan `storychest` lines): filled once the game has
+        // built their story structure.
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryChestWatcher);
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
 
         // Headless dump pipeline (tools/dumpgen.mjs): a dumpjobs.txt in the
@@ -768,6 +784,9 @@ public partial class LandmassGeneratorModSystem : ModSystem
 #   pureocean                 no natural land at all (landcover 0, upheavel 0)
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
 #       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
+#   devastation off           pause Spreading Devastation in this world
+#   storychest <code> <contents>   once the game builds that story structure,
+#       add these items (chest contents syntax) to its top entrance chest
 #   pregenstory               also generate every story area during setup
 #       (off: they generate when a player first comes near, like vanilla)
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
@@ -784,6 +803,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
 # Scattered Ruins: four granary ruins and the flatcave ruin.
 pureocean
 clearspawn 16
+devastation off
 
 # Home waters
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
@@ -838,6 +858,9 @@ storyloc greatmachine 0 -5330
 # with seed 20261020 rolled onto the Diving Bell Mine, so it is pinned out in
 # open sea east of the map. Skipped harmlessly when Better Ruins is absent.
 storyloc crossroads 7600 -5600
+
+# Just inside the Resonance Archives' top entrance: the way to Jonas' dream.
+storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal
 ";
 
     private TextCommandResult OnGenWorldSetup(TextCommandCallingArgs args)
@@ -870,6 +893,8 @@ storyloc crossroads 7600 -5600
         // Parse the plan.
         bool pureOcean = false;
         bool pregenStory = false;
+        bool devastationOff = false;
+        var storyChests = new List<string>();
         int clearSpawnRange = 0;
         var sites = new List<(string Code, int MapX, int MapZ)>();
         var islands = new List<(int MapX, int MapZ, string Options)>();
@@ -891,6 +916,13 @@ storyloc crossroads 7600 -5600
                 case "pregenstory":
                     pregenStory = true;
                     break;
+                case "devastation":
+                    devastationOff = parts.Length > 1 && (parts[1].Equals("off", StringComparison.OrdinalIgnoreCase) || parts[1].Equals("stop", StringComparison.OrdinalIgnoreCase));
+                    break;
+                case "storychest":
+                    if (parts.Length < 3) return TextCommandResult.Error($"Plan line {lineNo} is not 'storychest <storycode> <contents>': {line}");
+                    storyChests.Add(parts[1].ToLowerInvariant() + "|" + string.Join(",", parts, 2, parts.Length - 2));
+                    break;
                 case "storyloc":
                     if (parts.Length < 4 || !int.TryParse(parts[2], out int mx) || !int.TryParse(parts[3], out int mz))
                     {
@@ -906,7 +938,7 @@ storyloc crossroads 7600 -5600
                     islands.Add((imx, imz, string.Join(" ", parts, 3, parts.Length - 3)));
                     break;
                 default:
-                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, storyloc, island.");
+                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, devastation, storychest, storyloc, island.");
             }
         }
         if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0 && islands.Count == 0)
@@ -954,6 +986,21 @@ storyloc crossroads 7600 -5600
             }
         }
         sites.RemoveAll(s => genStory.Structures.Get(s.Code) == null);
+
+        // Spreading Devastation: `devastation off` pauses its spreading for
+        // this world (saved with the world; /devastate start resumes it).
+        if (devastationOff)
+        {
+            TextCommandResult dr = null;
+            sapi.ChatCommands.ExecuteUnparsed("/devastate stop", new TextCommandCallingArgs { Caller = caller }, r => dr = r);
+            if (dr != null && dr.Status == EnumCommandStatus.Success) notes.Add("Spreading Devastation paused");
+            else sapi.Logger.Notification("[genworldsetup] /devastate stop: {0}", dr?.StatusMessage ?? "no response (mod not installed?)");
+        }
+        if (storyChests.Count > 0)
+        {
+            sapi.WorldManager.SaveGame.StoreData("lgStoryChests", storyChests);
+            _storyChests = null;   // the watcher rereads the list
+        }
 
         // 3. Restart-equivalent rebuild: new ocean config takes effect and
         //    the auto-rolled locations' forced-land entries are dropped.
@@ -1602,6 +1649,8 @@ storyloc crossroads 7600 -5600
     {
         public double HeadingDeg = double.NaN;  // map degrees, 0=north 90=east; NaN = aim at the island centre
         public int Timbers, Holders;            // mine props: a timber frame / torch holder every N steps (0 = none)
+        public int Machinery;                   // rusted machinery set into the walls every N steps (0 = none)
+        public string GiantCode; public int GiantCount;   // giants=<spawner block>*N: spawners in the widest halls
         public double DipDeg = 12;              // how steeply the tunnel descends while diving
         public double Length = 80;              // main tunnel length in blocks
         public double Radius = 2.6;             // horizontal carve radius
@@ -1673,6 +1722,8 @@ storyloc crossroads 7600 -5600
         public string Kind = "";
         public int Size = 60;       // per-kind: lighthouse height, chains/serpent radius, forge crater radius
         public int Seed = 1;
+        public string Chest;        // chest=<contents>: a chest the structure places itself (kind decides where)
+        public int Huts;            // huts=N: ruined huts with loot chests scattered around it (lab)
     }
 
     private class StructMarker
@@ -1751,6 +1802,10 @@ storyloc crossroads 7600 -5600
         public string ShapeName;
         // Cave walk steps of the last carve (or dry run): where cave chests go.
         public List<(double X, double Y, double Z, double R, double V, CaveDef Def)> CaveSteps;
+        // Chests a structure asked for (exact spots: the buried machine's
+        // floor, a ruined hut, outside the treasure hunter's claim). Placed
+        // by PlaceChests together with the shape's own chests.
+        public List<(BlockPos Pos, string Type, List<string> Contents, string Label)> StructChests = new();
         public double WorldPerCell;
         public NormalizedSimplexNoise JitterX, JitterZ;
         public double RotCos = 1.0, RotSin = 0.0;   // rotate=: spins the drawn map
@@ -2899,6 +2954,14 @@ storyloc crossroads 7600 -5600
                 case "flooded": d.Flooded = ParseD(v, 0) > 0; break;
                 case "timbers": d.Timbers = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
                 case "holders": d.Holders = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
+                case "machinery": d.Machinery = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
+                case "giants":
+                {
+                    int gs = v.LastIndexOf('*');
+                    d.GiantCode = gs > 0 ? v.Substring(0, gs) : v;
+                    d.GiantCount = gs > 0 ? (int)Math.Clamp(ParseD(v.Substring(gs + 1), 1), 0, 12) : 1;
+                    break;
+                }
                 case "ores":
                 {
                     string[] parts = v.Split(':');
@@ -5978,13 +6041,15 @@ storyloc crossroads 7600 -5600
                 case "kind": d.Kind = v.ToLowerInvariant(); break;
                 case "size": d.Size = (int)Math.Clamp(ParseD(v, 60), 8, 160); break;
                 case "seed": d.Seed = (int)ParseD(v, 1); break;
+                case "chest": d.Chest = v; break;
+                case "huts": d.Huts = (int)Math.Clamp(ParseD(v, 0), 0, 12); break;
                 default: problems.Add($"struct: unknown key '{k}'"); break;
             }
         }
         if (d.Kind == "beacon") d.Kind = "lighthouse";
         if (d.Kind != "lighthouse" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent"
-            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary" && d.Kind != "lab" && d.Kind != "hut" && d.Kind != "gearhill")
-            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary, lab, hut, gearhill)");
+            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary" && d.Kind != "lab" && d.Kind != "hut" && d.Kind != "gearhill" && d.Kind != "treasurehunter")
+            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary, lab, hut, gearhill, treasurehunter)");
         return d;
     }
 
@@ -6097,6 +6162,11 @@ storyloc crossroads 7600 -5600
             glowSpots.Add((x, y, z, id));
             job.TouchedCols.Add(((long)x << 32) | (uint)z);
         }
+
+        // Work that has to see the committed world (a schematic with block
+        // entities, which the bulk accessor cannot place): runs right after
+        // the commit below.
+        var afterCommit = new List<Action>();
 
         var clutterSpots = new List<(int X, int Y, int Z, string Type, float Rot)>();
         void Clutter(int x, int y, int z, string type, double heading)
@@ -7712,22 +7782,30 @@ storyloc crossroads 7600 -5600
                         PutL(u, w, floor - 1, cobble);
                     }
 
-                // 2. Walls: full height to the ground, then a couple of
-                // courses above it that fall away (more gaps higher up), and
-                // one breach in the north long wall where the roof came in.
+                // 2. Walls: full height to the ground, then a ruined second
+                // storey above the grass, so the lab reads from the sea: the
+                // walls fall away more the higher they go, the four corners
+                // stand to the top, the upper windows are empty frames, and
+                // one breach in the north long wall runs from the floor to the
+                // sky where the roof came in.
+                int top2 = g0 + 8;
                 for (int u = -HU; u <= HU; u++)
                     for (int w = -HW; w <= HW; w++)
                     {
                         bool edge = Math.Abs(u) == HU || Math.Abs(w) == HW;
                         if (!edge) continue;
+                        bool corner = Math.Abs(u) == HU && Math.Abs(w) == HW;
                         bool door = u == -HU && Math.Abs(w) <= 1;
                         bool breach = w == HW && u >= 1 && u <= 4;
-                        for (int y = floor + 1; y <= g0 + 2; y++)
+                        bool upperWindow = Math.Abs(w) == HW && PosMod(u + 1, 3) == 0 && Math.Abs(u) < HU - 1;
+                        int wallTop = corner ? top2 + 1 : top2;
+                        for (int y = floor + 1; y <= wallTop; y++)
                         {
                             if (door && y <= floor + 3) continue;
                             int above = y - g0;   // courses standing above the grass
-                            if (above > 0 && Hash01(u * 13 + y * 7, w * 11 - y * 3) < 0.25 + 0.3 * above) continue;
+                            if (!corner && above > 2 && Hash01(u * 13 + y * 7, w * 11 - y * 3) < 0.08 + 0.075 * above) continue;
                             if (breach && y >= floor + 2) continue;
+                            if (upperWindow && (y == g0 + 5 || y == g0 + 6)) continue;
                             PutL(u, w, y, Hash01(u * 3 + y, w * 7 + y * 5) < 0.35 ? cracked : brick);
                         }
                     }
@@ -7745,15 +7823,41 @@ storyloc crossroads 7600 -5600
                         for (int y = stepTop; y <= g0; y++) PutL(u, w, y, cracked);
                 }
 
-                // 4. Roof: rusted girders across the room; the old plank roof
-                // survives only over the corner by the door. The centre column
-                // (u = 0) stays open.
+                // 4. The upper floor: rusted girders across the room carry
+                // a plank deck that has rotted through in places and is gone
+                // entirely over the lens rig. A scrap of the old plank roof
+                // survives over the corner by the door. The centre column
+                // (u = 0) stays open to the sky on every level.
+                int deckId = IdFirst("planks-aged-we", "planks-veryaged-we", "planks-aged-ns");
                 foreach (int u in new[] { -5, -2, 3, 6 })
                     for (int w = -HW; w <= HW; w++)
                         if (Hash01(u * 17, w * 13) > 0.18) PutL(u, w, g0 + 2, Rust());
+                for (int u = -HU + 1; u <= HU - 1; u++)
+                    for (int w = -HW + 1; w <= HW - 1; w++)
+                    {
+                        if (u == 0 || u >= 3 || deckId == 0) continue;
+                        if (Hash01(u * 9 + 5, w * 13 + 2) < 0.3) continue;
+                        PutL(u, w, g0 + 3, deckId);
+                        if (Hash01(u * 3 + 7, w * 5 + 1) < 0.12)
+                        {
+                            int pid = piles[(int)(Hash01(u, w) * piles.Length) % piles.Length];
+                            if (pid != 0) PutL(u, w, g0 + 4, pid);
+                        }
+                    }
                 for (int u = -HU + 1; u <= -3; u++)
                     for (int w = -HW + 1; w <= 0; w++)
-                        if (slabRoof != 0 && Hash01(u * 5 + 1, w * 9) > 0.15) PutL(u, w, g0 + 3, slabRoof);
+                        if (slabRoof != 0 && Hash01(u * 5 + 1, w * 9) > 0.25) PutL(u, w, top2 + 1, slabRoof);
+                // fallen masonry from the upper storey, piled against the walls
+                for (int i = 0; i < 26; i++)
+                {
+                    double a = rand.NextDouble() * Math.PI * 2, r = 1.0 + rand.NextDouble() * 2.5;
+                    int u = (int)Math.Round(Math.Cos(a) * (HU + r)), w = (int)Math.Round(Math.Sin(a) * (HW + r));
+                    if (Math.Abs(u) <= HU && Math.Abs(w) <= HW) continue;
+                    if (u < -HU && Math.Abs(w) <= 2) continue;   // keep the stair clear
+                    int gy = GroundL(u, w);
+                    if (gy < sea) continue;
+                    PutL(u, w, gy + 1, Hash01(u * 7, w * 3 + i) < 0.5 ? cracked : cobble);
+                }
 
                 // 5. Workbenches along the south wall, vessels on the back
                 // wall, scrap on the floor.
@@ -7809,6 +7913,181 @@ storyloc crossroads 7600 -5600
                             int gy = GroundL(-HU - 3 - k, w);
                             if (gy >= sea) PutL(-HU - 3 - k, w, gy, devSoil);
                         }
+
+                // 8. huts=N: the lab's outbuildings, wrecked. Each is a small
+                // footing with broken walls one to three courses high, no
+                // roof, a fallen beam, and a chest inside with whatever the
+                // workers left behind.
+                for (int h = 0; h < def.Huts; h++)
+                {
+                    for (int attempt = 0; attempt < 40; attempt++)
+                    {
+                        double a = (h + rand.NextDouble() * 0.7) / def.Huts * Math.PI * 2;
+                        double r = 18 + rand.NextDouble() * (14 + attempt * 0.5);
+                        int hx = cx + (int)Math.Round(Math.Cos(a) * r), hz = cz + (int)Math.Round(Math.Sin(a) * r);
+                        // every corner and the middle on dry land, no cliff
+                        int hg = Ground(hx, hz), lo = hg, hi = hg;
+                        foreach (var (ox, oz) in new[] { (-3, -3), (3, -3), (-3, 3), (3, 3) })
+                        {
+                            int gg = Ground(hx + ox, hz + oz);
+                            lo = Math.Min(lo, gg); hi = Math.Max(hi, gg);
+                        }
+                        if (lo < sea + 1 || hi - lo > 5) continue;
+                        RuinedHut(hx, hz, hg);
+                        break;
+                    }
+                }
+
+                void RuinedHut(int hx, int hz, int hg)
+                {
+                    int plankW = IdFirst("planks-veryaged-we", "planks-aged-we");
+                    int logW = IdFirst("log-placed-aged-we", "planks-aged-we");
+                    const int HH = 2;   // half size: 5 x 5 inside the walls
+                    for (int x = hx - HH - 1; x <= hx + HH + 1; x++)
+                        for (int z = hz - HH - 1; z <= hz + HH + 1; z++)
+                        {
+                            int gy = Ground(x, z);
+                            for (int y = Math.Min(gy, hg - 1); y < hg; y++) Set(x, y, z, cobble);
+                            for (int y = hg + 1; y <= Math.Max(gy, hg) + 2; y++) Set(x, y, z, 0);
+                            Set(x, hg, z, Hash01(x * 5, z * 3) < 0.3 ? cracked : cobble);
+                        }
+                    int doorSide = (int)(rand.NextDouble() * 4);
+                    for (int x = hx - HH - 1; x <= hx + HH + 1; x++)
+                        for (int z = hz - HH - 1; z <= hz + HH + 1; z++)
+                        {
+                            bool edge = Math.Abs(x - hx) == HH + 1 || Math.Abs(z - hz) == HH + 1;
+                            if (!edge) continue;
+                            bool corner = Math.Abs(x - hx) == HH + 1 && Math.Abs(z - hz) == HH + 1;
+                            bool door = doorSide switch
+                            {
+                                0 => x == hx - HH - 1 && z == hz,
+                                1 => x == hx + HH + 1 && z == hz,
+                                2 => z == hz - HH - 1 && x == hx,
+                                _ => z == hz + HH + 1 && x == hx,
+                            };
+                            if (door) continue;
+                            int hgt = corner ? 3 : (int)(Hash01(x * 11 + 3, z * 7 + 1) * 3.4);
+                            for (int y = hg + 1; y <= hg + hgt; y++)
+                                Set(x, y, z, y == hg + 1 || Hash01(x + y * 5, z * 3 - y) < 0.5 ? (Hash01(x * 3, z * 9 + y) < 0.4 ? cracked : brick) : plankW);
+                        }
+                    // a roof beam that came down across the floor
+                    if (logW != 0)
+                        for (int x = hx - HH; x <= hx + HH - 1; x++) Set(x, hg + 1, hz + 1, logW);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        int pid = piles[(int)(rand.NextDouble() * piles.Length) % piles.Length];
+                        int px = hx - HH + (int)(rand.NextDouble() * (2 * HH + 1)), pz = hz - HH + (int)(rand.NextDouble() * 2);
+                        if (pid != 0) Set(px, hg + 1, pz, pid);
+                    }
+                    job.StructChests.Add((new BlockPos(hx + HH, hg + 1, hz - HH, job.Dim), "collapsed" + (1 + (int)(rand.NextDouble() * 3)),
+                        RollLoot(rand, HutLoot, 3 + (int)(rand.NextDouble() * 3)), "ruined hut"));
+                }
+                break;
+            }
+
+            // ── THE TREASURE HUNTER ───────────────────────────────────────
+            // The game's own treasure hunter homestead (the vanilla story
+            // schematic, palisade, house, door and all) on a levelled
+            // footing. Its spawner block brings the treasure hunter trader
+            // and brings him back, exactly as at the vanilla story site, and
+            // the house gets the same land claim the game gives it. chest=
+            // puts a chest on the ground a couple of blocks outside the
+            // claim, in front of the gate.
+            case "treasurehunter":
+            {
+                var asset = sapi.Assets.TryGet(new AssetLocation("game", "worldgen/schematics/story/treasurehunter.json"));
+                if (asset == null) { missingCodes.Add("schematic story/treasurehunter"); break; }
+                var schem = JsonUtil.FromString<BlockSchematic>(asset.ToText());
+                int sx = schem.SizeX, sy = schem.SizeY, sz = schem.SizeZ;
+                int x0 = cx - sx / 2, z0 = cz - sz / 2;
+                // level at the median ground of the footprint: least cut and fill
+                var gs = new List<int>();
+                for (int x = x0; x < x0 + sx; x += 2)
+                    for (int z = z0; z < z0 + sz; z += 2) gs.Add(Ground(x, z));
+                gs.Sort();
+                int g0 = Math.Max(sea + 2, gs[gs.Count / 2]);
+                int soilId = IdFirst("soil-medium-normal", "soil-low-normal");
+                int dirtId = IdFirst("soil-medium-none", "soil-low-none");
+                // fell the forest over the yard (the canopy of trees outside
+                // the footing would hang over the palisade otherwise)
+                {
+                    var wa = sapi.World.BlockAccessor;
+                    var tp = new BlockPos(0, 0, 0, job.Dim);
+                    for (int x = x0 - 6; x < x0 + sx + 6; x++)
+                        for (int z = z0 - 6; z < z0 + sz + 6; z++)
+                            for (int y = g0 - 3; y <= g0 + 36; y++)
+                            {
+                                tp.Set(x, y, z);
+                                var tb = wa.GetBlock(tp);
+                                if (tb != null && (tb.BlockMaterial == EnumBlockMaterial.Wood || tb.BlockMaterial == EnumBlockMaterial.Leaves))
+                                    Set(x, y, z, 0);
+                            }
+                }
+                // the footing: flat grass at g0 under the schematic, blended
+                // over a three-block margin back into the natural slope
+                const int M = 3;
+                for (int x = x0 - M; x < x0 + sx + M; x++)
+                    for (int z = z0 - M; z < z0 + sz + M; z++)
+                    {
+                        int dOut = Math.Max(Math.Max(x0 - x, x - (x0 + sx - 1)), Math.Max(z0 - z, z - (z0 + sz - 1)));
+                        int gy = Ground(x, z);
+                        int target = dOut <= 0 ? g0 : (int)Math.Round(g0 + (gy - g0) * (dOut / (double)(M + 1)));
+                        for (int y = Math.Min(gy, target) - 1; y < target; y++) Set(x, y, z, dirtId);
+                        Set(x, target, z, soilId);
+                        for (int y = target + 1; y <= Math.Max(gy, target) + 3; y++) Set(x, y, z, 0);
+                    }
+                int fx0 = x0, fz0 = z0, fy = g0 - 1;   // vanilla: worldgen height + the schematic's -1
+                afterCommit.Add(() =>
+                {
+                    var wba = sapi.World.BlockAccessor;
+                    var start = new BlockPos(fx0, fy, fz0, job.Dim);
+                    schem.Init(wba);
+                    schem.Place(wba, sapi.World, start, EnumReplaceMode.ReplaceAllNoAir, true);
+                    schem.PlaceDecors(wba, start);
+                    var claimArea = new Cuboidi(fx0, fy, fz0, fx0 + sx, fy + sy, fz0 + sz);
+                    var have = sapi.World.Claims.Get(claimArea.Center.AsBlockPos);
+                    if (have == null || have.Length == 0)
+                        sapi.World.Claims.Add(new LandClaim
+                        {
+                            Areas = new List<Cuboidi> { claimArea },
+                            Description = "Treasure Hunter",
+                            ProtectionLevel = 10,
+                            LastKnownOwnerName = "custommessage-treasurehunter",
+                            AllowUseEveryone = false,
+                            AllowTraverseEveryone = true
+                        });
+                    // The gate: the door nearest the schematic's edge.
+                    var dp = new BlockPos(0, 0, 0, job.Dim);
+                    int bestD = int.MaxValue, gateX = fx0 + sx / 2, gateZ = fz0 + sz / 2, side = 0;
+                    for (int x = fx0; x < fx0 + sx; x++)
+                        for (int z = fz0; z < fz0 + sz; z++)
+                            for (int y = fy; y < fy + sy; y++)
+                            {
+                                dp.Set(x, y, z);
+                                string path = wba.GetBlock(dp)?.Code?.Path;
+                                if (path == null || !path.StartsWith("door-")) continue;
+                                int[] d = { x - fx0, fx0 + sx - 1 - x, z - fz0, fz0 + sz - 1 - z };
+                                int k = Array.IndexOf(d, System.Linq.Enumerable.Min(d));
+                                if (d[k] < bestD) { bestD = d[k]; gateX = x; gateZ = z; side = k; }
+                            }
+                    sapi.Logger.Notification("[landmassgenerator] treasure hunter's homestead at HUD {0}, {1}, {2}; gate at {3}, {4}",
+                        fx0 - sapi.WorldManager.MapSizeX / 2, fy, fz0 - sapi.WorldManager.MapSizeZ / 2,
+                        gateX - sapi.WorldManager.MapSizeX / 2, gateZ - sapi.WorldManager.MapSizeZ / 2);
+                    if (string.IsNullOrEmpty(def.Chest)) return;
+                    // two blocks outside the claim, beside the gate's line
+                    int chx = side == 0 ? fx0 - 3 : side == 1 ? fx0 + sx + 2 : gateX + 2;
+                    int chz = side == 2 ? fz0 - 3 : side == 3 ? fz0 + sz + 2 : gateZ + 2;
+                    int chy = g0 + 1;
+                    for (int y = g0 + 6; y >= g0 - 6; y--)
+                    {
+                        dp.Set(chx, y, chz);
+                        var b = wba.GetBlock(dp, BlockLayersAccess.SolidBlocks);
+                        if (b == null || b.Id == 0 || b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves) continue;
+                        chy = y + 1; break;
+                    }
+                    job.StructChests.Add((new BlockPos(chx, chy, chz, job.Dim), "normal-aged",
+                        new List<string>(def.Chest.Split(',', StringSplitOptions.RemoveEmptyEntries)), "treasure hunter"));
+                });
                 break;
             }
 
@@ -7940,33 +8219,51 @@ storyloc crossroads 7600 -5600
                             }
                 }
                 int tg = Ground(tx, tz);
-                // Room: 13 x 11 x 7 inside. Its shell sits at least 3 blocks
-                // under the LOWEST ground over its footprint (the knoll falls
-                // away to the meadow, and a roof set from the trunk's ground
-                // stuck out of the grass), and at least 5 under the trunk.
+                // Room: 13 x 11 inside, its rusted plate roof just under the
+                // grass: 2 blocks of soil over it under the trunk, and the
+                // roof steps down with the knoll so that 2 blocks of soil
+                // cover it everywhere. The floor is level, 8 blocks of air
+                // under the trunk, less toward the edges.
                 const int RX = 6, RZ = 5;
-                int minG = tg;
-                for (int x = tx - RX - 1; x <= tx + RX + 1; x++)
-                    for (int z = tz - RZ - 1; z <= tz + RZ + 1; z++) minG = Math.Min(minG, Ground(x, z));
-                int ceil = Math.Min(tg - 6, minG - 5), floorY = ceil - 7;
-                int ceilTopLimit = ceil + 1;     // the shell's roof; nothing is ever written above it
-                void SetU(int x, int y, int z, int id) { if (y <= ceilTopLimit) Set(x, y, z, id); }
+                int floorY = tg - 10;
+                var ceilAt = new Dictionary<long, int>();
+                int CeilAt(int x, int z)
+                {
+                    long key = ((long)x << 32) | (uint)z;
+                    if (!ceilAt.TryGetValue(key, out int c))
+                    {
+                        c = Math.Min(tg - 3, Ground(x, z) - 3);
+                        ceilAt[key] = c;
+                    }
+                    return c;
+                }
+                bool Inside(int x, int z) => Math.Abs(x - tx) <= RX && Math.Abs(z - tz) <= RZ;
+                bool InRoom(int x, int y, int z) => Inside(x, z) && y >= floorY && y <= CeilAt(x, z) && CeilAt(x, z) >= floorY + 2;
+                // Nothing is ever written within 2 blocks of a column's grass.
+                void SetU(int x, int y, int z, int id) { if (y <= Ground(x, z) - 2) Set(x, y, z, id); }
                 int plate = rustB != 0 ? rustB : rustA;
 
-                // 2. The shell and the hollow: rusted plate on every face
-                // (riveted courses here and there), air inside.
+                // 2. The hollow, then the shell: rusted plate on every cell
+                // that touches the room and is not part of it (riveted
+                // courses here and there), so the steps in the roof are
+                // plated too and no soil shows inside.
+                for (int x = tx - RX; x <= tx + RX; x++)
+                    for (int z = tz - RZ; z <= tz + RZ; z++)
+                        for (int y = floorY; y <= CeilAt(x, z); y++)
+                            if (InRoom(x, y, z)) SetU(x, y, z, 0);
                 for (int x = tx - RX - 1; x <= tx + RX + 1; x++)
                     for (int z = tz - RZ - 1; z <= tz + RZ + 1; z++)
-                        for (int y = floorY - 1; y <= ceil + 1; y++)
+                        for (int y = floorY - 1; y <= tg - 2; y++)
                         {
-                            bool shell = x == tx - RX - 1 || x == tx + RX + 1 || z == tz - RZ - 1 || z == tz + RZ + 1 || y == floorY - 1 || y == ceil + 1;
-                            if (shell) SetU(x, y, z, Hash01(x * 3 + y, z * 5 - y) < 0.3 ? rustA : plate);
-                            else SetU(x, y, z, 0);
+                            if (InRoom(x, y, z)) continue;
+                            bool touches = InRoom(x + 1, y, z) || InRoom(x - 1, y, z) || InRoom(x, y, z + 1) || InRoom(x, y, z - 1)
+                                || InRoom(x, y + 1, z) || InRoom(x, y - 1, z);
+                            if (touches) SetU(x, y, z, Hash01(x * 3 + y, z * 5 - y) < 0.3 ? rustA : plate);
                         }
 
                 // 3. The great gear, standing across the room (its face to
-                // the east and west), sunk a third into the floor, and a
-                // smaller gear in mesh beside it.
+                // the east and west), sunk a third into the floor and rising
+                // into the roof, and a smaller gear in mesh beside it.
                 void GearU(double gx, double gy, double gz, double R, int thick, int spokes, double phase)
                 {
                     int teeth = Math.Max(8, (int)Math.Round(R * 1.6));
@@ -7992,7 +8289,7 @@ storyloc crossroads 7600 -5600
                             for (int k = 0; k < thick; k++)
                             {
                                 int x = (int)Math.Round(gx + k), y = (int)Math.Round(gy + b), z = (int)Math.Round(gz + a);
-                                if (y < floorY - 1 || y > ceil) continue;     // stays inside the room
+                                if (y < floorY - 1 || !Inside(x, z) || y > CeilAt(x, z)) continue;     // stays inside the room
                                 SetU(x, y, z, Rust());
                             }
                         }
@@ -8002,26 +8299,38 @@ storyloc crossroads 7600 -5600
                 GearU(tx - 1, hubY, tz - 1.5, bigR, 2, 6, 0.3);
                 GearU(tx - 1, floorY + smallR * 0.9, tz - 1.5 + bigR + smallR + 0.9, smallR, 1, 4, 0.1);
                 // the drive shaft through the great gear's hub, wall to wall
-                for (int x = tx - RX; x <= tx + RX; x++) SetU(x, (int)Math.Round(hubY), (int)Math.Round(tz - 1.5), rustA != 0 ? rustA : plate);
+                for (int x = tx - RX; x <= tx + RX; x++)
+                    if (InRoom(x, (int)Math.Round(hubY), (int)Math.Round(tz - 1.5)))
+                        SetU(x, (int)Math.Round(hubY), (int)Math.Round(tz - 1.5), rustA != 0 ? rustA : plate);
 
                 // 4. Ceiling: pipe runs along it and chains hanging off it.
                 for (int x = tx - RX; x <= tx + RX; x += 3)
-                    Clutter(x, ceil, tz + RZ - 1, pipes[(int)(rand.NextDouble() * pipes.Length)], 0);
+                    if (InRoom(x, CeilAt(x, tz + RZ - 1), tz + RZ - 1))
+                        Clutter(x, CeilAt(x, tz + RZ - 1), tz + RZ - 1, pipes[(int)(rand.NextDouble() * pipes.Length)], 0);
                 for (int i = 0; i < 7; i++)
                 {
                     int x = tx - RX + 1 + (int)(rand.NextDouble() * (2 * RX - 1)), z = tz - RZ + 1 + (int)(rand.NextDouble() * (2 * RZ - 1));
-                    Clutter(x, ceil, z, chains[(int)(rand.NextDouble() * chains.Length)], 0);
+                    if (InRoom(x, CeilAt(x, z), z)) Clutter(x, CeilAt(x, z), z, chains[(int)(rand.NextDouble() * chains.Length)], 0);
                 }
 
-                // 5. Floor: gearboxes and gear trains, loose gears and parts.
+                // 5. Two chests on the floor in opposite corners, clear of the
+                // gears, holding what the machine was built from.
+                var chestSpots = new List<(int X, int Z)> { (tx + RX - 1, tz - RZ + 1), (tx - RX + 1, tz + RZ - 1) };
+                foreach (var (chx, chz) in chestSpots)
+                {
+                    if (!InRoom(chx, floorY, chz)) continue;
+                    job.StructChests.Add((new BlockPos(chx, floorY, chz, job.Dim), "normal-aged", RollLoot(rand, MachineLoot, 5 + (int)(rand.NextDouble() * 3)), "machine"));
+                }
+
+                // 6. Floor: gearboxes and gear trains, loose gears and parts.
                 for (int i = 0; i < 34; i++)
                 {
                     int x = tx - RX + (int)(rand.NextDouble() * (2 * RX + 1)), z = tz - RZ + (int)(rand.NextDouble() * (2 * RZ + 1));
+                    if (!InRoom(x, floorY, z) || chestSpots.Exists(c => Math.Abs(c.X - x) <= 1 && Math.Abs(c.Z - z) <= 1)) continue;
                     if (i % 3 == 0) Clutter(x, floorY, z, gearClutter[(int)(rand.NextDouble() * gearClutter.Length)], rand.NextDouble() * Math.PI * 2);
                     else
                     {
                         int pid = floorJunk[(int)(rand.NextDouble() * floorJunk.Length)];
-                        wp.Set(x, floorY, z);
                         if (pid != 0) SetU(x, floorY, z, pid);
                     }
                 }
@@ -8164,6 +8473,11 @@ storyloc crossroads 7600 -5600
         }
 
         ba.Commit();
+        foreach (var act in afterCommit)
+        {
+            try { act(); }
+            catch (Exception e) { sapi.Logger.Error("[landmassgenerator] {0}: post-build step failed: {1}", def.Kind, e); }
+        }
 
         if (missingCodes.Count > 0)
             sapi.Logger.Notification("[landmassgen] {0}: {1} block code(s) did not resolve: {2}",

@@ -119,6 +119,8 @@ def main():
     # within 40 blocks in 3D, so on the deep floor (~30 down) a surface
     # swimmer never armed it. At ~15 deep its reach covers the surface.
     print("block X underwaterhorrors:serpentspawner 15")
+    # A chest on the largest islet: the way on to the Forest Island.
+    print("chest C normal-aged landmassgenerator:islandmap-forest at=58,82")
     print()
     print("map")
     for row in grid:

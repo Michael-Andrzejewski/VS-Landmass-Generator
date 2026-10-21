@@ -1,4 +1,13 @@
 {
 	"block-ghostlight-green": "Ghostlight (green)",
-	"block-ghostlight-blue": "Ghostlight (blue)"
+	"block-ghostlight-blue": "Ghostlight (blue)",
+	"item-islandmap-tinmine": "Map to the Tin Mine",
+	"item-islandmap-forest": "Map to the Forest Island",
+	"item-islandmap-ideal": "Map to the Ideal Island",
+	"itemdesc-islandmap-tinmine": "A weathered sea chart, one island circled in red. Hold it and use it to mark the Tin Mine on your world map.",
+	"itemdesc-islandmap-forest": "A weathered sea chart, one island circled in red. Hold it and use it to mark the Forest Island on your world map.",
+	"itemdesc-islandmap-ideal": "A weathered sea chart, one island circled in red. Hold it and use it to mark the Ideal Island on your world map.",
+	"waypoint-tinmine": "Tin Mine",
+	"waypoint-forest": "Forest Island",
+	"waypoint-ideal": "Ideal Island"
 }

@@ -3,6 +3,9 @@
 #   pureocean                 no natural land at all (landcover 0, upheavel 0)
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
 #       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
+#   devastation off           pause Spreading Devastation in this world
+#   storychest <code> <contents>   once the game builds that story structure,
+#       add these items (chest contents syntax) to its top entrance chest
 #   pregenstory               also generate every story area during setup
 #       (off: they generate when a player first comes near, like vanilla)
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
@@ -19,6 +22,7 @@
 # Scattered Ruins: four granary ruins and the flatcave ruin.
 pureocean
 clearspawn 16
+devastation off
 
 # Home waters
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
@@ -73,3 +77,6 @@ storyloc greatmachine 0 -5330
 # with seed 20261020 rolled onto the Diving Bell Mine, so it is pinned out in
 # open sea east of the map. Skipped harmlessly when Better Ruins is absent.
 storyloc crossroads 7600 -5600
+
+# Just inside the Resonance Archives' top entrance: the way to Jonas' dream.
+storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal

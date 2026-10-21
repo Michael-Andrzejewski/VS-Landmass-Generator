@@ -30,7 +30,7 @@ tree O oak 2.4
 cave M heading=auto dip=20 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=4 ores=copper:0.06 timbers=12 holders=14 seed=12
 
 chest J normal-aged lore:jonas_letter near=O side=east
-chest K collapsed1 lore:tobias_anchor cave=M
+chest K collapsed1 lore:tobias_anchor,landmassgenerator:islandmap-tinmine cave=M trail=rust
 block Y game:statictranslocator-broken-north beside=O side=west
 map
 ................................................................................................

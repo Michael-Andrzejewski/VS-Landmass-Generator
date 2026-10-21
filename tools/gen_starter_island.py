@@ -184,7 +184,7 @@ def main():
     # and the broken translocator Tobias calls the anchor against the trunk
     # on the other side (west). Repairable like any vanilla broken one.
     print("chest J normal-aged lore:jonas_letter near=O side=east")
-    print("chest K collapsed1 lore:tobias_anchor cave=M")
+    print("chest K collapsed1 lore:tobias_anchor,landmassgenerator:islandmap-tinmine cave=M trail=rust")
     print("block Y game:statictranslocator-broken-north beside=O side=west")
     print("map")
     for row in grid:

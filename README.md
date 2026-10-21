@@ -473,7 +473,14 @@ or with `at=` (grid cell), `near=` (two cells inland of a marker such as a landm
 tree; add `side=east|west|north|south` to put it right against the tree's trunk,
 found from the world's own logs, so any trunk width works) or `cave=` (on the
 floor of that cave's deepest open step). `rust=N` stains the ground around it
-with devastated soil.
+with devastated soil. `trail=rust` (cave chests) paints oxidation rust along the
+cave floor, by the shortest path through the carved air, from the mouth down to
+the chest, with rust weeping down the walls here and there.
+
+Island maps (0.60.0): `landmassgenerator:islandmap-tinmine`, `-forest` and
+`-ideal` are charts a chest can hold. Using one puts a red X on the world map at
+that plan island (`tin_island`, `forester_island`, `ideal_house_island`), the way
+a Better Ruins locator map marks its find.
 
 With the Rustfall Lore mod installed (it turns every `lore/*.txt` into a one-page
 journal, code `rf-<id>`), a `lore:<id>` chest holds a vanilla lore book carrying
@@ -506,7 +513,28 @@ itself, then seals a rusted-plate chamber (13 x 11 x 7) under it, at least 3 blo
 of soil below the lowest ground over its footprint, holding a great gear half sunk
 in the floor with a smaller one in mesh, a drive shaft wall to wall, pipes and
 chains on the ceiling and parts on the floor. Nothing shows at the surface; it is
-found by digging down under the tree.
+found by digging down under the tree. Since 0.60.0 its roof sits just under the
+grass (2 blocks of soil, stepping down with the knoll) and two chests of machine
+parts stand in its corners.
+
+`lab` takes `huts=N` (0.60.0): N wrecked outbuildings within 20 to 34 blocks, each
+with a loot chest. The lab itself now has a ruined second storey that stands 8
+courses over the grass, so it reads from the sea. `treasurehunter` places the
+game's own treasure hunter homestead (vanilla story schematic, with its trader
+spawner and the same land claim); `chest=<contents>` puts a chest 2 blocks
+outside the claim, beside the gate.
+
+Mine dressing (0.60.0): a cave line may add `machinery=N` (every N steps a
+stretch of wall turns to rusted plate with a gearbox or pipe run against it and
+parts on the floor) and `giants=<spawner block>*K` (K spawner blocks in the
+cave's widest, tallest halls, 30+ blocks apart; made for Oversized Horrors'
+`oversizedhorrors:giantspawner-*`).
+
+World plan lines (0.60.0): `devastation off` pauses Spreading Devastation in the
+new world (saved with it; `/devastate start` resumes). `storychest <code>
+<contents>` adds items to a vanilla story structure's top entrance chest once
+the game has built it (the highest chest near a heavy door in its footprint);
+`/genstorychests` runs that check at once without waiting for a player.
 
     /genchests
 

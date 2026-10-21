@@ -29,7 +29,7 @@ cave V heading=auto dip=20 length=170 radius=2.8 squash=0.8 weave=0.5 scale=1.35
 deposits natural
 
 chest Z collapsed3 lore:forest_ticking cave=V
-struct U kind=hut size=12 seed=3
+struct U kind=treasurehunter seed=3 chest=landmassgenerator:islandmap-tinmine
 map
 ........................................................................................................................
 ........................................................................................................................

@@ -199,7 +199,7 @@ def main():
     # dip=30 gets under the arm's ocean side before the seabed drops.
     # seed=17 from the previewer sweep: 1336 steps, ZERO steps lost to the
     # water guard, bottom galleries 85 below sea.
-    print("cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 timbers=12 holders=14 seed=17")
+    print("cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 timbers=12 holders=14 machinery=10 giants=oversizedhorrors:giantspawner-shiver-deep*3 seed=17")
     print()
     def _cell_of(letters):
         pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]
@@ -214,9 +214,9 @@ def main():
     lx, lz = _cell_of("T")
     # The ruined lab itself (struct kind=lab) on the same cell: its centre
     # column is open to the sky, so the chest lands on the lab floor.
-    print("struct G kind=lab size=16 seed=7")
+    print("struct G kind=lab size=16 seed=7 huts=4")
     grid[lz][lx] = "G"
-    print(f"chest L normal-aged lore:tin_lab_notice,lore:tin_chart at={lx},{lz}")
+    print(f"chest L normal-aged lore:tin_lab_notice,lore:tin_chart,landmassgenerator:islandmap-forest at={lx},{lz}")
     print("chest Z collapsed2 lore:tin_mine_depths,game:jonasparts-tank01,game:jonasparts-valve01,game:jonasparts-cylinder01,game:gear-rusty*6,lensresearch:miniriftward cave=V rust=3")
     print("block Y game:statictranslocator-broken-north")
     grid[lz][min(len(grid[lz]) - 1, lx + 9)] = "Y"
