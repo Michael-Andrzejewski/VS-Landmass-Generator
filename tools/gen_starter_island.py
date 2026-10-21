@@ -154,7 +154,7 @@ def main():
     # seed=12 picked in the previewer after the mouth moved to the true
     # waterline face: 799 steps, ONE step lost to the water guard, deepest
     # 30 below sea.
-    print("cave M heading=auto dip=20 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=4 ores=copper:0.06 seed=12")
+    print("cave M heading=auto dip=20 length=85 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=4 branchdepth=2 branchlen=0.7 depth=30 mouth=2 entry=4 ores=copper:0.06 timbers=12 holders=14 seed=12")
     print()
     def _cell_of(letters):
         pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]

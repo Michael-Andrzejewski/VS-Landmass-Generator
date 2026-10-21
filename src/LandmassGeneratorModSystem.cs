@@ -1357,6 +1357,7 @@ storyloc crossroads 7600 -5600
             caveNote += BuildWrecks(job);
             caveNote += BuildStructs(job);
             extra += PlaceChests(job);
+            extra += PlaceCaveProps(job);
             StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
             sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
@@ -1563,6 +1564,7 @@ storyloc crossroads 7600 -5600
     private class CaveDef
     {
         public double HeadingDeg = double.NaN;  // map degrees, 0=north 90=east; NaN = aim at the island centre
+        public int Timbers, Holders;            // mine props: a timber frame / torch holder every N steps (0 = none)
         public double DipDeg = 12;              // how steeply the tunnel descends while diving
         public double Length = 80;              // main tunnel length in blocks
         public double Radius = 2.6;             // horizontal carve radius
@@ -2835,6 +2837,8 @@ storyloc crossroads 7600 -5600
                 case "entry": d.Entry = (int)Math.Clamp(ParseD(v, 10), 0, 60); break;
                 case "seed": d.Seed = (uint)Math.Abs((long)ParseD(v, 0)); break;
                 case "flooded": d.Flooded = ParseD(v, 0) > 0; break;
+                case "timbers": d.Timbers = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
+                case "holders": d.Holders = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
                 case "ores":
                 {
                     string[] parts = v.Split(':');
@@ -3143,6 +3147,7 @@ storyloc crossroads 7600 -5600
             caveNote += BuildWrecks(job);
             caveNote += BuildStructs(job);
             extra += PlaceChests(job);
+            extra += PlaceCaveProps(job);
             int climRegions = StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
 
@@ -5775,8 +5780,8 @@ storyloc crossroads 7600 -5600
         }
         if (d.Kind == "beacon") d.Kind = "lighthouse";
         if (d.Kind != "lighthouse" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent"
-            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary")
-            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary)");
+            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary" && d.Kind != "lab" && d.Kind != "hut")
+            problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary, lab, hut)");
         return d;
     }
 
@@ -7444,6 +7449,254 @@ storyloc crossroads 7600 -5600
                         ChainRun(ex2, MassifY((int)ex2, (int)ez2) + 1, ez2,
                                  wsp.X + dirx * (wsp.Hw - 1), dy2, wsp.Z + dirz * (wsp.Hw - 1), 0, 1.4);
                     }
+                break;
+            }
+
+            // ── THE RUINED LABORATORY ─────────────────────────────────────
+            // Tin Island's abandoned flux lab, half underground: a room sunk
+            // three blocks into the ground behind a short stair, cracked
+            // brick walls standing a couple of courses above the grass and
+            // falling away toward the top, rusted roof girders with one
+            // corner of the old plank roof still on, workbenches, vessels on
+            // the back wall, and at the far end the broken lens rig: a ring
+            // of rusted iron around a cracked glass eye, still glowing blue,
+            // the floor around it gone to Rust. The centre column is left
+            // open to the sky so a chest marker on the lab's cell lands on
+            // the lab floor. Axis-aligned (one of four headings): a rotated
+            // frame would need half-block rastering for every wall.
+            case "lab":
+            {
+                string rockName = "basalt";
+                var stoneBlock = sapi.World.GetBlock(job.StoneId);
+                if (stoneBlock?.Code?.Path != null && stoneBlock.Code.Path.StartsWith("rock-"))
+                    rockName = stoneBlock.Code.Path.Substring(5);
+                int brick = IdFirst($"stonebricks-{rockName}", "stonebricks-basalt", "stonebricks-granite");
+                int cracked = IdFirst($"crackedstonebricks-{rockName}", "crackedstonebricks-basalt", $"stonebricks-{rockName}");
+                int cobble = IdFirst($"cobblestone-{rockName}", "cobblestone-basalt", "cobblestone-granite");
+                int slabRoof = IdFirst("plankslab-aged-down-free", "plankslab-veryaged-down-free");
+                int table = Need("table-aged");
+                int glass = Need("glass-plain");
+                int vessel = Need("lootvessel-tool");
+                int[] piles = { Id("metalpartpile-small"), Id("metalpartpile-tiny"), Id("loosegears-3"), Id("loosegears-1") };
+                int flux = IdFirst("landmassgenerator:ghostlight-blue");
+                int devSoil = IdFirst("devastatedsoil-1", "devastatedsoil-0");
+                if (brick == 0) break;
+                if (cracked == 0) cracked = brick;
+                if (cobble == 0) cobble = brick;
+
+                int heading = (int)(rand.NextDouble() * 4) & 3;
+                int g0 = Ground(cx, cz);
+                int floor = g0 - 3;
+                const int HU = 7, HW = 5;   // half length, half width
+                // u along the lab, w across it, rotated by quarter turns only
+                (int X, int Z) W2(int u, int w) => heading switch
+                {
+                    0 => (cx + u, cz + w),
+                    1 => (cx - w, cz + u),
+                    2 => (cx - u, cz - w),
+                    _ => (cx + w, cz - u),
+                };
+                void PutL(int u, int w, int y, int id) { var (x, z) = W2(u, w); Set(x, y, z, id); }
+                int GroundL(int u, int w) { var (x, z) = W2(u, w); return Ground(x, z); }
+
+                // 1. Dig the room and lay the floor.
+                for (int u = -HU; u <= HU; u++)
+                    for (int w = -HW; w <= HW; w++)
+                    {
+                        int top = Math.Max(GroundL(u, w), g0) + 4;
+                        for (int y = floor + 1; y <= top; y++) PutL(u, w, y, 0);
+                        PutL(u, w, floor, Hash01(u * 7 + 3, w * 5) < 0.3 ? cracked : cobble);
+                        PutL(u, w, floor - 1, cobble);
+                    }
+
+                // 2. Walls: full height to the ground, then a couple of
+                // courses above it that fall away (more gaps higher up), and
+                // one breach in the north long wall where the roof came in.
+                for (int u = -HU; u <= HU; u++)
+                    for (int w = -HW; w <= HW; w++)
+                    {
+                        bool edge = Math.Abs(u) == HU || Math.Abs(w) == HW;
+                        if (!edge) continue;
+                        bool door = u == -HU && Math.Abs(w) <= 1;
+                        bool breach = w == HW && u >= 1 && u <= 4;
+                        for (int y = floor + 1; y <= g0 + 2; y++)
+                        {
+                            if (door && y <= floor + 3) continue;
+                            int above = y - g0;   // courses standing above the grass
+                            if (above > 0 && Hash01(u * 13 + y * 7, w * 11 - y * 3) < 0.25 + 0.3 * above) continue;
+                            if (breach && y >= floor + 2) continue;
+                            PutL(u, w, y, Hash01(u * 3 + y, w * 7 + y * 5) < 0.35 ? cracked : brick);
+                        }
+                    }
+
+                // 3. The stair down to the door, with brick cheeks.
+                for (int k = 1; k <= 3; k++)
+                {
+                    int u = -HU - k, stepTop = floor + k;
+                    for (int w = -1; w <= 1; w++)
+                    {
+                        PutL(u, w, stepTop, brick);
+                        for (int y = stepTop + 1; y <= g0 + 3; y++) PutL(u, w, y, 0);
+                    }
+                    for (int w = -2; w <= 2; w += 4)
+                        for (int y = stepTop; y <= g0; y++) PutL(u, w, y, cracked);
+                }
+
+                // 4. Roof: rusted girders across the room; the old plank roof
+                // survives only over the corner by the door. The centre column
+                // (u = 0) stays open.
+                foreach (int u in new[] { -5, -2, 3, 6 })
+                    for (int w = -HW; w <= HW; w++)
+                        if (Hash01(u * 17, w * 13) > 0.18) PutL(u, w, g0 + 2, Rust());
+                for (int u = -HU + 1; u <= -3; u++)
+                    for (int w = -HW + 1; w <= 0; w++)
+                        if (slabRoof != 0 && Hash01(u * 5 + 1, w * 9) > 0.15) PutL(u, w, g0 + 3, slabRoof);
+
+                // 5. Workbenches along the south wall, vessels on the back
+                // wall, scrap on the floor.
+                for (int u = -5; u <= 5; u++)
+                    if (u != 0 && table != 0 && Math.Abs(u) != 3) PutL(u, -HW + 1, floor + 1, table);
+                if (vessel != 0) { PutL(-5, HW - 1, floor + 1, vessel); PutL(-3, HW - 1, floor + 1, vessel); }
+                for (int i = 0; i < 9; i++)
+                {
+                    int u = (int)(rand.NextDouble() * (2 * HU - 3)) - HU + 2, w = (int)(rand.NextDouble() * (2 * HW - 3)) - HW + 2;
+                    if (u == 0 || u >= 3) continue;    // keep the chest spot and the rig clear
+                    int pid = piles[(int)(rand.NextDouble() * piles.Length) % piles.Length];
+                    if (pid != 0) PutL(u, w, floor + 1, pid);
+                }
+
+                // 6. The lens rig at the far end: rusted ring, cracked glass
+                // eye, the flux still glowing under it, Rust spreading out.
+                for (int du = -2; du <= 2; du++)
+                    for (int dw = -2; dw <= 2; dw++)
+                        if (devSoil != 0 && du * du + dw * dw <= 5 && Hash01(du * 7 + 40, dw * 3) < 0.8)
+                            PutL(5 + du, dw, floor, devSoil);
+                foreach (var (du, dw) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+                {
+                    PutL(5 + du, dw, floor + 1, Rust());
+                    PutL(5 + du, dw, floor + 2, Rust());
+                }
+                if (glass != 0) PutL(5, 0, floor + 2, glass);
+                if (flux != 0) { var (fx, fz) = W2(5, 0); Glow(fx, floor + 1, fz, flux); }
+                PutL(5, 0, floor + 3, Rust());
+
+                // 7. Outside: scrap and pipe stubs rusting in the grass, and
+                // the Rust bleeding out of the doorway.
+                for (int i = 0; i < 18; i++)
+                {
+                    double a = rand.NextDouble() * Math.PI * 2, r = HU + 3 + rand.NextDouble() * 9;
+                    int u = (int)Math.Round(Math.Cos(a) * r), w = (int)Math.Round(Math.Sin(a) * r * 0.8);
+                    int gy = GroundL(u, w);
+                    if (gy < sea) continue;
+                    if (i % 3 == 0)
+                    {
+                        int hgt = 1 + (int)(rand.NextDouble() * 3);
+                        for (int y = gy + 1; y <= gy + hgt; y++) PutL(u, w, y, Rust());
+                    }
+                    else
+                    {
+                        int pid = piles[i % piles.Length];
+                        if (pid != 0) PutL(u, w, gy + 1, pid);
+                    }
+                }
+                for (int k = 1; k <= 6; k++)
+                    for (int w = -1 - k / 3; w <= 1 + k / 3; w++)
+                        if (devSoil != 0 && Hash01(k * 9, w * 7 + 11) < 0.7 - k * 0.08)
+                        {
+                            int gy = GroundL(-HU - 3 - k, w);
+                            if (gy >= sea) PutL(-HU - 3 - k, w, gy, devSoil);
+                        }
+                break;
+            }
+
+            // ── THE TRADER'S HUT ──────────────────────────────────────────
+            // A small, sound timber hut (Forest Island's trader): levelled
+            // cobble footing, log corner posts, plank walls with a door and
+            // two windows, a stepped gable roof under a log ridge beam, a
+            // table and a food vessel inside. Axis-aligned, one of four
+            // headings; the door faces the u-minus end.
+            case "hut":
+            {
+                int post = IdFirst("log-placed-aged-ud", "planks-aged-ud");
+                int beamU = IdFirst("log-placed-aged-we", "planks-aged-we");
+                int beamW = IdFirst("log-placed-aged-ns", "planks-aged-ns");
+                int plank = IdFirst("planks-aged-we", "planks-veryaged-we");
+                int plankN = IdFirst("planks-aged-ns", "planks-aged-we");
+                int footing = IdFirst("cobblestone-granite", "cobblestone-andesite");
+                int table = Id("table-aged");
+                int vessel = Id("lootvessel-food");
+                if (post == 0 || plank == 0) break;
+                if (footing == 0) footing = plank;
+
+                int heading = (int)(rand.NextDouble() * 4) & 3;
+                int g0 = Ground(cx, cz) + 1;           // the hut's floor level
+                const int HU = 4, HW = 3;
+                (int X, int Z) H2(int u, int w) => heading switch
+                {
+                    0 => (cx + u, cz + w),
+                    1 => (cx - w, cz + u),
+                    2 => (cx - u, cz - w),
+                    _ => (cx + w, cz - u),
+                };
+                bool alongX = heading == 0 || heading == 2;
+                void PutH(int u, int w, int y, int id) { var (x, z) = H2(u, w); Set(x, y, z, id); }
+                int GroundH(int u, int w) { var (x, z) = H2(u, w); return Ground(x, z); }
+
+                // Fell every tree near the hut first: the forest was planted
+                // before this pass, and cutting only the footprint left whole
+                // canopies floating over the roof. Logs and leaves within a
+                // few blocks go, from the ground up to well above any crown.
+                {
+                    var wa = sapi.World.BlockAccessor;
+                    var tp = new BlockPos(0, 0, 0, job.Dim);
+                    for (int u = -HU - 6; u <= HU + 6; u++)
+                        for (int w = -HW - 6; w <= HW + 6; w++)
+                        {
+                            var (tx, tz) = H2(u, w);
+                            for (int y = g0 - 2; y <= g0 + 34; y++)
+                            {
+                                tp.Set(tx, y, tz);
+                                var tb = wa.GetBlock(tp);
+                                if (tb != null && (tb.BlockMaterial == EnumBlockMaterial.Wood || tb.BlockMaterial == EnumBlockMaterial.Leaves))
+                                    Set(tx, y, tz, 0);
+                            }
+                        }
+                }
+                // footing and floor, then clear the inside up to the ridge
+                for (int u = -HU - 1; u <= HU + 1; u++)
+                    for (int w = -HW - 1; w <= HW + 1; w++)
+                    {
+                        int gy = GroundH(u, w);
+                        for (int y = Math.Min(gy, g0 - 2); y < g0 - 1; y++) PutH(u, w, y, footing);
+                        PutH(u, w, g0 - 1, Math.Abs(u) <= HU && Math.Abs(w) <= HW ? plank : footing);
+                        for (int y = g0; y <= g0 + 8; y++) PutH(u, w, y, 0);
+                    }
+                // walls: log corners, plank infill, door and windows
+                for (int u = -HU; u <= HU; u++)
+                    for (int w = -HW; w <= HW; w++)
+                    {
+                        bool corner = Math.Abs(u) == HU && Math.Abs(w) == HW;
+                        bool wall = Math.Abs(u) == HU || Math.Abs(w) == HW;
+                        if (!wall) continue;
+                        for (int y = g0; y <= g0 + 2; y++)
+                        {
+                            bool door = u == -HU && w == 0 && y <= g0 + 1;
+                            bool window = Math.Abs(w) == HW && Math.Abs(u) == 2 && y == g0 + 1;
+                            if (door || window) continue;
+                            PutH(u, w, y, corner ? post : (Math.Abs(w) == HW ? (alongX ? plank : plankN) : (alongX ? plankN : plank)));
+                        }
+                    }
+                // stepped gable roof along u, ridge beam on top, gable ends filled
+                for (int u = -HU - 1; u <= HU + 1; u++)
+                    for (int w = -HW - 1; w <= HW + 1; w++)
+                    {
+                        int ry = g0 + 3 + (HW + 1 - Math.Abs(w));
+                        PutH(u, w, ry, w == 0 ? (alongX ? beamU : beamW) : plank);
+                        if (Math.Abs(u) == HU && Math.Abs(w) <= HW)
+                            for (int y = g0 + 3; y < ry; y++) PutH(u, w, y, plank);
+                    }
+                if (table != 0) PutH(2, -2, g0, table);
+                if (vessel != 0) PutH(2, 2, g0, vessel);
                 break;
             }
 

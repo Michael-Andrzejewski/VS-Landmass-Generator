@@ -191,9 +191,9 @@ def main():
     # side passages run ~half the main bore and their branches ~a quarter:
     # long narrow twisting galleries off one vast artery, with room events
     # still blowing out the occasional large cavern at any depth.
-    print("cave K heading=270 dip=24 length=430 radius=5.5 squash=0.8 weave=0.6 scale=2.4 branches=5 branchdepth=3 branchlen=0.6 branchradius=0.45 pinch=0.6 depth=115 mouth=14 entry=16 ores=iron:0.06 seed=1")
-    print("cave c heading=180 dip=24 length=140 radius=2.4 squash=0.75 weave=0.5 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=34 mouth=8 entry=10 ores=iron:0.05 seed=1")
-    print("cave d heading=0 dip=20 length=130 radius=2.2 squash=0.75 weave=0.55 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=30 mouth=6 entry=10 ores=iron:0.05 seed=1")
+    print("cave K heading=270 dip=24 length=430 radius=5.5 squash=0.8 weave=0.6 scale=2.4 branches=5 branchdepth=3 branchlen=0.6 branchradius=0.45 pinch=0.6 depth=115 mouth=14 entry=16 ores=iron:0.06 timbers=12 holders=14 seed=1")
+    print("cave c heading=180 dip=24 length=140 radius=2.4 squash=0.75 weave=0.5 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=34 mouth=8 entry=10 ores=iron:0.05 timbers=12 holders=14 seed=1")
+    print("cave d heading=0 dip=20 length=130 radius=2.2 squash=0.75 weave=0.55 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=30 mouth=6 entry=10 ores=iron:0.05 timbers=12 holders=14 seed=1")
     print("deposits natural")
     print()
     def _cell_of(letters):
@@ -205,7 +205,7 @@ def main():
         return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
     # Lore (2026-10-20): John Vintage's farewell at the bottom of the great
     # mine, and his second note hidden by a landmark pine in the pine wood.
-    print("chest Z collapsed1 lore:john_vintage cave=K")
+    print("chest Z golden-aged lore:john_vintage,lensresearch:temporallens,lensresearch:schematic-miniriftward cave=K")
     px, pz = _cell_of("P")
     print("tree Q scotspine 2.2")
     grid[pz][px] = "Q"

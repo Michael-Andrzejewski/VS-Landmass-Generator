@@ -20,12 +20,12 @@ region R rock=chert surface=rock ores=limonite:0.055,quartz:0.015,sulfur:0.008 o
 region W rock=slate surface=rock ores=magnetite:0.032,titanium:0.010,quartz:0.014,copper:0.008 orebits=iron:0.002 boulders=0.015 stones=0.03 height=0.70 shore=7 rough=0.22
 region w rock=slate surface=rock ores=magnetite:0.032,quartz:0.014 boulders=0.015 stones=0.03 height=0.55 shore=9 rough=0.30
 region B rock=chert sand=sand-chert surface=sand shells=0.02 height=0.15 shore=16 rough=0.03
-cave K heading=270 dip=24 length=430 radius=5.5 squash=0.8 weave=0.6 scale=2.4 branches=5 branchdepth=3 branchlen=0.6 branchradius=0.45 pinch=0.6 depth=115 mouth=14 entry=16 ores=iron:0.06 seed=1
-cave c heading=180 dip=24 length=140 radius=2.4 squash=0.75 weave=0.5 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=34 mouth=8 entry=10 ores=iron:0.05 seed=1
-cave d heading=0 dip=20 length=130 radius=2.2 squash=0.75 weave=0.55 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=30 mouth=6 entry=10 ores=iron:0.05 seed=1
+cave K heading=270 dip=24 length=430 radius=5.5 squash=0.8 weave=0.6 scale=2.4 branches=5 branchdepth=3 branchlen=0.6 branchradius=0.45 pinch=0.6 depth=115 mouth=14 entry=16 ores=iron:0.06 timbers=12 holders=14 seed=1
+cave c heading=180 dip=24 length=140 radius=2.4 squash=0.75 weave=0.5 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=34 mouth=8 entry=10 ores=iron:0.05 timbers=12 holders=14 seed=1
+cave d heading=0 dip=20 length=130 radius=2.2 squash=0.75 weave=0.55 scale=1 branches=2 branchdepth=1 branchlen=0.5 depth=30 mouth=6 entry=10 ores=iron:0.05 timbers=12 holders=14 seed=1
 deposits natural
 
-chest Z collapsed1 lore:john_vintage cave=K
+chest Z golden-aged lore:john_vintage,lensresearch:temporallens,lensresearch:schematic-miniriftward cave=K
 tree Q scotspine 2.2
 chest H normal-aged lore:john_vintage_alive near=Q
 map

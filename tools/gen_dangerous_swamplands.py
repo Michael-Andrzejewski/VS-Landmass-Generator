@@ -227,7 +227,7 @@ def main():
     print("block H oversizedhorrors:giantspawner-drifter-tainted")
     print("block G oversizedhorrors:giantspawner-shiver-stilt")
     # seed=3 from the previewer sweep on the north-face mouth: dry end to end, 970 steps.
-    print("cave V heading=auto dip=24 length=170 radius=2.4 squash=0.8 weave=0.7 scale=1.1 branches=3 branchdepth=2 branchlen=0.6 pinch=0.4 depth=50 mouth=4 entry=6 ores=iron:0.08,coal:0.04 seed=3")
+    print("cave V heading=auto dip=24 length=170 radius=2.4 squash=0.8 weave=0.7 scale=1.1 branches=3 branchdepth=2 branchlen=0.6 pinch=0.4 depth=50 mouth=4 entry=6 ores=iron:0.08,coal:0.04 timbers=12 holders=14 seed=3")
     print("cave Q flooded=1 heading=auto dip=45 length=70 radius=2.2 squash=0.8 weave=0.5 scale=1 branches=1 branchdepth=1 branchlen=0.5 depth=22 entry=4 ores=iron:0.06 seed=3")
     print("deposits natural")
     print()

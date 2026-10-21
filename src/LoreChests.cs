@@ -336,13 +336,47 @@ public partial class LandmassGeneratorModSystem
         return placed > 0 ? $" Placed {placed} new marker block(s)." : "";
     }
 
+    // Structure kinds added after the Rustfall world was first generated.
+    // /genchests builds these (and only these) where they are missing, so an
+    // existing world gets the lab and the hut without any megastructure
+    // being rebuilt. Each has a signature block that says "already built".
+    private static readonly HashSet<string> NewStructKinds = new() { "lab", "hut" };
+
+    private string BuildNewStructs(IslandJob job)
+    {
+        int built = 0;
+        var world = sapi.World.BlockAccessor;
+        foreach (var sm in job.Shape.Structs.Where(s => NewStructKinds.Contains(s.Def.Kind)))
+        {
+            double lx = (sm.Gx + 0.5 - job.Shape.W / 2.0) * job.WorldPerCell;
+            double lz = (sm.Gz + 0.5 - job.Shape.H / 2.0) * job.WorldPerCell;
+            int cx = job.Cx + (int)Math.Round(lx * job.RotCos - lz * job.RotSin);
+            int cz = job.Cz + (int)Math.Round(lx * job.RotSin + lz * job.RotCos);
+            string sig = sm.Def.Kind == "lab" ? "glass-plain" : "table-aged";
+            int sigId = sapi.World.GetBlock(new AssetLocation("game", sig))?.BlockId ?? -1;
+            bool present = false;
+            var p = new BlockPos(0, 0, 0, job.Dim);
+            for (int dx = -12; dx <= 12 && !present; dx++)
+                for (int dz = -12; dz <= 12 && !present; dz++)
+                    for (int y = job.SeaLevel - 10; y <= job.SeaLevel + job.DomeHeight + 20 && !present; y++)
+                    {
+                        p.Set(cx + dx, y, cz + dz);
+                        if (world.GetBlock(p)?.BlockId == sigId) present = true;
+                    }
+            if (present) continue;
+            BuildStruct(job, sm.Def, cx, cz);
+            built++;
+        }
+        return built > 0 ? $" Built {built} new structure(s)." : "";
+    }
+
     // /genchests: place the plan islands' chests into a world that was
     // generated before they existed (or refill after edits). Re-running is
     // safe: a spot with a chest already near it is skipped.
     private TextCommandResult OnGenChests(TextCommandCallingArgs args)
     {
         if (_wgIslandJobs == null || _wgIslandJobs.Count == 0) return TextCommandResult.Error("This world has no plan islands.");
-        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.BlockMarkers.Count > 0).ToList();
+        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.BlockMarkers.Count > 0 || j.Shape?.Structs.Any(s => NewStructKinds.Contains(s.Def.Kind)) == true || j.Shape?.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0) == true).ToList();
         if (todo.Count == 0) return TextCommandResult.Error("No plan island has chests or marker blocks in its shape file.");
         GenChestsNext(todo, 0, new List<string>());
         return TextCommandResult.Success($"Placing chests on {todo.Count} island(s); results follow in chat.");
@@ -357,7 +391,7 @@ public partial class LandmassGeneratorModSystem
         }
         var job = todo[idx];
         // Cave chests need the cave steps; the walk is world-independent.
-        if (job.Shape.Chests.Any(c => c.Cave != null))
+        if (job.Shape.Chests.Any(c => c.Cave != null) || job.Shape.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0))
         {
             var dry = new CaveWork { DryRun = true };
             CarveCaves(job, dry);
@@ -366,6 +400,9 @@ public partial class LandmassGeneratorModSystem
         // Load every chest's surroundings (and the caves), then place.
         int cs = GlobalConstants.ChunkSize;
         int x1 = int.MaxValue, z1 = int.MaxValue, x2 = int.MinValue, z2 = int.MinValue;
+        if (job.CaveSteps != null && job.Shape.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0))
+            foreach (var s in job.CaveSteps)
+            { x1 = Math.Min(x1, (int)s.X); x2 = Math.Max(x2, (int)s.X); z1 = Math.Min(z1, (int)s.Z); z2 = Math.Max(z2, (int)s.Z); }
         foreach (var cp in job.Shape.Chests)
         {
             if (cp.Cave != null && job.CaveSteps != null)
@@ -384,6 +421,11 @@ public partial class LandmassGeneratorModSystem
             MarkerWorld(job, m.Gx, m.Gz, out int x, out int z);
             x1 = Math.Min(x1, x); x2 = Math.Max(x2, x); z1 = Math.Min(z1, z); z2 = Math.Max(z2, z);
         }
+        foreach (var sm in job.Shape.Structs.Where(s => NewStructKinds.Contains(s.Def.Kind)))
+        {
+            MarkerWorld(job, sm.Gx, sm.Gz, out int x, out int z);
+            x1 = Math.Min(x1, x - 24); x2 = Math.Max(x2, x + 24); z1 = Math.Min(z1, z - 24); z2 = Math.Max(z2, z + 24);
+        }
         if (x2 < x1) { GenChestsNext(todo, idx + 1, report); return; }
         // KeepLoaded: with a plain load the first bands of a big area can
         // unload again before the last one arrives, and unloaded chunks read
@@ -392,7 +434,7 @@ public partial class LandmassGeneratorModSystem
         LoadChunkAreaBanded(lcx1, lcz1, lcx2, lcz2, true, () =>
         {
             string r;
-            try { r = PlaceChests(job) + PlaceMissingMarkerBlocks(job); }
+            try { r = BuildNewStructs(job) + PlaceChests(job) + PlaceMissingMarkerBlocks(job) + PlaceCaveProps(job, skipIfDone: true); }
             catch (Exception e) { r = " FAILED: " + e.Message; sapi.Logger.Error(e); }
             job.PreCx1 = lcx1; job.PreCz1 = lcz1; job.PreCx2 = lcx2; job.PreCz2 = lcz2;
             ReleaseKeptChunks(job);

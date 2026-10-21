@@ -481,12 +481,24 @@ Lore files (`lore/*.txt` in the repo, copied to the data folder):
     ---
     The text. The game splits it into pages.
 
+Mine props: a cave line may add `timbers=N` (a log frame, two posts and a cap
+beam, every N steps where the tunnel is 3 to 7 wide and 3 to 6 tall) and
+`holders=N` (an empty aged torch holder on the wall at head height every N
+steps, for players to light the mine with torches). Halls and flooded caves get
+nothing.
+
+Structure kinds `lab` (Tin Island's half-underground flux lab: sunken brick
+room, stair, fallen roof on rusted girders, benches, the glowing lens rig, Rust
+bleeding out of the door) and `hut` (a timber trader's hut on a levelled footing;
+it fells the trees around it first).
+
     /genchests
 
-Places every plan island's chests, and any marker block missing from the world
-(the anchors), into a world generated before they existed. Re-running is safe:
-spots with a chest already nearby are skipped, and a marker block already standing
-near its spot is not doubled.
+Brings an existing world up to date with its plan islands: builds missing `lab`
+and `hut` structures (never any other kind), places the chests, any missing
+marker blocks (the anchors) and the mine props. Re-running is safe: built
+structures, spots with a chest nearby, marker blocks already standing near their
+spot, and islands whose props are in (a flag in the save) are skipped.
 
     /genscan [step] [margin]
 

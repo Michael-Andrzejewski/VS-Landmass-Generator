@@ -171,8 +171,8 @@ def main():
     print("# Deferred (add later): logging camp structures, mine timbers/lighting,")
     print("# teleporter.")
     print()
-    print("region P rock=granite rock2=claystone fertility=medium surface=grass forest=0.050 trees=sugarmaple,norwaymaple litter=0.9 sticks=0.05 bushes=raspberry:0.006,blueberry:0.006 scatter=chanterelle:0.006,kingbolete:0.005,commonmorel:0.004,fieldmushroom:0.004,eaglefern:0.020 height=0.40 shore=16 rough=0.09")
-    print("region M rock=granite rock2=claystone fertility=medium surface=grass forest=0.060 trees=sugarmaple,mountainmaple litter=1.0 sticks=0.06 scatter=flyagaric:0.005,saffronmilkcap:0.005,indigomilkcap:0.003,violetwebcap:0.003,deerfern:0.015 height=0.64 shore=16 rough=0.12")
+    print("region P rock=granite rock2=claystone fertility=medium surface=grass forest=0.050 trees=sugarmaple,norwaymaple,englishoak litter=0.9 sticks=0.05 bushes=raspberry:0.006,blueberry:0.006 scatter=chanterelle:0.006,kingbolete:0.005,commonmorel:0.004,fieldmushroom:0.004,eaglefern:0.020 height=0.40 shore=16 rough=0.09")
+    print("region M rock=granite rock2=claystone fertility=medium surface=grass forest=0.060 trees=sugarmaple,mountainmaple,englishoak,silverbirch litter=1.0 sticks=0.06 scatter=flyagaric:0.005,saffronmilkcap:0.005,indigomilkcap:0.003,violetwebcap:0.003,deerfern:0.015 height=0.64 shore=16 rough=0.12")
     print("region H rock=granite rock2=claystone fertility=low    surface=grass forest=0.040 trees=mountainmaple,sugarmaplesmall litter=0.8 sticks=0.04 boulders=0.006 scatter=redwinecap:0.004,puffball:0.004,witchhat:0.003,horsetail:0.008 height=0.82 shore=16 rough=0.15")
     print("region S rock=granite rock2=claystone fertility=low    surface=rock boulders=0.020 height=1.0  shore=14 rough=0.22")
     print("region R rock=granite rock2=claystone fertility=low    surface=rock boulders=0.015 height=0.90 shore=14 rough=0.20")
@@ -187,11 +187,17 @@ def main():
     # diving at 20 over a long main gallery. seed=26 picked in the previewer
     # sweep of 70 seeds: 865 steps, ONE step lost to the water guard, bottom
     # galleries 58 below sea.
-    print("cave V heading=auto dip=20 length=170 radius=2.8 squash=0.8 weave=0.5 scale=1.35 branches=3 branchdepth=2 branchlen=0.6 depth=70 mouth=2 entry=6 seed=26")
+    print("cave V heading=auto dip=20 length=170 radius=2.8 squash=0.8 weave=0.5 scale=1.35 branches=3 branchdepth=2 branchlen=0.6 depth=70 mouth=2 entry=6 timbers=12 holders=14 seed=26")
     print("deposits natural")
     print()
     # Lore (2026-10-20): the ticking, at the bottom of the coal mine.
     print("chest Z collapsed3 lore:forest_ticking cave=V")
+    # The trader's hut (2026-10-20) on the logging-camp clearing.
+    gpts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch == "G"]
+    gmx = sum(p[0] for p in gpts) / len(gpts); gmz = sum(p[1] for p in gpts) / len(gpts)
+    hx, hz = min(gpts, key=lambda p: (p[0] - gmx) ** 2 + (p[1] - gmz) ** 2)
+    print("struct U kind=hut size=12 seed=3")
+    grid[hz][hx] = "U"
     print("map")
     for row in grid:
         print("".join(row))
