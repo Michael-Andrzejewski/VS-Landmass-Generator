@@ -448,6 +448,7 @@ public partial class LandmassGeneratorModSystem
                 if (y < job.SeaLevel - 1) py = Math.Min(py, job.SeaLevel - 3);
                 pos.Y = Math.Max(py, y + 1);
                 world.SetBlock(block.BlockId, pos);
+                if (m.Attrs != null) SetBlockEntitySettings(pos, m.Attrs);
                 placed++;
                 break;
             }

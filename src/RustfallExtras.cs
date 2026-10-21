@@ -35,6 +35,25 @@ public partial class LandmassGeneratorModSystem
         return job == null ? null : new Vec3d(job.Cx + 0.5, job.SeaLevel, job.Cz + 0.5);
     }
 
+    // Settings on a placed block's entity (a spawner's trigger radius...):
+    // read its attributes, change the named ones, read them back. Numbers
+    // go in as floats, true/false as booleans; mods read their own keys.
+    private void SetBlockEntitySettings(BlockPos pos, Dictionary<string, string> attrs)
+    {
+        var be = sapi.World.BlockAccessor.GetBlockEntity(pos);
+        if (be == null || attrs == null || attrs.Count == 0) return;
+        var tree = new Vintagestory.API.Datastructures.TreeAttribute();
+        be.ToTreeAttributes(tree);
+        foreach (var kv in attrs)
+        {
+            if (bool.TryParse(kv.Value, out bool b)) tree.SetBool(kv.Key, b);
+            else if (float.TryParse(kv.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f)) tree.SetFloat(kv.Key, f);
+            else tree.SetString(kv.Key, kv.Value);
+        }
+        be.FromTreeAttributes(tree, sapi.World);
+        be.MarkDirty(true);
+    }
+
     // ── loot ───────────────────────────────────────────────────────────
 
     private static readonly (string Code, int Min, int Max, double Weight)[] MachineLoot =
@@ -361,7 +380,7 @@ public partial class LandmassGeneratorModSystem
         int Surface(int x, int z) =>
             ColumnSurface(job, x, z, job.SeaLevel, out int ty, out _, out _, out _, out _, out _) ? ty : job.SeaLevel;
 
-        bool Lair(int cx, int floor, int cz, string code, string what)
+        bool Lair(int cx, int floor, int cz, string code, string what, float range = 0)
         {
             int gid = Bid(code);
             if (gid == 0) { notes.Add($"spawner '{code}' is not in this game (is its mod installed?)"); return false; }
@@ -388,6 +407,7 @@ public partial class LandmassGeneratorModSystem
                     for (int y = floor - 3; y <= floor - 1; y++)
                         if (!solid(cx + ddx, y, cz + ddz)) Put(cx + ddx, y, cz + ddz, stoneId);
             Put(cx, floor - 2, cz, gid);
+            if (range > 0) SetBlockEntitySettings(new BlockPos(cx, floor - 2, cz, job.Dim), new Dictionary<string, string> { ["triggerRange"] = range.ToString(System.Globalization.CultureInfo.InvariantCulture) });
             lairs.Add((cx, cz));
             giants++;
             bool room = RoomFor(GiantBox(code), cx, floor, cz);
@@ -421,7 +441,7 @@ public partial class LandmassGeneratorModSystem
                 {
                     var sp = deep[(start + t) % deep.Count];
                     if (!FarFromLairs(sp.X, sp.Z, 26)) continue;
-                    if (Lair(sp.X, sp.Floor, sp.Z, def.GiantCode, "mine lair")) { made++; break; }
+                    if (Lair(sp.X, sp.Floor, sp.Z, def.GiantCode, "mine lair", def.GiantRange)) { made++; break; }
                 }
             }
             if (made < want) notes.Add($"{made} of {want} mine lairs fit");
@@ -452,6 +472,7 @@ public partial class LandmassGeneratorModSystem
                     // under the top block, with ground under it
                     for (int y = top - 3; y <= top - 1; y++) if (!solid(x, y, z)) Put(x, y, z, stoneId);
                     Put(x, top - 1, z, gid);
+                    if (def.GiantRange > 0) SetBlockEntitySettings(new BlockPos(x, top - 1, z, job.Dim), new Dictionary<string, string> { ["triggerRange"] = def.GiantRange.ToString(System.Globalization.CultureInfo.InvariantCulture) });
                     giants++;
                     done = true;
                     sapi.Logger.Notification("[landmassgenerator] mouth spawner: {0} buried at HUD {1}, {2}, {3}; spawn room clear", def.MouthGiantCode,

@@ -118,7 +118,7 @@ def main():
     # Lifted 15 off the floor: the spawner triggers on players in water
     # within 40 blocks in 3D, so on the deep floor (~30 down) a surface
     # swimmer never armed it. At ~15 deep its reach covers the surface.
-    print("block X underwaterhorrors:serpentspawner 15")
+    print("block X underwaterhorrors:serpentspawner 15 attr:triggerRange=80 attr:requireWater=true attr:lingerSeconds=120 attr:lingerRange=120")
     # A chest on the largest islet: the way on to the Forest Island.
     print("chest C normal-aged landmassgenerator:islandmap-forest at=58,82")
     print()

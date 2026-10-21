@@ -1640,6 +1640,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         public string Code;
         public int Up;   // blocks above the ground; underwater it never rises past SeaLevel - 3
         public string Side;   // beside=<char> side=<dir>: right against that landmark tree's trunk
+        public Dictionary<string, string> Attrs;   // attr:<key>=<value>: block entity settings (spawner radius...)
     }
 
     // One cave design: where it enters the island and how it descends.
@@ -1652,6 +1653,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         public int Machinery;                   // rusted machinery set into the walls every N steps (0 = none)
         public string GiantCode; public int GiantCount;   // giants=<spawner block>*N: giant lairs along the deep mine
         public string DeepGiantCode, MouthGiantCode;      // deepgiant= (the bottom), mouthgiant= (under the ground by the mouth)
+        public float GiantRange;                          // giantrange=: trigger radius for the giants= and mouthgiant= spawners (0 = mod default)
         public double DipDeg = 12;              // how steeply the tunnel descends while diving
         public double Length = 80;              // main tunnel length in blocks
         public double Radius = 2.6;             // horizontal carve radius
@@ -2225,6 +2227,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         var structDefs = new Dictionary<char, StructDef>();
         var blockDefs = new Dictionary<char, (string code, int up)>();
         var blockBeside = new Dictionary<char, (char At, string Side)>();
+        var blockAttrs = new Dictionary<char, Dictionary<string, string>>();
         var chestDefs = new Dictionary<char, ChestDef>();
         var firstCell = new Dictionary<char, (int X, int Z)>();
         var rows = new List<string>();
@@ -2289,6 +2292,13 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                     int eq = tok[ti].IndexOf('=');
                     if (eq < 0) { if (int.TryParse(tok[ti], out int u)) up = Math.Clamp(u, 0, 60); continue; }
                     string k = tok[ti].Substring(0, eq).ToLowerInvariant(), v = tok[ti].Substring(eq + 1);
+                    if (k.StartsWith("attr:"))
+                    {
+                        // keep the key's case: block entity attribute names are case sensitive
+                        if (!blockAttrs.TryGetValue(tok[1][0], out var ad)) blockAttrs[tok[1][0]] = ad = new Dictionary<string, string>();
+                        ad[tok[ti].Substring(5, eq - 5)] = v;
+                        continue;
+                    }
                     if (k == "beside" && v.Length > 0) beside = v[0];
                     else if (k == "side") side = ParseSide(v, problems, $"block {tok[1][0]}");
                     else problems.Add($"block {tok[1][0]}: unknown key '{k}'");
@@ -2361,7 +2371,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 }
                 else if (blockDefs.ContainsKey(c))
                 {
-                    shape.BlockMarkers.Add(new BlockMarker { Gx = x, Gz = z, Code = blockDefs[c].code, Up = blockDefs[c].up });
+                    shape.BlockMarkers.Add(new BlockMarker { Gx = x, Gz = z, Code = blockDefs[c].code, Up = blockDefs[c].up, Attrs = blockAttrs.GetValueOrDefault(c) });
                     // Unlike tree/cave markers, a block marker may stand in
                     // open ocean (a spawner on the sea floor). Ocean around
                     // it means ocean; NeighbourRegion would instead grow a
@@ -2377,7 +2387,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         {
             if (firstCell.ContainsKey(kv.Key)) continue;   // drawn on the map: that cell wins
             if (!firstCell.TryGetValue(kv.Value.At, out var at)) { problems.Add($"block {kv.Key}: no map cell '{kv.Value.At}'"); continue; }
-            shape.BlockMarkers.Add(new BlockMarker { Gx = at.X, Gz = at.Z, Code = blockDefs[kv.Key].code, Up = blockDefs[kv.Key].up, Side = kv.Value.Side });
+            shape.BlockMarkers.Add(new BlockMarker { Gx = at.X, Gz = at.Z, Code = blockDefs[kv.Key].code, Up = blockDefs[kv.Key].up, Side = kv.Value.Side, Attrs = blockAttrs.GetValueOrDefault(kv.Key) });
         }
 
         // A marker cell still needs terrain, so adopt a neighbouring region.
@@ -2956,6 +2966,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 case "timbers": d.Timbers = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
                 case "holders": d.Holders = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
                 case "deepgiant": d.DeepGiantCode = v; break;
+                case "giantrange": d.GiantRange = (float)Math.Clamp(ParseD(v, 0), 0, 400); break;
                 case "mouthgiant": d.MouthGiantCode = v; break;
                 case "machinery": d.Machinery = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
                 case "giants":
@@ -9235,6 +9246,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         var ba = sapi.World.GetBlockAccessorBulkUpdate(true, true);
         int placed = 0;
         var missing = new List<string>();
+        var withAttrs = new List<(BlockPos Pos, Dictionary<string, string> Attrs)>();
 
         foreach (var m in job.Shape.BlockMarkers)
         {
@@ -9259,12 +9271,14 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 if (y < job.SeaLevel - 1) py = Math.Min(py, job.SeaLevel - 3);
                 pos.Y = Math.Max(py, y + 1);
                 ba.SetBlock(block.BlockId, pos);
+                if (m.Attrs != null) withAttrs.Add((pos.Copy(), m.Attrs));
                 placed++;
                 break;
             }
         }
 
         ba.Commit();
+        foreach (var (at, attrs) in withAttrs) SetBlockEntitySettings(at, attrs);
         string note = placed > 0 ? $" Placed {placed} marker block(s)." : "";
         if (missing.Count > 0) note += $" Marker block(s) not in this game: {string.Join(", ", missing)}. Is their mod installed?";
         return note;

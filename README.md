@@ -529,6 +529,12 @@ stretch of wall turns to rusted plate with a gearbox or pipe run against it and
 parts on the floor) and `giants=<spawner block>*K` (K spawner blocks in the
 cave's widest, tallest halls, 30+ blocks apart; made for Oversized Horrors'
 `oversizedhorrors:giantspawner-*`).
+`giantrange=N` gives the `giants=` and `mouthgiant=` spawners their own trigger
+radius (Oversized Horrors 1.3.0+). A `block` line takes `attr:<key>=<value>`
+settings for the placed block's entity, e.g. a serpent spawner's
+`attr:triggerRange=80 attr:requireWater=true attr:lingerSeconds=120
+attr:lingerRange=120` (Underwater Horrors 0.21.0+); numbers go in as floats,
+true/false as booleans.
 
 World plan lines (0.60.0): `devastation off` pauses Spreading Devastation in the
 new world (saved with it; `/devastate start` resumes). `storychest <code>
