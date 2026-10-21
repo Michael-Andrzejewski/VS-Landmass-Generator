@@ -3467,7 +3467,7 @@ storyloc crossroads 7600 -5600
         var world = sapi.World.BlockAccessor;
         int yTop = sapi.WorldManager.MapSizeY - 2;
         int gap = 0;
-        for (int y = clearTop + 1; y <= yTop && gap < 4; y++)
+        for (int y = Math.Max(clearTop, topY) + 1; y <= yTop && gap < 4; y++)
         {
             pos.Set(x, y, z);
             bool occupied = world.GetBlock(pos, BlockLayersAccess.SolidBlocks).BlockId != 0
@@ -3748,8 +3748,11 @@ storyloc crossroads 7600 -5600
         // grass floated over open water. Keep clearing upward while anything
         // remains, the same scan FillColumn does live: a 4-block gap ends it
         // under open sky while still stepping through a canopy.
+        // Start above whichever is higher: clearTop assumes no land rises
+        // past DomeHeight + 6, but a region with height > 1 (the Starter
+        // Island's hill) does, and starting at clearTop shaved its top layer.
         int gap = 0;
-        for (int y = clearTop + 1; y <= maxY && gap < 4; y++)
+        for (int y = Math.Max(clearTop, topY) + 1; y <= maxY && gap < 4; y++)
         {
             int idx = (y % cs * cs + lz) * cs + lx;
             IChunkBlocks data = chunks[y / cs].Data;
@@ -8957,7 +8960,7 @@ storyloc crossroads 7600 -5600
                 Block b = ba.GetBlock(pos, BlockLayersAccess.SolidBlocks);
                 if (b == null || b.Id == 0) continue;
                 if (b.BlockMaterial == EnumBlockMaterial.Plant || b.BlockMaterial == EnumBlockMaterial.Leaves) continue;
-                if (m.Side != null && b.BlockMaterial == EnumBlockMaterial.Wood) continue;   // a root flare, not the ground
+                if (m.Side != null && (b.BlockMaterial == EnumBlockMaterial.Wood || !b.SideSolid[BlockFacing.UP.Index])) continue;   // a root flare or a loose stone, not the ground
                 // The optional lift raises the block off the ground (a
                 // spawner needs to sit within trigger range of swimmers at
                 // the surface), but underwater it never breaches the sea.

@@ -243,6 +243,7 @@ public partial class LandmassGeneratorModSystem
             Block b = world.GetBlock(pos, BlockLayersAccess.SolidBlocks);
             if (b == null || b.Id == 0) continue;
             if (b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves or EnumBlockMaterial.Wood) continue;
+            if (!b.SideSolid[BlockFacing.UP.Index]) continue;   // a loose stone or a stick: the chest replaces it
             if (y < job.SeaLevel - 1) return null;          // under water
             return new BlockPos(x, y + 1, z, job.Dim);
         }
@@ -391,7 +392,7 @@ public partial class LandmassGeneratorModSystem
                 pos.Y = y;
                 Block b = world.GetBlock(pos, BlockLayersAccess.SolidBlocks);
                 if (b == null || b.Id == 0 || b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves) continue;
-                if (m.Side != null && b.BlockMaterial == EnumBlockMaterial.Wood) continue;
+                if (m.Side != null && (b.BlockMaterial == EnumBlockMaterial.Wood || !b.SideSolid[BlockFacing.UP.Index])) continue;
                 int py = y + 1 + m.Up;
                 if (y < job.SeaLevel - 1) py = Math.Min(py, job.SeaLevel - 3);
                 pos.Y = Math.Max(py, y + 1);

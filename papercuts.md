@@ -819,3 +819,14 @@ plants above the new ground in those columns, plus stray leaves over any
 open sea in the island's rect. Measured over scan #26: 1033 floating
 vegetation blocks before, 19 after the first try (shore grass on columns
 lowered by one block), then the threshold went to "lowered at all".
+
+## The floater sweep shaved the top off any land above DomeHeight + 6 (fixed 0.59.0, same day)
+
+The new upward scan in FillColumnWorldgen started at `clearTop + 1`, and
+clearTop assumes no land rises past `SeaLevel + DomeHeight + 6`. The Starter
+Island's hill (region height 2.0) does, so the scan treated the hill's own
+top block as "something left standing" and cleared it: the oak was planted
+on a ground height that no longer existed and hovered one block up. Found by
+a probe logging the blocks under the tree after every decoration step: the
+grass was already gone BEFORE the tree went in, which pointed at worldgen.
+Rule: any "clear above the ground" loop starts at max(its ceiling, topY) + 1.
