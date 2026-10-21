@@ -30,6 +30,7 @@ deposits natural
 
 chest Z collapsed3 lore:forest_ticking cave=V
 struct U kind=treasurehunter seed=3 chest=landmassgenerator:islandmap-tinmine
+loot mine 2 cave=V
 map
 ........................................................................................................................
 ........................................................................................................................

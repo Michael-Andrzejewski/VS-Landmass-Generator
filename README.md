@@ -482,6 +482,21 @@ Island maps (0.60.0): `landmassgenerator:islandmap-tinmine`, `-forest` and
 that plan island (`tin_island`, `forester_island`, `ideal_house_island`), the way
 a Better Ruins locator map marks its find.
 
+Loot pass (0.60.0): two shape lines place loot after every structure is built,
+finding real floor cells with two blocks of room near a marker:
+
+    loot <table> <count> [near=<char>] [radius=N] [where=inside|surface|underwater|any] [cave=<char>] [type=<chest type>] [above=N] [below=N]
+    armorstand <set> <count> [near=<char>] [radius=N] [where=...] [above=N] [below=N]
+
+`inside` = a roof within 10 blocks and walls on two sides; `cave=` spreads them
+along that cave; `above=`/`below=` keep them N blocks over/under sea level
+(castle floors vs. its dungeon). Too few spots of the asked kind: the rest go to
+any floor nearby. Tables (LootPass.cs): fortress, treasury, lighthouse, forge,
+mine, ironmine, swamp, wreck, sunken, granary, ruin; every item is checked
+against the game and skipped (logged) if missing. Armor stand sets: guard,
+knight, bronze, forlorn (aged armor stands, armor written straight into their
+slots). Done once per island (save flag), so /genchests never doubles it.
+
 With the Rustfall Lore mod installed (it turns every `lore/*.txt` into a one-page
 journal, code `rf-<id>`), a `lore:<id>` chest holds a vanilla lore book carrying
 that journal's code instead of a written book: reading it files the text under

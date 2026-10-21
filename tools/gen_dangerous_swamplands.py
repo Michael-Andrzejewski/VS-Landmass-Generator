@@ -231,6 +231,9 @@ def main():
     print("cave Q flooded=1 heading=auto dip=45 length=70 radius=2.2 squash=0.8 weave=0.5 scale=1 branches=1 branchdepth=1 branchlen=0.5 depth=22 entry=4 ores=iron:0.06 seed=3")
     print("deposits natural")
     print()
+    print("loot swamp 2 cave=V")
+    print("loot sunken 1 near=Z radius=50 where=underwater")
+    print("loot swamp 1 near=T radius=30 where=surface")
     print("map")
     for row in grid:
         print("".join(row))

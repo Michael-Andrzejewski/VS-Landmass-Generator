@@ -186,6 +186,9 @@ def main():
     print()
     # Random Jonas lore (2026-10-20): a lore book at the bottom of the dungeon cave.
     print("chest R collapsed2 randomlore:jonas:game:lore-book-aged-darkgray cave=K")
+    print("loot ruin 3 cave=K")
+    print("loot ruin 2 where=surface")
+    print("armorstand forlorn 1 cave=K")
     print("map")
     for row in grid:
         print("".join(row))

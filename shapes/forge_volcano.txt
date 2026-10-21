@@ -15,6 +15,8 @@ ocean plunge=6
 struct F kind=forge size=40 seed=9
 
 chest K normal-aged lore:volcano_forge_joy,lore:volcano_forge_shipments,lore:volcano_chart at=29,41
+loot forge 4 near=F radius=45 where=inside
+armorstand bronze 1 near=F radius=45 where=inside
 map
 ....................................llllllllllll..........................................
 ..................................llllllllllllllll........................................

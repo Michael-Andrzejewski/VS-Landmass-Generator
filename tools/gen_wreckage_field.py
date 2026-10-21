@@ -115,6 +115,9 @@ def main():
     print("ocean plunge=20")
     print(f"wreck W radius=55 whirlpool={1 if WHIRLPOOL else 0} seed=7")
     print()
+    # loot in the hulls and on the floor around them (LootPass.cs)
+    print("loot wreck 5 where=inside")
+    print("loot sunken 2 where=underwater")
     print("map")
     for row in grid:
         print("".join(row))

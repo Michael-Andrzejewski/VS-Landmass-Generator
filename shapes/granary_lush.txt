@@ -27,6 +27,7 @@ tree O largekapok 2.2
 struct G kind=granary size=20 seed=4
 
 chest R normal-aged randomlore:jonas:game:lore-paper,randomlore:jonas:game:lore-paper near=O
+loot granary 2 near=G radius=25 where=inside
 map
 ............................................................................................................................................
 ............................................................................................................................................

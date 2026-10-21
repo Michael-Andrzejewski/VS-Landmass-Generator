@@ -122,6 +122,7 @@ def main():
     # A chest on the largest islet: the way on to the Forest Island.
     print("chest C normal-aged landmassgenerator:islandmap-forest at=58,82")
     print()
+    print("loot sunken 1 near=X radius=40 where=underwater")
     print("map")
     for row in grid:
         print("".join(row))

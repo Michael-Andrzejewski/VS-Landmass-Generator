@@ -283,6 +283,7 @@ def main():
     # Lore (2026-10-20): Jonas' dream, on the house terrace (S).
     sx, sz = _cell_of("S")
     print(f"chest D normal-aged lore:ideal_island_dream at={sx},{sz}")
+    print("loot ruin 2 cave=M")
     print("map")
     for row in grid:
         print("".join(row))

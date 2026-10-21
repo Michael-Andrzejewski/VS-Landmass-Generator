@@ -7,6 +7,8 @@
 ocean plunge=30 basin=60 depth=95
 struct M kind=colossus size=60 seed=7
 
+loot sunken 2 near=M radius=60 where=underwater
+loot treasury 1 near=M radius=40 where=underwater
 map
 ................................................................................
 ................................................................................

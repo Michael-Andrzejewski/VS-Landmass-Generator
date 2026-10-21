@@ -210,6 +210,9 @@ def main():
     print("tree Q scotspine 2.2")
     grid[pz][px] = "Q"
     print("chest H normal-aged lore:john_vintage_alive near=Q")
+    print("loot ironmine 3 cave=K")
+    print("loot ironmine 1 cave=c")
+    print("loot ironmine 1 cave=d")
     print("map")
     for row in grid:
         print("".join(row))

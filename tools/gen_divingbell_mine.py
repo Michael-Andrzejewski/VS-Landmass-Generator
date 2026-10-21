@@ -106,6 +106,8 @@ def main():
     # Random Jonas lore (2026-10-20): a lore book on the hills above the bells.
     rx, rz = _cell_of("h")
     print(f"chest R normal-aged randomlore:jonas:game:lore-book-aged-cherryred at={rx},{rz}")
+    print("loot mine 3 near=D radius=70 where=inside")
+    print("loot sunken 1 near=D radius=70 where=underwater")
     print("map")
     for row in grid:
         print("".join(row))

@@ -1441,6 +1441,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             caveNote += BuildStructs(job);
             extra += PlaceChests(job);
             extra += PlaceCaveProps(job);
+            extra += PlaceLoot(job);
             StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
             sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
@@ -1765,6 +1766,8 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         public List<WreckMarker> Wrecks = new();
         public List<StructMarker> Structs = new();
         public List<ChestPlacement> Chests = new();
+        public List<LootDef> Loot = new();                      // loot / armorstand lines (LootPass.cs)
+        public Dictionary<char, (int X, int Z)> FirstCells = new();   // first map cell of each char
         public bool NaturalDeposits;  // `deposits natural`: run the game's own ore pass
         // `ocean plunge=N`: the reshaped sea floor starts N below sea right at
         // the coastline. The default 2 makes a wading shelf (and a visible
@@ -2279,6 +2282,10 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             {
                 structDefs[tok[1][0]] = ParseStruct(tok, problems);
             }
+            else if ((tok[0].Equals("loot", StringComparison.OrdinalIgnoreCase) || tok[0].Equals("armorstand", StringComparison.OrdinalIgnoreCase)) && tok.Length >= 2)
+            {
+                shape.Loot.Add(ParseLoot(tok, tok[0].Equals("armorstand", StringComparison.OrdinalIgnoreCase), problems));
+            }
             else if (tok[0].Equals("chest", StringComparison.OrdinalIgnoreCase) && tok.Length >= 3)
             {
                 chestDefs[tok[1][0]] = ParseChest(tok, problems);
@@ -2382,6 +2389,12 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             }
 
         if (chestDefs.Count > 0) ResolveChestPlacements(shape, chestDefs, caveDefs, firstCell, problems);
+        foreach (var kv in firstCell) shape.FirstCells[kv.Key] = kv.Value;
+        foreach (var ld in shape.Loot)
+        {
+            if (ld.Cave != '\0' && !caveDefs.TryGetValue(ld.Cave, out ld.CaveDef)) problems.Add($"{(ld.Stand ? "armorstand" : "loot")}: no cave '{ld.Cave}'");
+            if (ld.Near != '\0' && !firstCell.ContainsKey(ld.Near)) problems.Add($"{(ld.Stand ? "armorstand" : "loot")}: no map cell '{ld.Near}'");
+        }
         // beside= blocks that are not drawn on the map stand against a tree.
         foreach (var kv in blockBeside)
         {
@@ -3285,6 +3298,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             caveNote += BuildStructs(job);
             extra += PlaceChests(job);
             extra += PlaceCaveProps(job);
+            extra += PlaceLoot(job);
             int climRegions = StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
 

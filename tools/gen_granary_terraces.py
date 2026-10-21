@@ -230,6 +230,7 @@ def main():
     print()
     # Random Jonas lore (2026-10-20): torn pages in a weathered chest by the oak.
     print("chest R normal-aged randomlore:jonas:game:lore-paper,randomlore:jonas:game:lore-paper near=O")
+    print("loot granary 2 near=G radius=25 where=inside")
     print("map")
     for row in grid:
         print("".join(row))

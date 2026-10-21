@@ -27,6 +27,8 @@ def main():
     print("ocean plunge=30 basin=60 depth=95")
     print("struct M kind=colossus size=60 seed=7")
     print()
+    print("loot sunken 2 near=M radius=60 where=underwater")
+    print("loot treasury 1 near=M radius=40 where=underwater")
     print("map")
     for row in grid:
         print("".join(row))

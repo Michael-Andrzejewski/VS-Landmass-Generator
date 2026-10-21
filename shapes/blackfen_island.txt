@@ -28,6 +28,8 @@ region R rock=shale rock2=claystone surface=rocksand boulders=0.012 stones=0.03 
 cave V heading=auto dip=26 length=150 radius=2.4 squash=0.8 weave=0.6 scale=1.15 branches=3 branchdepth=2 branchlen=0.6 depth=55 mouth=4 entry=6 ores=coal:0.10 seed=2
 deposits natural
 
+loot mine 2 cave=V
+loot swamp 1 where=surface
 map
 ........................................................................................................................
 ........................................................................................................................

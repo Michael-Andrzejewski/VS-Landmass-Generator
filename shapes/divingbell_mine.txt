@@ -19,6 +19,8 @@ ocean basin=150 depth=33 plunge=5
 struct D kind=divingbell size=130 seed=7
 
 chest R normal-aged randomlore:jonas:game:lore-book-aged-cherryred at=38,20
+loot mine 3 near=D radius=70 where=inside
+loot sunken 1 near=D radius=70 where=underwater
 map
 ....................................................................................................
 ....................................................................................................

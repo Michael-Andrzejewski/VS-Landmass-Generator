@@ -18,6 +18,7 @@ region V rock=granite surface=sand flood=3 kelp=0.35 height=0.20 shore=1 rough=0
 block X underwaterhorrors:serpentspawner 15 attr:triggerRange=80 attr:requireWater=true attr:lingerSeconds=120 attr:lingerRange=120
 chest C normal-aged landmassgenerator:islandmap-forest at=58,82
 
+loot sunken 1 near=X radius=40 where=underwater
 map
 ......................................................................................................................................................
 ......................................................................................................................................................

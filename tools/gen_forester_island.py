@@ -198,6 +198,7 @@ def main():
     hx, hz = min(gpts, key=lambda p: (p[0] - gmx) ** 2 + (p[1] - gmz) ** 2)
     print("struct U kind=treasurehunter seed=3 chest=landmassgenerator:islandmap-tinmine")
     grid[hz][hx] = "U"
+    print("loot mine 2 cave=V")
     print("map")
     for row in grid:
         print("".join(row))

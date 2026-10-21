@@ -46,6 +46,8 @@ def main():
     print("ocean plunge=16")
     print("struct B kind=lighthouse size=68 seed=3")
     print()
+    print("loot lighthouse 3 near=B radius=20 where=inside")
+    print("loot sunken 1 near=B radius=40 where=underwater")
     print("map")
     for row in grid:
         print("".join(row))

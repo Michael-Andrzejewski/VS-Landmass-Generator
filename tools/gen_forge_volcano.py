@@ -71,6 +71,8 @@ def main():
     # on the terra preta ring at the foot of the cone (t).
     tx, tz = _cell_of("t")
     print(f"chest K normal-aged lore:volcano_forge_joy,lore:volcano_forge_shipments,lore:volcano_chart at={tx},{tz}")
+    print("loot forge 4 near=F radius=45 where=inside")
+    print("armorstand bronze 1 near=F radius=45 where=inside")
     print("map")
     for row in grid:
         print("".join(row))

@@ -496,7 +496,7 @@ public partial class LandmassGeneratorModSystem
     private TextCommandResult OnGenChests(TextCommandCallingArgs args)
     {
         if (_wgIslandJobs == null || _wgIslandJobs.Count == 0) return TextCommandResult.Error("This world has no plan islands.");
-        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.BlockMarkers.Count > 0 || j.Shape?.Structs.Any(s => NewStructKinds.Contains(s.Def.Kind)) == true || j.Shape?.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0) == true).ToList();
+        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.Loot.Count > 0 || j.Shape?.BlockMarkers.Count > 0 || j.Shape?.Structs.Any(s => NewStructKinds.Contains(s.Def.Kind)) == true || j.Shape?.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0) == true).ToList();
         if (todo.Count == 0) return TextCommandResult.Error("No plan island has chests or marker blocks in its shape file.");
         GenChestsNext(todo, 0, new List<string>());
         return TextCommandResult.Success($"Placing chests on {todo.Count} island(s); results follow in chat.");
@@ -555,7 +555,7 @@ public partial class LandmassGeneratorModSystem
         LoadChunkAreaBanded(lcx1, lcz1, lcx2, lcz2, true, () =>
         {
             string r;
-            try { r = BuildNewStructs(job) + PlaceChests(job) + PlaceMissingMarkerBlocks(job) + PlaceCaveProps(job, skipIfDone: true); }
+            try { r = BuildNewStructs(job) + PlaceChests(job) + PlaceMissingMarkerBlocks(job) + PlaceCaveProps(job, skipIfDone: true) + PlaceLoot(job); }
             catch (Exception e) { r = " FAILED: " + e.Message; sapi.Logger.Error(e); }
             job.PreCx1 = lcx1; job.PreCz1 = lcz1; job.PreCx2 = lcx2; job.PreCz2 = lcz2;
             ReleaseKeptChunks(job);

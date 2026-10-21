@@ -52,6 +52,7 @@ def main():
     print("ocean plunge=8 basin=78 depth=38")
     print("struct S kind=serpent size=62 seed=5")
     print()
+    print("loot sunken 3 near=S radius=120 where=underwater")
     print("map")
     for row in grid:
         print("".join(row))

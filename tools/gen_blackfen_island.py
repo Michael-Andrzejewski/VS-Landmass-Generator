@@ -192,6 +192,8 @@ def main():
     print("cave V heading=auto dip=26 length=150 radius=2.4 squash=0.8 weave=0.6 scale=1.15 branches=3 branchdepth=2 branchlen=0.6 depth=55 mouth=4 entry=6 ores=coal:0.10 seed=2")
     print("deposits natural")
     print()
+    print("loot mine 2 cave=V")
+    print("loot swamp 1 where=surface")
     print("map")
     for row in grid:
         print("".join(row))

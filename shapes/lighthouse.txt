@@ -11,6 +11,8 @@ region k rock=granite fertility=verylow surface=barren climate=dry wildgrass=0 s
 ocean plunge=16
 struct B kind=lighthouse size=68 seed=3
 
+loot lighthouse 3 near=B radius=20 where=inside
+loot sunken 1 near=B radius=40 where=underwater
 map
 ............................................................
 ............................................................

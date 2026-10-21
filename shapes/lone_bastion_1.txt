@@ -20,6 +20,14 @@ bastion Q size=34 dungeony=-8 seed=5
 cave K heading=auto dip=22 length=130 radius=2.4 squash=0.8 weave=0.55 scale=1.2 branches=2 branchdepth=1 branchlen=0.5 pinch=0.35 depth=17 mouth=8 entry=10 ores=iron:0.05 seed=2
 deposits natural
 
+loot fortress 5 near=Q radius=30 where=inside above=15
+loot fortress 3 near=Q radius=30 where=inside below=0
+loot treasury 1 near=Q radius=30 where=inside above=15
+loot treasury 1 near=Q radius=30 where=inside below=0
+armorstand guard 2 near=Q radius=30 where=inside above=15
+armorstand guard 1 near=Q radius=30 where=inside below=0
+armorstand knight 1 near=Q radius=30 where=inside above=15
+loot fortress 1 cave=K
 map
 ....................................................................................................
 ....................................................................................................

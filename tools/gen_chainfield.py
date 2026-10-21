@@ -27,6 +27,7 @@ def main():
     print("ocean plunge=20 basin=75 depth=55")
     print("struct C kind=chains size=60 seed=11")
     print()
+    print("loot sunken 2 near=C radius=60 where=underwater")
     print("map")
     for row in grid:
         print("".join(row))
