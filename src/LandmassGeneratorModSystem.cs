@@ -7918,13 +7918,18 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 // footing with broken walls one to three courses high, no
                 // roof, a fallen beam, and a chest inside with whatever the
                 // workers left behind.
+                // Spread round the lab first; when its own sector is sea or
+                // cliff, a hut may go anywhere on the land within 50 blocks,
+                // never on top of another hut or the lab.
+                var hutsAt = new List<(int X, int Z)>();
                 for (int h = 0; h < def.Huts; h++)
                 {
-                    for (int attempt = 0; attempt < 40; attempt++)
+                    for (int attempt = 0; attempt < 120; attempt++)
                     {
-                        double a = (h + rand.NextDouble() * 0.7) / def.Huts * Math.PI * 2;
-                        double r = 18 + rand.NextDouble() * (14 + attempt * 0.5);
+                        double a = attempt < 20 ? (h + rand.NextDouble() * 0.7) / def.Huts * Math.PI * 2 : rand.NextDouble() * Math.PI * 2;
+                        double r = attempt < 20 ? 18 + rand.NextDouble() * 14 : 16 + rand.NextDouble() * 34;
                         int hx = cx + (int)Math.Round(Math.Cos(a) * r), hz = cz + (int)Math.Round(Math.Sin(a) * r);
+                        if (hutsAt.Exists(o => Math.Abs(o.X - hx) < 12 && Math.Abs(o.Z - hz) < 12)) continue;
                         // every corner and the middle on dry land, no cliff
                         int hg = Ground(hx, hz), lo = hg, hi = hg;
                         foreach (var (ox, oz) in new[] { (-3, -3), (3, -3), (-3, 3), (3, 3) })
@@ -7934,6 +7939,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                         }
                         if (lo < sea + 1 || hi - lo > 5) continue;
                         RuinedHut(hx, hz, hg);
+                        hutsAt.Add((hx, hz));
                         break;
                     }
                 }
