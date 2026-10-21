@@ -60,6 +60,17 @@ def main():
     print("ocean plunge=6")
     print("struct F kind=forge size=40 seed=9")
     print()
+    def _cell_of(letters):
+        pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]
+        if not pts:
+            raise SystemExit(f"no cells of {letters}")
+        mx = sum(p[0] for p in pts) / len(pts)
+        mz = sum(p[1] for p in pts) / len(pts)
+        return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
+    # Lore (2026-10-20): the smith's two notes and the route to the Iron Mine,
+    # on the terra preta ring at the foot of the cone (t).
+    tx, tz = _cell_of("t")
+    print(f"chest K normal-aged lore:volcano_forge_joy,lore:volcano_forge_shipments,lore:volcano_chart at={tx},{tz}")
     print("map")
     for row in grid:
         print("".join(row))

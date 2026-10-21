@@ -273,6 +273,16 @@ def main():
     print("tree O oak 2.4")
     print("cave M heading=auto dip=18 length=190 radius=2.7 squash=0.75 weave=0.45 scale=0.8 branches=5 branchdepth=2 branchlen=0.7 depth=45 mouth=5 entry=6 ores=copper:0.06 seed=12")
     print()
+    def _cell_of(letters):
+        pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]
+        if not pts:
+            raise SystemExit(f"no cells of {letters}")
+        mx = sum(p[0] for p in pts) / len(pts)
+        mz = sum(p[1] for p in pts) / len(pts)
+        return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
+    # Lore (2026-10-20): Jonas' dream, on the house terrace (S).
+    sx, sz = _cell_of("S")
+    print(f"chest D normal-aged lore:ideal_island_dream at={sx},{sz}")
     print("map")
     for row in grid:
         print("".join(row))

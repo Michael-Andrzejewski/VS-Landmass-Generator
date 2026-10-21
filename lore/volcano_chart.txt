@@ -1,0 +1,8 @@
+title: Route to the Iron Mine
+book: aged-orange
+---
+(A shipping chart, the route inked over many times. A note in the margin: "Ore barges every tenth day. Do not moor at the fjord after dark.")
+
+This forge: -1530, -3680
+The Iron Mine: -5290, -2550
+The great crater lake, on the way: -3280, -3210

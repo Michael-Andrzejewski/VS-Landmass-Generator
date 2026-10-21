@@ -14,6 +14,7 @@ region z rock=basalt surface=rock climate=lush height=1.0 shore=6 rough=0.25
 ocean plunge=6
 struct F kind=forge size=40 seed=9
 
+chest K normal-aged lore:volcano_forge_joy,lore:volcano_forge_shipments,lore:volcano_chart at=29,41
 map
 ....................................llllllllllll..........................................
 ..................................llllllllllllllll........................................
