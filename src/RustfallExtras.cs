@@ -115,9 +115,8 @@ public partial class LandmassGeneratorModSystem
     // ── rust trail ─────────────────────────────────────────────────────
 
     // From the chest back up to the cave's mouth through the carved air
-    // (shortest path), rust painted on the floor under every step of the
-    // way, a block or so wide, with rust weeping down the walls here and
-    // there. Decor only: nothing is mined or changed.
+    // (shortest path), faint rust traces along the way and the odd streak
+    // down a wall. Decor only: nothing is mined or changed.
     private int RustTrail(IslandJob job, CaveDef cave, BlockPos chest)
     {
         if (job.CaveSteps == null) return 0;
@@ -175,43 +174,73 @@ public partial class LandmassGeneratorModSystem
         }
         if (goal == null) return 0;
 
-        // walk back from the mouth to the chest, painting the floor
-        var painted = new HashSet<long>();
-        int count = 0, n = 0;
+        // The path, mouth first.
+        var path = new List<(int X, int Y, int Z)>();
         var cur = goal.Value;
-        var rnd = new Random(chest.X * 31 + chest.Z * 17);
         while (true)
         {
-            int fy = cur.Y;
-            while (fy > cur.Y - 6 && Open(cur.X, fy - 1, cur.Z)) fy--;
-            foreach (var (ox, oz) in new[] { (0, 0), (1, 0), (-1, 0), (0, 1), (0, -1) })
-            {
-                if ((ox != 0 || oz != 0) && rnd.NextDouble() < 0.55) continue;
-                int fx = cur.X + ox, fz = cur.Z + oz;
-                if (!Open(fx, fy, fz) || !SolidTop(fx, fy - 1, fz)) continue;
-                long k = Key(fx, fy - 1, fz);
-                if (!painted.Add(k)) continue;
-                p.Set(fx, fy - 1, fz);
-                if (world.SetDecor(floorRust, p, BlockFacing.UP)) count++;
-            }
-            if (++n % 5 == 0)
-            {
-                // rust weeping down a wall beside the trail
-                foreach (var f in BlockFacing.HORIZONTALS)
-                {
-                    int wx = cur.X + f.Normali.X, wz = cur.Z + f.Normali.Z;
-                    if (Open(wx, fy + 1, wz)) continue;
-                    p.Set(wx, fy + 1, wz);
-                    var wb = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
-                    if (wb == null || wb.Id == 0 || !wb.SideSolid[f.Opposite.Index]) continue;
-                    if (world.SetDecor(dripRust, p, f.Opposite)) count++;
-                    break;
-                }
-            }
+            path.Add(cur);
             long ck = Key(cur.X, cur.Y, cur.Z);
             if (ck == startKey) break;
             long pk = prev[ck];
             cur = ((int)(pk >> 40) + x1, (int)((pk >> 20) & 0xFFFFF) + y1, (int)(pk & 0xFFFFF) + z1);
+        }
+
+        // Traces, not a path: a stain only every few steps, drifting from
+        // one side of the tunnel to the other along a slow wave, mostly the
+        // thin streaked rust variants with now and then a fuller patch, and
+        // here and there a three-block streak running down a wall. Thicker
+        // toward the chest, as if whatever left it bled more the further in
+        // it went.
+        Block[] thin = new[] { "oxidation-rust-3tall-top", "oxidation-rust-3tall-mid", "oxidation-rust-3tall-bot" }
+            .Select(c => sapi.World.GetBlock(new AssetLocation("game", c))).Where(b => b != null).ToArray();
+        if (thin.Length == 0) thin = new[] { floorRust };
+        Block wTop = sapi.World.GetBlock(new AssetLocation("game", "oxidation-rust-3tall-top")) ?? dripRust;
+        Block wMid = sapi.World.GetBlock(new AssetLocation("game", "oxidation-rust-3tall-mid")) ?? dripRust;
+        Block wBot = sapi.World.GetBlock(new AssetLocation("game", "oxidation-rust-3tall-bot")) ?? dripRust;
+        var rnd = new Random(chest.X * 31 + chest.Z * 17);
+        double phase = rnd.NextDouble() * Math.PI * 2;
+        int count = 0, lastWall = -100;
+        for (int i = 0; i < path.Count; i++)
+        {
+            var c = path[i];
+            double f = i / (double)Math.Max(1, path.Count - 1);     // 0 at the mouth, 1 at the chest
+            if (rnd.NextDouble() > 0.10 + 0.14 * f) continue;
+            // sideways drift across the direction of travel
+            var nx = path[Math.Min(path.Count - 1, i + 2)];
+            int dx = Math.Sign(nx.X - c.X), dz = Math.Sign(nx.Z - c.Z);
+            int sx = dz != 0 ? 1 : 0, sz = dx != 0 && dz == 0 ? 1 : 0;
+            int drift = (int)Math.Round(1.6 * Math.Sin(i * 0.11 + phase) + (rnd.NextDouble() - 0.5));
+            int px = c.X + sx * drift, pz = c.Z + sz * drift;
+            int fy = c.Y;
+            if (!Open(px, fy, pz)) { px = c.X; pz = c.Z; }
+            while (fy > c.Y - 6 && Open(px, fy - 1, pz)) fy--;
+            if (!SolidTop(px, fy - 1, pz)) continue;
+            p.Set(px, fy - 1, pz);
+            Block b = rnd.NextDouble() < 0.12 ? floorRust : thin[rnd.Next(thin.Length)];
+            if (world.SetDecor(b, p, BlockFacing.UP)) count++;
+
+            // a streak down the nearest wall, rarely
+            if (i - lastWall < 25 || rnd.NextDouble() > 0.35) continue;
+            foreach (var face in BlockFacing.HORIZONTALS)
+            {
+                int wx = px, wz = pz, reach = 0;
+                while (reach < 5 && Open(wx + face.Normali.X, fy, wz + face.Normali.Z)) { wx += face.Normali.X; wz += face.Normali.Z; reach++; }
+                int bx = wx + face.Normali.X, bz = wz + face.Normali.Z;
+                bool wall = true;
+                for (int dy = 0; dy < 3 && wall; dy++)
+                {
+                    p.Set(bx, fy + dy, bz);
+                    var wb = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
+                    wall = wb != null && wb.Id != 0 && wb.SideSolid[face.Opposite.Index] && Open(wx, fy + dy, wz);
+                }
+                if (!wall) continue;
+                p.Set(bx, fy, bz); if (world.SetDecor(wBot, p, face.Opposite)) count++;
+                p.Set(bx, fy + 1, bz); if (world.SetDecor(wMid, p, face.Opposite)) count++;
+                p.Set(bx, fy + 2, bz); if (world.SetDecor(wTop, p, face.Opposite)) count++;
+                lastWall = i;
+                break;
+            }
         }
         return count;
     }
@@ -220,8 +249,9 @@ public partial class LandmassGeneratorModSystem
 
     // machinery=N: every N steps, a stretch of tunnel wall is rusted plate
     // with a gearbox or pipe run standing against it and parts on the floor.
-    // giants=<block>*K: K spawner blocks in the widest, tallest halls of the
-    // cave, at least 30 blocks apart, against the hall's side.
+    // giants=<block>*K: K giant spawners in carved lairs along the deep part
+    // of the mine; deepgiant=<block>: one in a lair at the very bottom;
+    // mouthgiant=<block>: one buried under open ground near the mouth.
     private string PlaceMineMachinery(IslandJob job, CaveDef def, List<(double X, double Y, double Z, double R, double V, CaveDef Def)> steps,
         System.Func<int, int, int, bool> open, System.Func<int, int, int, bool> solid)
     {
@@ -231,7 +261,7 @@ public partial class LandmassGeneratorModSystem
         int rustA = Bid("metalblock-corroded-riveted-rusty-iron"), rustB = Bid("metalblock-corroded-plain-rusty-iron");
         int[] floorJunk = { Bid("loosegears-1"), Bid("loosegears-3"), Bid("metalpartpile-small"), Bid("metalpartpile-tiny"), Bid("metal-scraps") };
         string[] standing = { "gearbox1", "geartrain3", "gear24", "gear36", "pipelong3-aged", "pipelong4-aged" };
-        int clutterId = Bid("clutter");
+        int clutterId = Bid("clutter-devastation");   // the machinery shapes live on this clutter block
         var rotField = typeof(BEBehaviorShapeFromAttributes).GetField("<rotateY>k__BackingField",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         void Put(int x, int y, int z, int id) { if (id == 0) return; p.Set(x, y, z); world.SetBlock(id, p); }
@@ -248,7 +278,7 @@ public partial class LandmassGeneratorModSystem
         }
 
         int machines = 0, giants = 0;
-        var halls = new List<(int X, int Y, int Z, int Size)>();
+        var spots = new List<(int Index, int X, int Floor, int Z)>();   // every step's floor, mouth first
         var rnd = new Random((int)(def.Seed * 7919u + 17u));
         for (int i = 1; i < steps.Count; i++)
         {
@@ -261,15 +291,12 @@ public partial class LandmassGeneratorModSystem
             if (!open(cx, cy, cz)) continue;
             int floor = cy; while (floor > cy - 10 && open(cx, floor - 1, cz)) floor--;
             if (!solid(cx, floor - 1, cz)) continue;
+            spots.Add((i, cx, floor, cz));
             int ceil = cy; while (ceil < cy + 14 && open(cx, ceil + 1, cz)) ceil++;
             int height = ceil - floor + 1;
             int ux = acrossX ? 1 : 0, uz = acrossX ? 0 : 1;
             int left = 0; while (left < 10 && open(cx - ux * (left + 1), floor, cz - uz * (left + 1))) left++;
             int right = 0; while (right < 10 && open(cx + ux * (right + 1), floor, cz + uz * (right + 1))) right++;
-            int width = left + right + 1;
-
-            if (def.GiantCount > 0 && width >= 6 && height >= 5)
-                halls.Add((cx - ux * left, floor, cz - uz * left, width * height));
 
             if (def.Machinery <= 0 || i % def.Machinery != def.Machinery / 3 || height < 3) continue;
             // the wall on one side: plate it from the floor to head height
@@ -297,27 +324,143 @@ public partial class LandmassGeneratorModSystem
             machines++;
         }
 
+        // ── giant spawners ──
+        // A giant needs room: Oversized Horrors spawns one only where its
+        // hitbox plus 3 blocks on every side and above is clear (a giant
+        // shiver: an 11 x 11 x 7 box). Tunnel halls never were, so the first
+        // spawners stayed dormant. Each spawner now gets a lair carved round
+        // it, and the spawner block itself is buried two blocks under the
+        // lair floor: invisible, and the giant appears standing on the floor
+        // (the spawner tries 1, 2 and 3 blocks above itself).
+        var notes = new List<string>();
+        int stoneId = job.StoneId;
+        var lairs = new List<(int X, int Z)>();
+        Cuboidf GiantBox(string spawnerCode)
+        {
+            int dash = spawnerCode.IndexOf("giantspawner-", StringComparison.Ordinal);
+            if (dash < 0) return null;
+            string domain = spawnerCode.Contains(':') ? spawnerCode.Substring(0, spawnerCode.IndexOf(':')) : "game";
+            var et = sapi.World.GetEntityType(new AssetLocation(domain, "giant" + spawnerCode.Substring(dash + "giantspawner-".Length)));
+            if (et == null) return null;
+            float half = et.CollisionBoxSize.X / 2f + 3f;
+            return new Cuboidf(-half, 0, -half, half, et.CollisionBoxSize.Y + 3f, half);
+        }
+        bool RoomFor(Cuboidf box, int x, int y, int z) =>
+            box == null || !sapi.World.CollisionTester.IsColliding(world, box, new Vec3d(x + 0.5, y, z + 0.5), false);
+        bool FluidNear(int x, int y, int z, int r, int h)
+        {
+            for (int ddx = -r; ddx <= r; ddx++)
+                for (int ddz = -r; ddz <= r; ddz++)
+                    for (int ddy = -2; ddy <= h; ddy++)
+                    {
+                        p.Set(x + ddx, y + ddy, z + ddz);
+                        if ((world.GetBlock(p, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) return true;
+                    }
+            return false;
+        }
+        int Surface(int x, int z) =>
+            ColumnSurface(job, x, z, job.SeaLevel, out int ty, out _, out _, out _, out _, out _) ? ty : job.SeaLevel;
+
+        bool Lair(int cx, int floor, int cz, string code, string what)
+        {
+            int gid = Bid(code);
+            if (gid == 0) { notes.Add($"spawner '{code}' is not in this game (is its mod installed?)"); return false; }
+            const double R = 8.5;
+            const int H = 8;
+            for (int ddx = -9; ddx <= 9; ddx += 3)
+                for (int ddz = -9; ddz <= 9; ddz += 3)
+                    if (floor + H + 4 > Surface(cx + ddx, cz + ddz)) return false;   // keep a thick roof under the island
+            if (FluidNear(cx, floor, cz, 10, H + 1)) return false;
+            for (int ddx = -9; ddx <= 9; ddx++)
+                for (int ddz = -9; ddz <= 9; ddz++)
+                {
+                    double n = Math.Pow(Math.Abs(ddx) / R, 4) + Math.Pow(Math.Abs(ddz) / R, 4);
+                    if (n > 1) continue;
+                    int h = n < 0.55 ? H : H - (int)((n - 0.55) * 12);
+                    for (int y = floor; y <= floor + h; y++) Put0(cx + ddx, y, cz + ddz);
+                    p.Set(cx + ddx, floor - 1, cz + ddz);
+                    var fb = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
+                    if (fb == null || fb.Id == 0 || !fb.SideSolid[BlockFacing.UP.Index]) Put(cx + ddx, floor - 1, cz + ddz, stoneId);
+                }
+            // the buried spawner, rock all round it
+            for (int ddx = -1; ddx <= 1; ddx++)
+                for (int ddz = -1; ddz <= 1; ddz++)
+                    for (int y = floor - 3; y <= floor - 1; y++)
+                        if (!solid(cx + ddx, y, cz + ddz)) Put(cx + ddx, y, cz + ddz, stoneId);
+            Put(cx, floor - 2, cz, gid);
+            lairs.Add((cx, cz));
+            giants++;
+            bool room = RoomFor(GiantBox(code), cx, floor, cz);
+            sapi.Logger.Notification("[landmassgenerator] {0}: {1} buried at HUD {2}, {3}, {4}; spawn room {5}", what, code,
+                cx - sapi.WorldManager.MapSizeX / 2, floor - 2, cz - sapi.WorldManager.MapSizeZ / 2, room ? "clear" : "BLOCKED");
+            if (!room) notes.Add($"{what} lair at {cx - sapi.WorldManager.MapSizeX / 2},{cz - sapi.WorldManager.MapSizeZ / 2} lacks room");
+            return true;
+        }
+        void Put0(int x, int y, int z)
+        {
+            p.Set(x, y, z);
+            if ((world.GetBlock(p, BlockLayersAccess.SolidBlocks)?.Id ?? 0) != 0) world.SetBlock(0, p);
+        }
+        bool FarFromLairs(int x, int z, int d) => !lairs.Any(l => (l.X - x) * (l.X - x) + (l.Z - z) * (l.Z - z) < d * d);
+
+        // the bottom of the mine: deepgiant=
+        if (!string.IsNullOrEmpty(def.DeepGiantCode) && spots.Count > 0)
+            foreach (var sp in spots.OrderBy(sp => sp.Floor).Take(40))
+                if (Lair(sp.X, sp.Floor, sp.Z, def.DeepGiantCode, "deepest lair")) break;
+
+        // giants=<code>*N: lairs spread along the deep part of the mine
         if (def.GiantCount > 0 && !string.IsNullOrEmpty(def.GiantCode))
         {
-            int gid = Bid(def.GiantCode);
-            if (gid == 0) return $" Giant spawner '{def.GiantCode}' is not in this game (is its mod installed?).";
-            var chosen = new List<(int X, int Y, int Z, int Size)>();
-            foreach (var h in halls.OrderByDescending(h => h.Size))
+            var deep = spots.Where(sp => sp.Floor <= job.SeaLevel - 15).ToList();
+            int want = def.GiantCount, made = 0;
+            for (int m = 0; m < want && deep.Count > 0; m++)
             {
-                if (chosen.Count >= def.GiantCount) break;
-                if (chosen.Any(c => (c.X - h.X) * (c.X - h.X) + (c.Z - h.Z) * (c.Z - h.Z) < 30 * 30)) continue;
-                if (!open(h.X, h.Y, h.Z)) continue;
-                chosen.Add(h);
+                // start each search at an evenly spaced point along the mine
+                int start = (int)((m + 0.5) * deep.Count / (double)want);
+                for (int t = 0; t < deep.Count; t++)
+                {
+                    var sp = deep[(start + t) % deep.Count];
+                    if (!FarFromLairs(sp.X, sp.Z, 26)) continue;
+                    if (Lair(sp.X, sp.Floor, sp.Z, def.GiantCode, "mine lair")) { made++; break; }
+                }
             }
-            foreach (var h in chosen)
-            {
-                Put(h.X, h.Y, h.Z, gid);
-                giants++;
-                sapi.Logger.Notification("[landmassgenerator] giant spawner {0} at HUD {1}, {2}, {3} (hall size {4})", def.GiantCode,
-                    h.X - sapi.WorldManager.MapSizeX / 2, h.Y, h.Z - sapi.WorldManager.MapSizeZ / 2, h.Size);
-            }
+            if (made < want) notes.Add($"{made} of {want} mine lairs fit");
         }
-        return (machines > 0 ? $" {machines} wall machine(s)." : "") + (giants > 0 ? $" {giants} giant spawner(s)." : "");
+
+        // mouthgiant=: buried under the open ground near the mine's mouth,
+        // so the giant climbs out onto the surface
+        if (!string.IsNullOrEmpty(def.MouthGiantCode) && steps.Count > 0)
+        {
+            int gid = Bid(def.MouthGiantCode);
+            var box = GiantBox(def.MouthGiantCode);
+            int mx = (int)steps[0].X, mz = (int)steps[0].Z;
+            bool done = false;
+            for (int r = 8; r <= 34 && !done && gid != 0; r += 2)
+                for (int ang = 0; ang < 360 && !done; ang += 15)
+                {
+                    int x = mx + (int)Math.Round(Math.Cos(ang * Math.PI / 180) * r), z = mz + (int)Math.Round(Math.Sin(ang * Math.PI / 180) * r);
+                    int top = -1;
+                    for (int y = job.SeaLevel + job.DomeHeight + 30; y >= job.SeaLevel; y--)
+                    {
+                        p.Set(x, y, z);
+                        var b = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
+                        if (b == null || b.Id == 0 || b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves) continue;
+                        if ((world.GetBlock(p, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) break;
+                        top = y; break;
+                    }
+                    if (top < job.SeaLevel + 1 || !RoomFor(box, x, top + 1, z)) continue;
+                    // under the top block, with ground under it
+                    for (int y = top - 3; y <= top - 1; y++) if (!solid(x, y, z)) Put(x, y, z, stoneId);
+                    Put(x, top - 1, z, gid);
+                    giants++;
+                    done = true;
+                    sapi.Logger.Notification("[landmassgenerator] mouth spawner: {0} buried at HUD {1}, {2}, {3}; spawn room clear", def.MouthGiantCode,
+                        x - sapi.WorldManager.MapSizeX / 2, top - 1, z - sapi.WorldManager.MapSizeZ / 2);
+                }
+            if (!done) notes.Add("no open ground near the mine mouth for the surface giant");
+        }
+        return (machines > 0 ? $" {machines} wall machine(s)." : "") + (giants > 0 ? $" {giants} giant spawner(s)." : "")
+            + (notes.Count > 0 ? " Giants: " + string.Join("; ", notes) + "." : "");
     }
 
     // ── story chests ───────────────────────────────────────────────────

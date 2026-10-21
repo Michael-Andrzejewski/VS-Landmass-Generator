@@ -1650,7 +1650,8 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         public double HeadingDeg = double.NaN;  // map degrees, 0=north 90=east; NaN = aim at the island centre
         public int Timbers, Holders;            // mine props: a timber frame / torch holder every N steps (0 = none)
         public int Machinery;                   // rusted machinery set into the walls every N steps (0 = none)
-        public string GiantCode; public int GiantCount;   // giants=<spawner block>*N: spawners in the widest halls
+        public string GiantCode; public int GiantCount;   // giants=<spawner block>*N: giant lairs along the deep mine
+        public string DeepGiantCode, MouthGiantCode;      // deepgiant= (the bottom), mouthgiant= (under the ground by the mouth)
         public double DipDeg = 12;              // how steeply the tunnel descends while diving
         public double Length = 80;              // main tunnel length in blocks
         public double Radius = 2.6;             // horizontal carve radius
@@ -2954,6 +2955,8 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 case "flooded": d.Flooded = ParseD(v, 0) > 0; break;
                 case "timbers": d.Timbers = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
                 case "holders": d.Holders = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
+                case "deepgiant": d.DeepGiantCode = v; break;
+                case "mouthgiant": d.MouthGiantCode = v; break;
                 case "machinery": d.Machinery = (int)Math.Clamp(ParseD(v, 0), 0, 200); break;
                 case "giants":
                 {
@@ -3785,6 +3788,37 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         return false;
     }
 
+    // Two plan islands whose areas overlap (the Cattail Isles' sea ring runs
+    // over the Starter Island's north-west shore) both want the shared
+    // columns. The island whose designed ground is higher there owns the
+    // column (land beats sea, a shallow shelf beats a deep floor; a tie goes
+    // to the island listed first). Only the owner renders and decorates it;
+    // before this the later island rendered its sea over the earlier one's
+    // shore after that shore was planted, and the plants broke into items.
+    private bool OwnsColumn(IslandJob job, int x, int z)
+    {
+        var jobs = _wgIslandJobs;
+        if (jobs == null) return true;
+        int mine = int.MinValue, myIndex = -1;
+        bool computed = false;
+        for (int j = 0; j < jobs.Count; j++)
+        {
+            var other = jobs[j];
+            // the decoration pass builds its own copy of each plan job: match by place and shape
+            if (other == job || (other.Cx == job.Cx && other.Cz == job.Cz && other.ShapeName == job.ShapeName)) { myIndex = j; continue; }
+            if (x < other.MinX || x >= other.MinX + other.W || z < other.MinZ || z >= other.MinZ + other.H) continue;
+            if (!computed)
+            {
+                mine = ColumnSurface(job, x, z, job.SeaLevel, out int ty, out _, out _, out _, out _, out _) ? ty : int.MinValue;
+                computed = true;
+            }
+            int theirs = ColumnSurface(other, x, z, other.SeaLevel, out int oy, out _, out _, out _, out _, out _) ? oy : int.MinValue;
+            if (theirs > mine) return false;
+            if (theirs == mine && theirs != int.MinValue && myIndex < 0) return false;   // tie: the earlier island (j < mine) keeps it
+        }
+        return true;
+    }
+
     private void OnChunkColumnGenIslands(IChunkColumnGenerateRequest request)
     {
         var jobs = _wgIslandJobs;
@@ -3814,6 +3848,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 {
                     int x = bx + lx;
                     if (x < job.MinX || x >= job.MinX + job.W) continue;
+                    if (!OwnsColumn(job, x, z)) continue;
                     FillColumnWorldgen(job, request.Chunks, mapChunk, lx, lz, x, z);
                 }
             }
@@ -4260,6 +4295,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
     // ─────────────────────────────────────────────────────────────────────
     private void PlantColumn(IslandJob job, IBulkBlockAccessor ba, BlockPos pos, int x, int z)
     {
+        if (!OwnsColumn(job, x, z)) return;
         if (!ColumnSurface(job, x, z, job.SeaLevel, out int topY, out bool underwater, out int topMat, out _, out int waterTopY, out Region reg))
             return;
 

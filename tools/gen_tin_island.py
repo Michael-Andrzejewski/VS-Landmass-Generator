@@ -199,7 +199,7 @@ def main():
     # dip=30 gets under the arm's ocean side before the seabed drops.
     # seed=17 from the previewer sweep: 1336 steps, ZERO steps lost to the
     # water guard, bottom galleries 85 below sea.
-    print("cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 timbers=12 holders=14 machinery=10 giants=oversizedhorrors:giantspawner-shiver-deep*3 seed=17")
+    print("cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 timbers=12 holders=14 machinery=10 giants=oversizedhorrors:giantspawner-shiver-deep*4 deepgiant=oversizedhorrors:giantspawner-locust-corrupt mouthgiant=oversizedhorrors:giantspawner-shiver-deep seed=17")
     print()
     def _cell_of(letters):
         pts = [(x, z) for z, row in enumerate(grid) for x, ch in enumerate(row) if ch in letters]

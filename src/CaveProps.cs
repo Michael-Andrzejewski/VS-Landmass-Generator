@@ -24,7 +24,7 @@ public partial class LandmassGeneratorModSystem
     {
         var caves = job.Shape?.Caves;
         if (caves == null || job.CaveSteps == null) return "";
-        if (!caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0 || c.Def.Machinery > 0 || c.Def.GiantCount > 0)) return "";
+        if (!caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0 || c.Def.Machinery > 0 || c.Def.GiantCount > 0 || c.Def.DeepGiantCode != null || c.Def.MouthGiantCode != null)) return "";
         if (skipIfDone && sapi.WorldManager.SaveGame.GetData<bool>(PropsDoneKey(job), false)) return "";
         sapi.WorldManager.SaveGame.StoreData(PropsDoneKey(job), true);
 
@@ -56,7 +56,7 @@ public partial class LandmassGeneratorModSystem
             if (def.Flooded) continue;
             var steps = job.CaveSteps.Where(s => s.Def == def).ToList();
             // Machinery first: the timbers below then fit around it.
-            if (def.Machinery > 0 || def.GiantCount > 0)
+            if (def.Machinery > 0 || def.GiantCount > 0 || def.DeepGiantCode != null || def.MouthGiantCode != null)
                 extra += PlaceMineMachinery(job, def, steps, Open, Solid);
             if (def.Timbers <= 0 && def.Holders <= 0) continue;
             for (int i = 1; i < steps.Count; i++)

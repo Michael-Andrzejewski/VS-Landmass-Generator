@@ -877,3 +877,33 @@ freely. `Func<...>` is ambiguous with the VS API's own `Func`: write
 Python patch scripts passed through a bash heredoc came out with `\n` turned
 into real newlines (and one failed with "unexpected EOF"). Write patch scripts
 to a file and run the file.
+
+## Overlapping plan islands broke each other's shore plants (fixed 0.60.0)
+
+The Cattail Isles' sea ring runs over the Starter Island's north-west shore.
+The worldgen renderer let the later island win every shared column, so the
+Cattail sea floor replaced the Starter shore AFTER the Starter's decoration had
+planted it from its own design: 31 cattails, ferns and mushrooms broke into
+floating items and sand fell. Now `OwnsColumn` gives a shared column to the
+island whose designed ground is higher there, and only the owner renders and
+decorates it. The decoration pass builds its own copies of the plan jobs, so
+"is this me" is matched by centre and shape name, not by reference (matching by
+reference refused every column: 0 plants everywhere).
+
+## Mine machinery invisible (fixed 0.60.0)
+
+The pipe, gearbox and gear shapes only exist on `clutter-devastation`. Placed
+on plain `clutter` the block names itself ("Piping") and has a selection box
+but renders nothing.
+
+## Giant spawners that never fire (fixed 0.60.0)
+
+Oversized Horrors spawns a giant only where its hitbox plus `SpawnClearanceSide`
+(3) on every side and `SpawnClearanceUp` (3) above is free: an 11 x 11 x 7 box
+for a giant shiver. It tries 1, 2 and 3 blocks above the spawner, and it ignores
+players in creative or spectator. Spawners in tunnel halls stayed dormant
+(debug log: "has no room ... staying dormant"). They now sit two blocks under
+the floor of a carved lair; the build logs "spawn room clear", checked with
+the same collision test, and a Pilot client run fired all six.
+Testing with a real client: `--openWorld x.vcdbs` opens `x.vcdbs.vcdbs` (the
+game appends the extension) and silently creates a new flat world otherwise.
