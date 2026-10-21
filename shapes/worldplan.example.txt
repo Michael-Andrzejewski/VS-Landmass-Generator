@@ -56,6 +56,18 @@ island -800 -8080 shape=colossus_deep diameter=160 height=6 water=95 maxdepth=12
 island 2800 -3580 shape=giant_serpent_skeleton diameter=300 height=8 water=38
 island 3740 -5030 shape=divingbell_mine diameter=460 height=26 water=30 stone=rock-limestone sand=sand-limestone
 
+# The Great Machine, rebuilt (megastructure on its own island; the story
+# location below stays pinned at the same spot so Spreading Devastation's
+# maps and /devastate machine point here; a Rustfall-only patch makes it
+# place an empty schematic). Round it: the refinery, the power plant and
+# two sunken pylon lines carrying power in; the Eerie Island far east.
+island 0 -5330 shape=great_machine diameter=600 height=30 water=40 stone=rock-basalt sand=sand-basalt climate=arid
+island -1200 -4400 shape=refinery_island diameter=280 height=7 water=30 stone=rock-basalt sand=sand-basalt climate=arid
+island 1500 -4300 shape=power_plant diameter=320 height=12 water=36 stone=rock-basalt sand=sand-basalt climate=cold
+island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=244
+island -650 -4850 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=352
+island 4300 -1300 shape=eerie_island diameter=260 height=26 water=36
+
 # Scattered Ruins around the Great Machine
 island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40
 island -2070 -6510 shape=granary_cold diameter=150 height=26 stone=rock-slate sand=sand-slate

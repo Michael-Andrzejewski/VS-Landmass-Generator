@@ -907,3 +907,13 @@ the floor of a carved lair; the build logs "spawn room clear", checked with
 the same collision test, and a Pilot client run fired all six.
 Testing with a real client: `--openWorld x.vcdbs` opens `x.vcdbs.vcdbs` (the
 game appends the extension) and silently creates a new flat world otherwise.
+
+## Seeing a megastructure without a client (0.61.0)
+
+Dumps of a 400-block site are too big for the browser previewer and an
+isometric render from straight overhead hides tall thin things against the
+terraces behind them (the Great Machine's spire looked missing; it was
+there). `tools/isorender.py` renders height bands (`--ymin/--ymax`), cutaways (`--cut x` viewed
+from the cut side), crops, and `--only metal` for lattices; count blocks per
+layer before believing a render. Struct `Set` now commits the bulk accessor
+every ~500k blocks: the Great Machine stages over 5 million.

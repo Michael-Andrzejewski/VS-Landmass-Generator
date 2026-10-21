@@ -180,6 +180,29 @@ Height comes from a distance-to-coast field, so interiors rise and shores taper 
     /genisland shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
     /genisland shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid
 
+### Megastructures (0.61.0, `src/MegaStructs.cs`)
+
+Five structure kinds share one toolkit (voxel lines, tubes with flanges,
+gears in any plane, hyperboloid shells, swept balls, and an `Air()` that
+leaves sea water where the sea would be). They take their own keys on the
+`struct` line; anything not listed is an error for the older kinds only.
+
+| kind | what | keys |
+| --- | --- | --- |
+| `pylons` | A line of lattice power pylons: open zigzag bracing, two crossarm levels, chain insulators, sagging cables between neighbours; some lean hard, some snapped with the top lying beside them, all sunk into the ground or sea floor. | `count`, `spacing`, `heading` (map degrees, turns with `rotate=`), `height`, `above=N` (grow so the arms clear the sea by N), `reach=` (map cells kept loaded, for lines over open sea) |
+| `refinery` | Concrete pads, a four-line pipe rack on trestles (a fallen section hanging), two colossal penstocks sloping to the shore, storage tanks (one torn open), distillation columns with ring platforms (one toppled), scaffolding towers, a gantry crane with its hook over a flooded sump, the control room with two chests. | `size` (half-width) |
+| `graveyard` | Weathered stone pillars (some fallen), black obsidian monoliths with red ochre X marks (decor), a great monolith in an obsidian circle, rows of grave mounds and headstones with a coffin (or a chest) buried under each, and mausoleums with crypts. | `size`, `pillars`, `monoliths`, `graves`, `mausoleums`, `great`, `ring` |
+| `powerplant` | Three hyperboloid cooling towers (one broken off, its shell heaped round it), a brutalist reactor hall with a finned facade and a burst dome, a transformer yard; under the hall a ramp down 30 blocks to a pillared chamber with the warp rig (an upright lit ring, drock floor) and coolant tunnels out under each tower. | `size` |
+| `greatmachine` | The Great Machine: 40-block enclosure walls with fins and four gates, a stepped pyramid (pillared halls inside every second terrace, grand stairs on the axes) with a round heart cut out to the sky, an altar of three tiers with the Spreading Devastation machine core on its pedestal, a double helix to `top=` (default 250); under it a 176-wide gear hall (eight 16-block gears round a crown gear, four 64-block cardinal gears over them, drive shaft, rim columns), a ring of empty halls with leaning slab pillars and a corridor loop, two slab-stepped helical ramps down, radial and ring pipes. | `size` (enclosure half-width, default 150), `steps`, `turns`, `top` |
+
+Islands for them: `eerie_island`, `refinery_island`, `power_plant`,
+`pylon_line` (open sea) and `great_machine` (with four bastion ruins and four
+pylon lines of its own); all are in `worldplan.example.txt`. In Rustfall
+worlds a conditional patch (`assets/landmassgenerator/patches/rustfall-greatmachine.json`)
+makes Spreading Devastation place an empty schematic at its pinned
+`greatmachine` location and force no land there, so its maps and
+`/devastate machine` still point at the new machine.
+
 ### Bastion ruins (`bastion <char> ...`)
 
 A ruined fortress structure pass (0.45.0), placed like a cave: a `bastion Q

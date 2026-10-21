@@ -837,6 +837,18 @@ island -800 -8080 shape=colossus_deep diameter=160 height=6 water=95 maxdepth=12
 island 2800 -3580 shape=giant_serpent_skeleton diameter=300 height=8 water=38
 island 3740 -5030 shape=divingbell_mine diameter=460 height=26 water=30 stone=rock-limestone sand=sand-limestone
 
+# The Great Machine, rebuilt (megastructure on its own island; the story
+# location below stays pinned at the same spot so Spreading Devastation's
+# maps and /devastate machine point here; a Rustfall-only patch makes it
+# place an empty schematic). Round it: the refinery, the power plant and
+# two sunken pylon lines carrying power in; the Eerie Island far east.
+island 0 -5330 shape=great_machine diameter=600 height=30 water=40 stone=rock-basalt sand=sand-basalt climate=arid
+island -1200 -4400 shape=refinery_island diameter=280 height=7 water=30 stone=rock-basalt sand=sand-basalt climate=arid
+island 1500 -4300 shape=power_plant diameter=320 height=12 water=36 stone=rock-basalt sand=sand-basalt climate=cold
+island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=244
+island -650 -4850 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=352
+island 4300 -1300 shape=eerie_island diameter=260 height=26 water=36
+
 # Scattered Ruins around the Great Machine
 island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40
 island -2070 -6510 shape=granary_cold diameter=150 height=26 stone=rock-slate sand=sand-slate
@@ -1728,6 +1740,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         public int Seed = 1;
         public string Chest;        // chest=<contents>: a chest the structure places itself (kind decides where)
         public int Huts;            // huts=N: ruined huts with loot chests scattered around it (lab)
+        public Dictionary<string, string> Opts = new();   // the megastructure kinds' own keys (MegaStructs.cs)
     }
 
     private class StructMarker
@@ -2438,6 +2451,14 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         {
             shape.LandGx1 = Math.Min(shape.LandGx1, bm.Gx); shape.LandGx2 = Math.Max(shape.LandGx2, bm.Gx);
             shape.LandGz1 = Math.Min(shape.LandGz1, bm.Gz); shape.LandGz2 = Math.Max(shape.LandGz2, bm.Gz);
+        }
+        // A structure that reaches out over the sea (a pylon line) keeps its
+        // whole reach= (in map cells) loaded while it is built.
+        foreach (var sm in shape.Structs)
+        {
+            if (!sm.Def.Opts.TryGetValue("reach", out string rs) || !int.TryParse(rs, out int reach) || reach <= 0) continue;
+            shape.LandGx1 = Math.Max(0, Math.Min(shape.LandGx1, sm.Gx - reach)); shape.LandGx2 = Math.Min(shape.W - 1, Math.Max(shape.LandGx2, sm.Gx + reach));
+            shape.LandGz1 = Math.Max(0, Math.Min(shape.LandGz1, sm.Gz - reach)); shape.LandGz2 = Math.Min(shape.H - 1, Math.Max(shape.LandGz2, sm.Gz + reach));
         }
         if (shape.LandGx2 < 0)
         {
@@ -5615,7 +5636,9 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             ba.SetBlock(id, pos);
             if (id == 0) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
             job.TouchedCols.Add(((long)x << 32) | (uint)z);
-            placed++;
+            // A megastructure stages millions of blocks; commit in batches so
+            // the bulk accessor never holds them all at once.
+            if ((++placed & 0x7FFFF) == 0) ba.Commit();
         }
 
         void SetFluid(int x, int y, int z, int fluidId)
@@ -5625,7 +5648,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             ba.SetBlock(0, pos);
             ba.SetBlock(fluidId, pos, BlockLayersAccess.Fluid);
             job.TouchedCols.Add(((long)x << 32) | (uint)z);
-            placed++;
+            if ((++placed & 0x7FFFF) == 0) ba.Commit();
         }
 
         void Clutter(int x, int y, int z, string type, double heading)
@@ -6104,12 +6127,14 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 case "seed": d.Seed = (int)ParseD(v, 1); break;
                 case "chest": d.Chest = v; break;
                 case "huts": d.Huts = (int)Math.Clamp(ParseD(v, 0), 0, 12); break;
-                default: problems.Add($"struct: unknown key '{k}'"); break;
+                default: d.Opts[k] = v; break;
             }
         }
         if (d.Kind == "beacon") d.Kind = "lighthouse";
+        if (!MegaKinds.Contains(d.Kind))
+            foreach (var key in d.Opts.Keys) problems.Add($"struct: unknown key '{key}'");
         if (d.Kind != "lighthouse" && d.Kind != "chains" && d.Kind != "colossus" && d.Kind != "serpent"
-            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary" && d.Kind != "lab" && d.Kind != "hut" && d.Kind != "gearhill" && d.Kind != "treasurehunter")
+            && d.Kind != "forge" && d.Kind != "divingbell" && d.Kind != "granary" && d.Kind != "lab" && d.Kind != "hut" && d.Kind != "gearhill" && d.Kind != "treasurehunter" && !MegaKinds.Contains(d.Kind))
             problems.Add($"struct: unknown kind '{d.Kind}' (lighthouse, chains, colossus, serpent, forge, divingbell, granary, lab, hut, gearhill, treasurehunter)");
         return d;
     }
@@ -6174,7 +6199,9 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             ba.SetBlock(id, pos);
             if (id == 0) ba.SetBlock(0, pos, BlockLayersAccess.Fluid);
             job.TouchedCols.Add(((long)x << 32) | (uint)z);
-            placed++;
+            // A megastructure stages millions of blocks; commit in batches so
+            // the bulk accessor never holds them all at once.
+            if ((++placed & 0x7FFFF) == 0) ba.Commit();
         }
 
         void SetFluid(int x, int y, int z, int fluidId)
@@ -6184,7 +6211,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             ba.SetBlock(0, pos);
             ba.SetBlock(fluidId, pos, BlockLayersAccess.Fluid);
             job.TouchedCols.Add(((long)x << 32) | (uint)z);
-            placed++;
+            if ((++placed & 0x7FFFF) == 0) ba.Commit();
         }
 
         var groundCache = new Dictionary<long, int>();
@@ -6447,6 +6474,16 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
 
         switch (def.Kind)
         {
+            // The megastructures (MegaStructs.cs) get the same tools.
+            case "pylons": case "refinery": case "graveyard": case "powerplant": case "greatmachine":
+                BuildMega(new MegaKit
+                {
+                    Job = job, Def = def, Rand = rand, Sea = sea, Set = Set, SetFluid = SetFluid, Ground = Ground,
+                    Hash01 = Hash01, Id = Id, Need = Need, Clutter = Clutter, Glow = Glow, AfterCommit = afterCommit,
+                    RustA = rustA, RustB = rustB, PlateA = plateA, PlateB = plateB, Mod = this
+                }, cx, cz);
+                break;
+
             // ── THE DROWNED LIGHTHOUSE ─────────────────────────────────────
             // A lighthouse whose keeper's islet sank beneath it: the tower
             // stands centered on the drowned shoal, an interior spiral stair

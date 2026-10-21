@@ -53,12 +53,12 @@
     <ZipDirectory SourceDirectory="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\mod\" DestinationFile="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\$(ZipName)" Overwrite="true" />
 
     <!-- 2. Best-effort cleanup of deployed/cached artifacts (may be locked while the game runs) -->
-    <Delete Files="@(OldZipsDeploy)" ContinueOnError="true" />
-    <RemoveDir Directories="@(StaleUnpackCache)" ContinueOnError="true" />
+    <Delete Files="@(OldZipsDeploy)" ContinueOnError="true" Condition="'$(NoDeploy)' != 'true'" />
+    <RemoveDir Directories="@(StaleUnpackCache)" ContinueOnError="true" Condition="'$(NoDeploy)' != 'true'" />
 
     <!-- 3. Deploy the freshly built zip last -->
-    <Copy SourceFiles="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\$(ZipName)" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" />
-    <Message Importance="high" Text="Deployed $(ZipName) to $(APPDATA)\VintagestoryData\Mods\" />
+    <Copy SourceFiles="$(ProjectDir)bin\$(Configuration)\$(TargetFramework)\$(ZipName)" DestinationFolder="$(APPDATA)\VintagestoryData\Mods\" Condition="'$(NoDeploy)' != 'true'" />
+    <Message Importance="high" Condition="'$(NoDeploy)' != 'true'" Text="Deployed $(ZipName) to $(APPDATA)\VintagestoryData\Mods\" />
   </Target>
 
 </Project>

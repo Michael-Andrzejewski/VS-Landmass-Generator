@@ -1,0 +1,18 @@
+[
+	{
+		"_comment": "Rustfall worlds: the Landmass Generator builds the Great Machine itself (the greatmachine megastructure on the great_machine island, its core block on the altar). Spreading Devastation keeps its story location, so its locator maps and /devastate machine still point there, but places an empty schematic and forces no land of its own.",
+		"op": "replace",
+		"file": "spreadingdevastation:worldgen/storystructures.json",
+		"path": "/structures/0/schematics",
+		"value": ["story/greatmachine-rustfall"],
+		"condition": { "when": "rustfallWorld", "isValue": "true" },
+		"dependsOn": [{ "modid": "spreadingdevastation" }]
+	},
+	{
+		"op": "remove",
+		"file": "spreadingdevastation:worldgen/storystructures.json",
+		"path": "/structures/0/requireLandform",
+		"condition": { "when": "rustfallWorld", "isValue": "true" },
+		"dependsOn": [{ "modid": "spreadingdevastation" }]
+	}
+]

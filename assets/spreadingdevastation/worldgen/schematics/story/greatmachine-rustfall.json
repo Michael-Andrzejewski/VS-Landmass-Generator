@@ -1,0 +1,16 @@
+{
+	"GameVersion": "1.22.7",
+	"SizeX": 1,
+	"SizeY": 1,
+	"SizeZ": 1,
+	"BlockCodes": {},
+	"ItemCodes": {},
+	"Indices": [],
+	"BlockIds": [],
+	"DecorIndices": [],
+	"DecorIds": [],
+	"BlockEntities": {},
+	"Entities": [],
+	"ReplaceMode": 1,
+	"EntranceRotation": -1
+}
