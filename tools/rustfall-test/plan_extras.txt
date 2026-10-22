@@ -1,0 +1,9 @@
+pureocean
+clearspawn 16
+devastation off
+island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
+island -84 -147 shape=cattail_isles diameter=210 height=4 water=34
+island 1950 -290 shape=forester_island diameter=300 height=34
+island 1850 -1610 shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
+storyloc resonancearchive 5550 -3200
+storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal
