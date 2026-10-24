@@ -29,11 +29,23 @@ public partial class LandmassGeneratorModSystem
     private const string RedFogKey = "lgRedFog";
     private const string RedFogChannel = "lgredfog";
 
+    // The three parts of the effect can be switched off per world
+    // (/genfog dome|haze|embers off): Michael kept the haze and dropped the
+    // dome, which read too red and showed through the water from outside.
+    private const string RedFogHiddenKey = "lgRedFogHidden";
+    private static readonly string[] RedFogParts = { "dome", "haze", "embers" };
+
     [ProtoContract]
     public class RedFogPacket
     {
         [ProtoMember(1)]
         public List<string> Zones = new();
+        [ProtoMember(2)]
+        public bool HideDome;
+        [ProtoMember(3)]
+        public bool HideHaze;
+        [ProtoMember(4)]
+        public bool HideEmbers;
     }
 
     private struct FogZone
@@ -57,6 +69,7 @@ public partial class LandmassGeneratorModSystem
     // ── server ──────────────────────────────────────────────────────────
 
     private List<string> RedFogList() => sapi.WorldManager.SaveGame.GetData<List<string>>(RedFogKey, null) ?? new List<string>();
+    private List<string> RedFogHidden() => sapi.WorldManager.SaveGame.GetData<List<string>>(RedFogHiddenKey, null) ?? new List<string>();
 
     private void StartRedFogServer(ICoreServerAPI api)
     {
@@ -66,25 +79,43 @@ public partial class LandmassGeneratorModSystem
         var p = api.ChatCommands.Parsers;
         RegisterCmd(api, "genfog", name =>
             api.ChatCommands.Create(name)
-                .WithDescription("Red fog zones (the Great Machine's shroud). /genfog list; /genfog here [radius] [fade] adds one centred on you; /genfog clear removes them all. The Great Machine adds its own when it is built.")
+                .WithDescription("Red fog zones (the Great Machine's shroud). /genfog list; /genfog here [radius] [fade] adds one centred on you; /genfog clear removes them all. "
+                    + "/genfog dome|haze|embers on|off switches one part for this world: the dome is the red sphere seen from outside, the haze is the fog inside, the embers are the rising particles. The Great Machine adds its own zone when it is built.")
                 .RequiresPrivilege(Privilege.controlserver)
-                .WithArgs(p.OptionalWord("action"), p.OptionalInt("radius", 640), p.OptionalInt("fade", 200))
+                .WithArgs(p.OptionalWord("action"), p.OptionalAll("rest"))
                 .HandleWith(OnGenFog));
     }
 
     private TextCommandResult OnGenFog(TextCommandCallingArgs args)
     {
         string action = args.Parsers[0].IsMissing ? "list" : ((string)args[0]).ToLowerInvariant();
+        string[] rest = args.Parsers[1].IsMissing ? Array.Empty<string>() : ((string)args[1]).Split(' ', StringSplitOptions.RemoveEmptyEntries);
         int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
+        // "sphere" and "particles" are what people call them; the parts are dome and embers
+        string part = action switch { "sphere" => "dome", "particles" => "embers", "fog" => "haze", _ => action };
+        if (Array.IndexOf(RedFogParts, part) >= 0)
+        {
+            var hidden = RedFogHidden();
+            string want = rest.Length > 0 ? rest[0].ToLowerInvariant() : "";
+            if (want != "on" && want != "off")
+                return TextCommandResult.Success($"Red fog {part} is {(hidden.Contains(part) ? "off" : "on")} in this world. /genfog {part} on|off");
+            hidden.Remove(part);
+            if (want == "off") hidden.Add(part);
+            sapi.WorldManager.SaveGame.StoreData(RedFogHiddenKey, hidden);
+            SendRedFog(null);
+            return TextCommandResult.Success($"Red fog {part} {want} for this world.");
+        }
         switch (action)
         {
             case "here":
             {
                 var pos = args.Caller.Pos;
                 if (pos == null) return TextCommandResult.Error("Needs a position: run it as a player.");
+                int radius = rest.Length > 0 && int.TryParse(rest[0], out int r) ? r : 640;
+                int fade = rest.Length > 1 && int.TryParse(rest[1], out int f) ? f : 200;
                 int dim = (int)(pos.Y / BlockPos.DimensionBoundary);
-                RegisterRedFogZone(dim, (int)pos.X, (int)pos.Z, (int)args[1], (int)args[2]);
-                return TextCommandResult.Success($"Red fog zone added at {(int)pos.X - mx}, {(int)pos.Z - mz}, radius {(int)args[1]}, fade {(int)args[2]}.");
+                RegisterRedFogZone(dim, (int)pos.X, (int)pos.Z, radius, fade);
+                return TextCommandResult.Success($"Red fog zone added at {(int)pos.X - mx}, {(int)pos.Z - mz}, radius {radius}, fade {fade}.");
             }
             case "clear":
                 sapi.WorldManager.SaveGame.StoreData(RedFogKey, new List<string>());
@@ -95,7 +126,9 @@ public partial class LandmassGeneratorModSystem
                 var lines = new List<string>();
                 foreach (string s in RedFogList())
                     if (FogZone.TryParse(s, out var z)) lines.Add($"  {z.X - mx}, {z.Z - mz} radius {z.Radius} fade {z.Fade}" + (z.Dim != 0 ? $" (dimension {z.Dim})" : ""));
-                return TextCommandResult.Success(lines.Count == 0 ? "No red fog zones." : "Red fog zones:\n" + string.Join("\n", lines));
+                var hidden = RedFogHidden();
+                string parts = string.Join(", ", RedFogParts.Select(pt => pt + " " + (hidden.Contains(pt) ? "off" : "on")));
+                return TextCommandResult.Success((lines.Count == 0 ? "No red fog zones." : "Red fog zones:\n" + string.Join("\n", lines)) + "\nParts: " + parts);
             }
         }
     }
@@ -117,7 +150,14 @@ public partial class LandmassGeneratorModSystem
     {
         var ch = sapi.Network.GetChannel(RedFogChannel);
         if (ch == null) return;
-        var pkt = new RedFogPacket { Zones = RedFogList() };
+        var hidden = RedFogHidden();
+        var pkt = new RedFogPacket
+        {
+            Zones = RedFogList(),
+            HideDome = hidden.Contains("dome"),
+            HideHaze = hidden.Contains("haze"),
+            HideEmbers = hidden.Contains("embers")
+        };
         if (to != null) ch.SendPacket(pkt, to);
         else ch.BroadcastPacket(pkt);
     }
@@ -130,6 +170,7 @@ public partial class LandmassGeneratorModSystem
     private SimpleParticleProperties _emberParticles, _ashParticles;
     private readonly Random _fogRand = new();
     private ModSystemDevastationEffects _devaEffects;
+    private volatile bool _hideDome, _hideHaze, _hideEmbers;
 
     // How it looks. FogDensity is the ambient fog close up (vanilla's
     // devastation uses 0.05, a little thicker than this, so the blades
@@ -147,6 +188,9 @@ public partial class LandmassGeneratorModSystem
                 foreach (string s in pkt.Zones ?? new List<string>())
                     if (FogZone.TryParse(s, out var z)) zones.Add(z);
                 _fogZones = zones;
+                _hideDome = pkt.HideDome;
+                _hideHaze = pkt.HideHaze;
+                _hideEmbers = pkt.HideEmbers;
             });
 
         _fogAmbient = new AmbientModifier
@@ -214,9 +258,10 @@ public partial class LandmassGeneratorModSystem
         int dim = plr.Pos.Dimension;
         float w = RedFogStrengthAt(plr.Pos.X, plr.Pos.Z, dim, out var z0, out double d0);
         _fogStrength = w;
-        _fogAmbient.FogColor.Weight = w;
-        _fogAmbient.FogDensity.Weight = w;
-        _fogAmbient.AmbientColor.Weight = w * 0.5f;
+        float haze = _hideHaze ? 0 : w;
+        _fogAmbient.FogColor.Weight = haze;
+        _fogAmbient.FogDensity.Weight = haze;
+        _fogAmbient.AmbientColor.Weight = haze * 0.5f;
 
         // The dome. Vanilla's devastation effects run just before this
         // (same stage, lower render order) and set the sphere count to 0 or
@@ -226,7 +271,7 @@ public partial class LandmassGeneratorModSystem
         _devaEffects ??= capi.ModLoader.GetModSystem<ModSystemDevastationEffects>();
         int baseSlot = _devaEffects?.DevaLocationPresent != null ? uni.FogSphereQuantity : 0;
         uni.FogSphereQuantity = baseSlot;
-        if (d0 == double.MaxValue || baseSlot >= 3) return;
+        if (_hideDome || d0 == double.MaxValue || baseSlot >= 3) return;
         double outer = z0.Radius + z0.Fade;
         if (d0 > outer * 4) return;
         // A cap of a huge sphere: base radius about the zone's outer edge at
@@ -253,7 +298,7 @@ public partial class LandmassGeneratorModSystem
     private bool RedFogParticles(float dt, IAsyncParticleManager manager)
     {
         float w = _fogStrength;
-        if (w <= 0.01f || _emberParticles == null) return true;
+        if (_hideEmbers || w <= 0.01f || _emberParticles == null) return true;
         var plr = capi.World?.Player?.Entity;
         if (plr == null) return true;
         var r = _fogRand;

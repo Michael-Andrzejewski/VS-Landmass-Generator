@@ -621,7 +621,7 @@ Early standalone build, kept separate from Building Commands until it proves sta
 
 `dotnet build -c Release` compiles the mod and deploys `LandmassGenerator_<version>.zip` to `%APPDATA%\VintagestoryData\Mods`, replacing the previous build. Requires the Vintage Story API DLLs at `%APPDATA%\Vintagestory`.
 
-### Red fog: `/genfog list | here [radius] [fade] | clear` (0.63.0)
+### Red fog: `/genfog list | here [radius] [fade] | clear | dome|haze|embers on|off` (0.63.0)
 
 The Great Machine's island is shrouded in red fog, the way the vanilla
 Devastation area wears its brown one: an ambient fog close up, a red dome
@@ -631,6 +631,12 @@ seen from out at sea, and embers and ash rising from the ground. The
 `/genfog list` shows them and `/genfog clear` removes them. Zones are kept in
 the save and sent to players as they join. Clients without the mod simply
 see no fog.
+
+Each part can be switched off for a world (0.63.1): `/genfog dome off` drops
+the red sphere seen from outside (it reads very red and shows through the
+water), `/genfog haze off` the fog inside, `/genfog embers off` the rising
+particles. `sphere` and `particles` work as names too; `on` brings a part
+back, and `/genfog list` shows which are on.
 
 ### Inspecting a built world: `/gendumparea x z [radius] [name]` (0.59.0)
 
