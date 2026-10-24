@@ -951,3 +951,58 @@ found it raining almost constantly. Two things to know before touching it:
 `rain` plan lines rewrite only the rainfall byte of the climate pixels, as each
 map region generates (MapRegionGeneration hook), and mark the region in its
 moddata so `/genrain plan` on an older world never applies a zone twice.
+
+## The works under the Great Machine (0.65.0)
+
+Michael asked for the crater's edge ringed with metal, huge fallen metal in
+it, the crater filled with fried buildings, machinery and wrecked buildings
+inside the walls, and under all of it machines down to the mantle: ten
+megastructures joined by huge pipes, lit with Jonas lamps and glowing
+piping like the Resonance Archives, with hallways, workrooms and labs, and
+earth all round. What carried over:
+
+- **Build underground spaces in passes, so overlaps still seal.** Every
+  space registers a shell and a hollow; all shells go in first, then all
+  hollows, then the fittings. A hollow cell is then always inside some
+  shell, so two rooms, a pipe and a stairwell can overlap freely and the
+  union is still closed. Below y 80, where the natural sea floor keeps
+  pockets of water, a shell cell is set to air first (which clears the
+  fluid layer), then to its block: a solid block set over water keeps the
+  water in its fluid layer.
+- **Shells must be full blocks.** `claybricks-damaged-fire` and
+  `refractorybricks-damaged-*` are not full cubes, and lava ran straight
+  through the crucible's wall where they were mixed in (the first test
+  build's foundry floor was a lake). Keep part blocks, fences and slabs to
+  fittings. `burnedbrick-fire` is an item; the block is `claybricks-good-fire`.
+- **Nothing is written below y 5.** A pit floor at y 4 was simply never
+  carved. Keep floors, pits and fluids at y 6 and up.
+- **A safe ceiling keeps it buried.** The lowest ground (after every cut:
+  abyss, chasms, building terraces) within 4 columns, less 6, is the
+  highest a hollow may reach; shells may go 3 above it. Build the surface
+  first and record every lowered column, then compute the ceiling. The log
+  counts cells kept solid under it (0 in the test builds).
+- **Route pipes with right-angle legs and score the choices.** Each end may
+  offer several doorways; every pairing and route is scored by length, by
+  works a leg passes through, and heavily by a stairwell that would drop
+  through another work (the Laboratories sit partly over the Engine
+  Gallery, and the first router dropped a stairwell into its hall).
+- **Jonas lamps stay lit on their own.** `jonas-lamp` is a clutter block;
+  a `lightsource/on/...` type stays on as long as no control point network
+  is set. Its light comes from the block entity's type, so set the type,
+  then `ExchangeBlock` to light it, and relight it later with
+  `RemoveBlockLight` plus `ExchangeBlock` (a set-to-air would lose the
+  block entity). `GetLightHsv(accessor, pos)` sees the type; `Block.LightHsv`
+  does not.
+- **A clutter type can name its block:** `block|type` in a struct's
+  clutter list, e.g. `clutter|pipe-veryrusted-h-EW` for the plain clutter
+  the Resonance Archives use, `clutteredbookshelf-agedacacia|bookshelves/
+  bookshelf-ruined-full10|half|bookshelves/bookshelf-ruined-full8` for a
+  double-sided book stack.
+- **The Resonance Archives' own blocks** (counted from `resoarchive.json`,
+  block entities are Ascii85 tree attributes): granite, aged granite bricks,
+  old polished floors, carved acacia columns, `pipe-veryrusted-*` clutter,
+  shelves, tables, Jonas `gas-ceiling1`, `lumi-floor8` and `gas-wall2` lamps.
+- **Check fluids in the dump.** `tools/fluidcheck.py` counts water or lava
+  with air beside or below it; `tools/hslice.py` draws floor plans at given
+  heights. Natural caves under the island hold some running water of their
+  own: look at what surrounds a cell before calling it a leak.

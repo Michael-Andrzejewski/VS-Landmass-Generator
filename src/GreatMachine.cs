@@ -508,6 +508,7 @@ public partial class LandmassGeneratorModSystem
         // with stalactites under it, a stalagmite rising toward each from
         // below (two of them meet it). Anchors for the chains on top.
         var isles = new List<(int X, int Z, int Top, double Rho, double Az)>();
+        var isleFeet = new List<(int X, int Z)>();       // where each island's stalagmite rises
         var isleDefs = new (double Az, double R, int Up, double Rho)[]
         {
             (40, 112, 44, 17), (140, 104, 50, 19), (222, 120, 40, 15), (272, 98, 56, 21), (322, 116, 47, 16)
@@ -577,6 +578,7 @@ public partial class LandmassGeneratorModSystem
             if (ii == chestIsle)
                 k.Job.StructChests.Add((new BlockPos(ix + 2, top + 4, iz - 1, k.Job.Dim), "normal-aged", RollLoot(k.Rand, MachineLoot, 5 + k.RI(0, 2)), "floating island"));
             isles.Add((ix, iz, top, rho, az));
+            isleFeet.Add((ux, uz));
         }
 
         // ── 7. The sphere ─────────────────────────────────────────────
@@ -844,6 +846,8 @@ public partial class LandmassGeneratorModSystem
                 }
             }
         }
+        var chainSegs = new List<(double X0, double Y0, double Z0, double X1, double Y1, double Z1)>();
+        var bollards = new List<(int X, int Z)>();
         foreach (var isl in isles)
         {
             double hx = Math.Cos(isl.Az), hz = Math.Sin(isl.Az);
@@ -852,6 +856,7 @@ public partial class LandmassGeneratorModSystem
             double ax = isl.X - hx * isl.Rho * 0.6, az2 = isl.Z - hz * isl.Rho * 0.6;
             k.Box((int)ax - 1, isl.Top - 2, (int)az2 - 1, (int)ax + 1, isl.Top + 1, (int)az2 + 1, steelR);
             Chain(lugX, lugY, lugZ, ax, isl.Top - 1, az2, 3, 2.3);
+            chainSegs.Add((lugX, lugY, lugZ, ax, isl.Top - 1, az2));
             // tether to the rim
             double bx = isl.X + hx * isl.Rho * 0.6, bz = isl.Z + hz * isl.Rho * 0.6;
             int gx = cx + (int)Math.Round(hx * (rimR + 22)), gz = cz + (int)Math.Round(hz * (rimR + 22));
@@ -862,6 +867,8 @@ public partial class LandmassGeneratorModSystem
                 k.Ball(gx, gg + 6, gz, 1.9, () => steelR);
                 k.Box((int)bx - 1, isl.Top - 2, (int)bz - 1, (int)bx + 1, isl.Top + 1, (int)bz + 1, steelR);
                 Chain(bx, isl.Top - 1, bz, gx, gg + 6, gz, 8, 2.0);
+                chainSegs.Add((bx, isl.Top - 1, bz, gx, gg + 6, gz));
+                bollards.Add((gx, gz));
             }
         }
 
@@ -947,12 +954,105 @@ public partial class LandmassGeneratorModSystem
             for (int ox = 0; ox < w; ox++) k.Set(x + ox, f + 1, z, k.R() < 0.5 ? rustA : steel);
         }
 
+        // ── 14. The ruins above and the works below ───────────────────
+        // GreatMachineSurface.cs: the collar, the throat ring, fallen metal,
+        // fried buildings, machinery and halls inside the walls.
+        // GreatMachineWorks.cs and GreatMachineVaults*.cs: the ten buried
+        // works, their wings and pipes, buried machinery to the mantle.
+        if (k.OptI("works", 1) != 0)
+        {
+            var gm = new GmCtx
+            {
+                K = k, Cx = cx, Cz = cz, Sea = sea, G = G, MapY = mapY, RimR = rimR, WallR = wallR, AbyssR = abyssR, Yc = Yc, SphR = R,
+                ZStart = zStart, ZLand = zLand, Seed = seed, Floor = Floor, Carved = Carved, Chasms = chasmLines,
+            };
+            GmPalette(gm, ice, iceGlow, vein, glowB, lava);
+            gm.Chains.AddRange(chainSegs);
+            foreach (var b in bollards) gm.Keep.Add((b.X, b.Z, 9));
+            foreach (var ft in isleFeet) gm.Keep.Add((ft.X, ft.Z, 14));
+            GmSurface(gm);
+            GmDepths(gm);
+        }
+
         // ── 13. The red fog ───────────────────────────────────────────
         int fogR = Sc(k.OptD("fog", 640));
         if (fogR > 0) RegisterRedFogZone(k.Job.Dim, cx, cz, fogR, Sc(k.OptD("fogfade", 200)));
 
         sapi.Logger.Notification("[landmassgenerator] great machine built at HUD {0}, {1}: abyss {2} columns, chasms {3} cells, blades {4} cells, {5} floating islands, walkway {6} long, {7} cell(s) left as rock beside natural water",
             cx - sapi.WorldManager.MapSizeX / 2, cz - sapi.WorldManager.MapSizeZ / 2, abyssCells, chasmCells, bladeCells, isles.Count, zLand - zStart, keptRock);
+    }
+
+    // The palette of the surface ruins and the works below. A code the
+    // game lacks is logged and falls back to the nearest thing it has, so
+    // a shell is never left with a hole.
+    private void GmPalette(GmCtx g, int ice, int iceGlow, int vein, int glowB, int lava)
+    {
+        var k = g.K;
+        int P(int fb, params string[] codes)
+        {
+            foreach (string c in codes) { int i = k.Id(c); if (i != 0) return i; }
+            k.Need(codes[0]);
+            return fb;
+        }
+        g.Basalt = P(0, "rock-basalt");
+        g.Granite = P(g.Basalt, "rock-granite");
+        g.Andes = P(g.Basalt, "rock-andesite");
+        g.Obsid = P(g.Basalt, "rock-obsidian");
+        g.Drock = P(g.Basalt, "drock");
+        g.Steel = P(g.Basalt, "metalblock-new-plain-steel", "metalblock-new-plain-iron");
+        g.SteelR = P(g.Steel, "metalblock-new-riveted-steel", "metalblock-new-riveted-iron");
+        g.RustA = k.RustA != 0 ? k.RustA : g.SteelR;
+        g.RustB = k.RustB != 0 ? k.RustB : g.RustA;
+        g.Iron = P(g.Steel, "metalblock-new-plain-iron");
+        g.IronR = P(g.SteelR, "metalblock-new-riveted-iron");
+        g.Copper = P(g.RustA, "metalblock-new-plain-copper", "metalblock-new-riveted-copper");
+        g.CopperC = P(g.Copper, "metalblock-corroded-plain-copper", "metalblock-corroded-riveted-copper");
+        g.Brass = P(g.Copper, "metalblock-new-riveted-brass", "metalblock-corroded-riveted-brass");
+        g.Bronze = P(g.Copper, "metalblock-new-plain-tinbronze", "metalblock-new-plain-bismuthbronze", "metalblock-new-riveted-tinbronze");
+        g.Gold = P(g.Brass, "metalblock-new-plain-gold", "metalblock-new-riveted-gold");
+        g.BrickG = P(g.Andes, "stonebricks-granite", "stonebricks-andesite");
+        g.BrickA = P(g.BrickG, "agedstonebricks-granite");
+        g.BrickC = P(g.BrickG, "crackedstonebricks-granite", "crackedstonebricks-andesite");
+        g.BrickB = P(g.BrickG, "stonebricks-basalt", "stonebricks-andesite");
+        g.PolG = P(g.BrickG, "rockpolished-granite", "rockpolished-andesite");
+        g.PolOld = P(g.PolG, "polishedrockold-full-granite");
+        g.PolOldC = P(g.PolOld, "polishedrockold-cobbled-granite");
+        g.PolB = P(g.PolG, "rockpolished-basalt");
+        g.SlabG = P(g.BrickG, "stonebrickslab-granite-down-free", "stonebrickslab-andesite-down-free", "cobblestoneslab-andesite-down-free");
+        g.PlanksA = P(g.BrickG, "planks-aged-ns", "planks-oak-ns");
+        g.PlanksAW = P(g.PlanksA, "planks-aged-we");
+        g.PlanksE = P(g.PlanksAW, "planks-agedebony-we");
+        g.LogV = P(g.PlanksA, "debarkedlog-veryaged-ud", "log-placed-aged-ud");
+        g.ColBot = P(g.LogV, "carvedlog-acacia-aged-bottom-fancy-ud");
+        g.ColMid = P(g.LogV, "carvedlog-acacia-aged-middle-fancy-ud");
+        g.ColTop = P(g.LogV, "carvedlog-acacia-aged-top-fancy-ud");
+        g.Glass = P(g.SteelR, "glass-quartz", "glass-plain");
+        g.GlassBlue = vein != 0 ? vein : g.Glass;
+        g.Ice = ice != 0 ? ice : g.Glass;
+        g.IceGlow = iceGlow != 0 ? iceGlow : g.Ice;
+        g.RefrG = P(g.BrickG, "refractorybricks-good-tier3", "refractorybricks-good-tier2");
+        g.RefrD = P(g.RefrG, "refractorybricks-damaged-tier3");
+        // fired clay brick; the damaged kind (and damaged refractory brick)
+        // is not a full block, so it is kept out of every underground shell
+        g.BurntBrick = P(g.BrickC, "claybricks-good-fire");
+        g.BurntBrickD = P(g.BurntBrick, "claybricks-damaged-fire");
+        g.Charred = P(g.Drock, "burnedplanks-normal-charred-ud", "burnedplanks-normal-blackened-ud");
+        g.CharredW = P(g.Charred, "burnedplanks-narrow-charred-we", "burnedplanks-normal-charred-we");
+        g.Blackened = P(g.Charred, "burnedplanks-normal-blackened-ud");
+        g.Scorched = P(g.Charred, "burnedplanks-narrow-scorched-ud");
+        g.GlowB = glowB;
+        g.GlowG = P(glowB, "landmassgenerator:ghostlight-green");
+        g.Lava = lava;
+        g.Water = P(0, "water-still-7");
+        g.FenceNS = P(g.SteelR, "ironfence-base-ns");
+        g.FenceEW = P(g.FenceNS, "ironfence-base-ew");
+        g.Spider = P(0, "spiderweb");
+        g.Gears1 = P(g.RustA, "loosegears-1");
+        g.Gears3 = P(g.Gears1, "loosegears-3");
+        g.PartsS = P(g.Gears1, "metalpartpile-small");
+        g.PartsM = P(g.PartsS, "metalpartpile-medium");
+        g.Stones = P(g.PartsS, "loosestones-basalt-free");
+        g.Boulders = P(g.Stones, "looseboulders-basalt-free");
     }
 
     // Value noise for the Great Machine (0..1, smooth, deterministic per salt).

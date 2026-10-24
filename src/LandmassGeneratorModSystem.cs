@@ -8847,6 +8847,11 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             // clutter-devastation, coffins and the other everyday props on
             // plain clutter. A type set on the wrong one renders as nothing
             // (the first coffins on the Eerie Island were invisible).
+            // A type may also name its block: "block|type", e.g.
+            // "jonas-lamp|lightsource/on/gas-wall1" or "clutter|pipe-veryrusted-h-EW".
+            // A cluttered bookshelf takes "|variant|back type" after its type.
+            // A lit type (the Jonas lamps) is relit once its type is set,
+            // and queued with the structure lights for a relight near a player.
             int clutterId = Id("clutter-devastation"), plainClutterId = Id("clutter");
             if (clutterId != 0 || plainClutterId != 0)
             {
@@ -8854,21 +8859,50 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 var cpos = new BlockPos(0, 0, 0, job.Dim);
                 FieldInfo rotField = typeof(BEBehaviorShapeFromAttributes)
                     .GetField("<rotateY>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+                var namedIds = new Dictionary<string, int>();
+                var litClutter = new List<(int X, int Y, int Z, int Id)>();
                 foreach (var c in clutterSpots)
                 {
                     cpos.Set(c.X, c.Y, c.Z);
                     if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue;
-                    int useId = c.Type.StartsWith("coffin") ? plainClutterId : clutterId;
+                    string type = c.Type, variant = null, type2 = null;
+                    int useId, bar = type.IndexOf('|');
+                    if (bar > 0)
+                    {
+                        string bcode = type.Substring(0, bar);
+                        if (!namedIds.TryGetValue(bcode, out useId)) namedIds[bcode] = useId = Need(bcode);
+                        string[] parts = type.Substring(bar + 1).Split('|');
+                        type = parts[0];
+                        if (parts.Length > 1) variant = parts[1];
+                        if (parts.Length > 2) type2 = parts[2];
+                    }
+                    else useId = type.StartsWith("coffin") ? plainClutterId : clutterId;
                     if (useId == 0) continue;
                     wba.SetBlock(useId, cpos);
                     var beh = wba.GetBlockEntity(cpos)?.GetBehavior<BEBehaviorShapeFromAttributes>();
                     if (beh != null)
                     {
-                        beh.Type = c.Type;
+                        beh.Type = type;
+                        if (beh is BEBehaviorClutterBookshelf shelf)
+                        {
+                            shelf.Variant = variant ?? "half";
+                            shelf.Type2 = type2 ?? type;
+                        }
                         rotField?.SetValue(beh, c.Rot);
                         beh.Blockentity.MarkDirty(true);
+                        var hsv = wba.GetBlock(cpos).GetLightHsv(wba, cpos);
+                        if (hsv != null && hsv[2] > 0)
+                        {
+                            wba.ExchangeBlock(useId, cpos);
+                            litClutter.Add((c.X, c.Y, c.Z, useId));
+                        }
                     }
                     placed++;
+                }
+                if (litClutter.Count > 0)
+                {
+                    QueueRelight(job.Dim, litClutter);
+                    sapi.Logger.Notification("[landmassgen] {0}: {1} lit clutter lamp(s)", def.Kind, litClutter.Count);
                 }
             }
         }

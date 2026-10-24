@@ -79,11 +79,23 @@ public partial class LandmassGeneratorModSystem
                 pos.Set(int.Parse(c[0], CultureInfo.InvariantCulture), int.Parse(c[1], CultureInfo.InvariantCulture), int.Parse(c[2], CultureInfo.InvariantCulture));
                 if (acc.GetChunkAtBlockPos(pos) == null) { left.Add(pt); continue; }
                 Block b = acc.GetBlock(pos, BlockLayersAccess.SolidBlocks);
-                if (b == null || b.Id == 0 || b.LightHsv[2] == 0) continue;   // mined out or replaced: nothing to light
-                // Out and back in: a same-id SetBlock may change no light at
-                // all, so the emitter is removed and set again.
-                acc.SetBlock(0, pos);
-                acc.SetBlock(b.BlockId, pos);
+                if (b == null || b.Id == 0) continue;   // mined out: nothing to light
+                byte[] hsv = b.GetLightHsv(acc, pos);   // a Jonas lamp's light comes from its block entity's type
+                if (hsv == null || hsv[2] == 0) continue;
+                if (acc.GetBlockEntity(pos) != null)
+                {
+                    // the lamp's own relight: out with its light, exchange in
+                    // place so the block entity (and its type) stays
+                    acc.RemoveBlockLight(hsv, pos);
+                    acc.ExchangeBlock(b.BlockId, pos);
+                }
+                else
+                {
+                    // Out and back in: a same-id SetBlock may change no light
+                    // at all, so the emitter is removed and set again.
+                    acc.SetBlock(0, pos);
+                    acc.SetBlock(b.BlockId, pos);
+                }
                 acc.MarkBlockDirty(pos);
                 lit++;
             }

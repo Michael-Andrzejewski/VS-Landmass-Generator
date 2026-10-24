@@ -125,10 +125,55 @@
 60,
 53
 ],
+"game:burnedplanks-narrow-charred-ns": [
+40,
+33,
+30
+],
+"game:burnedplanks-narrow-charred-ud": [
+40,
+33,
+30
+],
+"game:burnedplanks-narrow-charred-we": [
+40,
+33,
+30
+],
+"game:burnedplanks-narrow-scorched-ud": [
+70,
+52,
+40
+],
+"game:burnedplanks-normal-blackened-ud": [
+30,
+26,
+24
+],
+"game:burnedplanks-normal-charred-ns": [
+44,
+36,
+32
+],
+"game:burnedplanks-normal-charred-ud": [
+44,
+36,
+32
+],
+"game:burnedplanks-normal-charred-we": [
+44,
+36,
+32
+],
 "game:carvedlog-acacia-aged-bottom-fancy-ns": [
 103,
 74,
 60
+],
+"game:carvedlog-acacia-aged-bottom-fancy-ud": [
+120,
+82,
+50
 ],
 "game:carvedlog-acacia-aged-bottom-fancy-we": [
 103,
@@ -140,10 +185,20 @@
 77,
 61
 ],
+"game:carvedlog-acacia-aged-middle-fancy-ud": [
+120,
+82,
+50
+],
 "game:carvedlog-acacia-aged-middle-fancy-we": [
 105,
 77,
 61
+],
+"game:carvedlog-acacia-aged-top-fancy-ud": [
+120,
+82,
+50
 ],
 "game:chandelier-candle0": [
 176,
@@ -154,6 +209,16 @@
 82,
 64,
 48
+],
+"game:claybricks-damaged-fire": [
+110,
+55,
+42
+],
+"game:claybricks-good-fire": [
+150,
+70,
+50
 ],
 "game:clayplanter-cthonic": [
 75,
@@ -3708,6 +3773,11 @@
 68,
 66
 ],
+"game:jonas-lamp": [
+255,
+236,
+140
+],
 "game:lava-still-7": [
 255,
 120,
@@ -4673,6 +4743,11 @@
 53,
 39
 ],
+"game:metalblock-corroded-plain-copper": [
+80,
+150,
+120
+],
 "game:metalblock-corroded-plain-rusty-iron": [
 96,
 78,
@@ -4683,10 +4758,45 @@
 78,
 62
 ],
+"game:metalblock-new-plain-copper": [
+184,
+110,
+70
+],
+"game:metalblock-new-plain-gold": [
+235,
+200,
+70
+],
+"game:metalblock-new-plain-iron": [
+120,
+124,
+132
+],
 "game:metalblock-new-plain-steel": [
 152,
 156,
 162
+],
+"game:metalblock-new-plain-tinbronze": [
+190,
+130,
+70
+],
+"game:metalblock-new-riveted-brass": [
+200,
+170,
+80
+],
+"game:metalblock-new-riveted-copper": [
+176,
+104,
+66
+],
+"game:metalblock-new-riveted-iron": [
+112,
+116,
+124
 ],
 "game:metalblock-new-riveted-steel": [
 152,
@@ -6603,6 +6713,11 @@
 78,
 62
 ],
+"game:planks-agedebony-we": [
+60,
+45,
+35
+],
 "game:planks-veryaged-ns": [
 56,
 51,
@@ -6778,10 +6893,25 @@
 132,
 89
 ],
+"game:refractorybricks-damaged-tier3": [
+150,
+82,
+56
+],
 "game:refractorybricks-good-tier1": [
 170,
 132,
 89
+],
+"game:refractorybricks-good-tier2": [
+176,
+96,
+64
+],
+"game:refractorybricks-good-tier3": [
+176,
+96,
+64
 ],
 "game:rock-andesite": [
 114,
@@ -8332,6 +8462,11 @@
 135,
 123,
 96
+],
+"game:stonebrickslab-granite-down-free": [
+150,
+146,
+140
 ],
 "game:stonepath-free": [
 128,
