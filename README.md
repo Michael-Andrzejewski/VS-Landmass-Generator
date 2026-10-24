@@ -679,3 +679,16 @@ Writes the world around HUD x z (a square, default radius 64) to
 `LandmassGenerator/dumps/<name>.lmd`, natural terrain included, for the
 previewer. Works headless, so a test world can be checked spot by spot
 without walking it (through the Pilot bridge: `/cmd?c=gendumparea -3618 -6737 90 nat26`).
+
+### Checking structure lights: `/genlightcheck x z [radius]` and `/genrelight x z [radius]` (0.65.0)
+
+`/genlightcheck` loads and holds the area, finds every Jonas lamp and
+ghostlight in it, and logs how many shine at the level their type says
+(the game's own stored block light at the lamp or beside it). `/genrelight`
+relights them all now, the same way a structure's lights are relit when a
+player first comes near. On a headless server with no player, far chunks
+drop their pending light updates when they unload, so lights placed there
+read dark until relit with the area held loaded; give the light queue a
+minute or two after a relight before checking. Use `tools/sealcheck.py`
+on a dump to see which open spaces join the sky, and `tools/fluidcheck.py`
+for water or lava that would run.

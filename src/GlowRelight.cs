@@ -49,12 +49,42 @@ public partial class LandmassGeneratorModSystem
         _relightListener = sapi.Event.RegisterGameTickListener(RelightTick, 3000);
     }
 
-    private void RelightTick(float dt)
+    private void RelightTick(float dt) => RelightNow(false);
+
+    // Relight one emitter; false when there is nothing there to light.
+    private static bool RelightAt(IBlockAccessor acc, BlockPos pos)
+    {
+        Block b = acc.GetBlock(pos, BlockLayersAccess.SolidBlocks);
+        if (b == null || b.Id == 0) return false;   // mined out: nothing to light
+        byte[] hsv = b.GetLightHsv(acc, pos);       // a Jonas lamp's light comes from its block entity's type
+        if (hsv == null || hsv[2] == 0) return false;
+        if (acc.GetBlockEntity(pos) != null)
+        {
+            // the lamp's own relight: out with its light, exchange in place
+            // so the block entity (and its type) stays
+            acc.RemoveBlockLight(hsv, pos);
+            acc.ExchangeBlock(b.BlockId, pos);
+        }
+        else
+        {
+            // Out and back in: a same-id SetBlock may change no light at
+            // all, so the emitter is removed and set again.
+            acc.SetBlock(0, pos);
+            acc.SetBlock(b.BlockId, pos);
+        }
+        acc.MarkBlockDirty(pos);
+        return true;
+    }
+
+    // force: relight every batch whose chunks are loaded, player or not
+    // (/genrelight, for checking a headless build).
+    private int RelightNow(bool force)
     {
         var list = RelightList();
-        if (list.Count == 0) return;
+        if (list.Count == 0) return 0;
         var players = sapi.World.AllOnlinePlayers.Where(p => p.Entity != null).ToArray();
-        if (players.Length == 0) return;
+        if (players.Length == 0 && !force) return 0;
+        int litTotal = 0;
         var acc = sapi.World.BlockAccessor;
         bool changed = false;
         for (int i = list.Count - 1; i >= 0; i--)
@@ -63,7 +93,7 @@ public partial class LandmassGeneratorModSystem
             if (parts.Length < 4) { list.RemoveAt(i); changed = true; continue; }
             int dim = int.Parse(parts[0], CultureInfo.InvariantCulture);
             int cx = int.Parse(parts[1], CultureInfo.InvariantCulture), cz = int.Parse(parts[2], CultureInfo.InvariantCulture);
-            bool near = players.Any(p =>
+            bool near = force || players.Any(p =>
             {
                 double dx = p.Entity.Pos.X - cx, dz = p.Entity.Pos.Z - cz;
                 return p.Entity.Pos.Dimension == dim && dx * dx + dz * dz < (double)RelightRange * RelightRange;
@@ -78,33 +108,16 @@ public partial class LandmassGeneratorModSystem
                 var c = pt.Split(',');
                 pos.Set(int.Parse(c[0], CultureInfo.InvariantCulture), int.Parse(c[1], CultureInfo.InvariantCulture), int.Parse(c[2], CultureInfo.InvariantCulture));
                 if (acc.GetChunkAtBlockPos(pos) == null) { left.Add(pt); continue; }
-                Block b = acc.GetBlock(pos, BlockLayersAccess.SolidBlocks);
-                if (b == null || b.Id == 0) continue;   // mined out: nothing to light
-                byte[] hsv = b.GetLightHsv(acc, pos);   // a Jonas lamp's light comes from its block entity's type
-                if (hsv == null || hsv[2] == 0) continue;
-                if (acc.GetBlockEntity(pos) != null)
-                {
-                    // the lamp's own relight: out with its light, exchange in
-                    // place so the block entity (and its type) stays
-                    acc.RemoveBlockLight(hsv, pos);
-                    acc.ExchangeBlock(b.BlockId, pos);
-                }
-                else
-                {
-                    // Out and back in: a same-id SetBlock may change no light
-                    // at all, so the emitter is removed and set again.
-                    acc.SetBlock(0, pos);
-                    acc.SetBlock(b.BlockId, pos);
-                }
-                acc.MarkBlockDirty(pos);
-                lit++;
+                if (RelightAt(acc, pos)) lit++;
             }
             if (lit > 0)
                 sapi.Logger.Notification("[landmassgen] relit {0} structure light(s) near {1}, {2} ({3} waiting on chunks)",
                     lit, cx - sapi.WorldManager.MapSizeX / 2, cz - sapi.WorldManager.MapSizeZ / 2, left.Count);
+            litTotal += lit;
             string rest = left.Count == 0 ? null : parts[0] + "|" + parts[1] + "|" + parts[2] + "|" + string.Join(";", left);
             if (rest != list[i]) { if (rest == null) list.RemoveAt(i); else list[i] = rest; changed = true; }
         }
         if (changed) sapi.WorldManager.SaveGame.StoreData(RelightKey, list);
+        return litTotal;
     }
 }

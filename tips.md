@@ -1002,6 +1002,16 @@ earth all round. What carried over:
   block entities are Ascii85 tree attributes): granite, aged granite bricks,
   old polished floors, carved acacia columns, `pipe-veryrusted-*` clutter,
   shelves, tables, Jonas `gas-ceiling1`, `lumi-floor8` and `gas-wall2` lamps.
+- **Prove it is buried.** `tools/sealcheck.py` labels every open pocket
+  of a dump and says which join the sky: all twelve works are one network
+  that reaches the sky as built, and is sealed once the three plateau
+  stairwells are plugged, so earth surrounds everything else.
+- **Prove the lamps shine.** A headless server keeps far chunks only while
+  something holds them, and drops their pending light updates when they
+  unload: right after the build every lamp read dark, and a relight with
+  the area let go lit only 576 of 1,404. `/genrelight` with the area held,
+  then `/genlightcheck` a minute later: all 1,390 lamps with a lit type at
+  full strength (mean 21.3), every sampled ghostlight seam lit (8 to 22).
 - **Check fluids in the dump.** `tools/fluidcheck.py` counts water or lava
   with air beside or below it; `tools/hslice.py` draws floor plans at given
   heights. Natural caves under the island hold some running water of their

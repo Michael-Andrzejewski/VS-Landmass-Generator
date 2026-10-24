@@ -251,6 +251,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         StartWorldPlanStore(api);
         // Rain zones: how often it rains round spawn (RainZones.cs).
         StartRainZones(api);
+        StartLightCheck(api);
 
         // Headless dump pipeline (tools/dumpgen.mjs): a dumpjobs.txt in the
         // LandmassGenerator folder is consumed at boot, each line runs as a
