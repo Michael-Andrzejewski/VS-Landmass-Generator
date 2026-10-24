@@ -23,6 +23,10 @@
       <HintPath>$(APPDATA)\Vintagestory\Mods\VSEssentials.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="protobuf-net">
+      <HintPath>$(APPDATA)\Vintagestory\Lib\protobuf-net.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
 
   <Target Name="Package" AfterTargets="PostBuildEvent">

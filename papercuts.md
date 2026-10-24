@@ -917,3 +917,22 @@ there). `tools/isorender.py` renders height bands (`--ymin/--ymax`), cutaways (`
 from the cut side), crops, and `--only metal` for lattices; count blocks per
 layer before believing a render. Struct `Set` now commits the bulk accessor
 every ~500k blocks: the Great Machine stages over 5 million.
+
+## A 1200-wide island came out 1024 wide (fixed in 0.63.0)
+
+`diameter=` was clamped to 1024 with no note, so the new Great Machine island
+built smaller than asked and its structure, which scales its radii with the
+island's blocks per cell, quietly shrank with it (crater rim 212 instead of
+248). The only tell was the structure's own log line. The cap is 2048 now.
+
+## A big island's first chunk band outlasted the 30 second wait (fixed in 0.63.0)
+
+The 1200 wide Great Machine island logged `5256 chunk column(s) never loaded
+(30s without progress)` and then built anyway into unloaded chunks (its
+chests failed with "no container entity"). The debug log showed vanilla's
+priority load of the first 216-column band still running: it started at
+13:36:34 and had not finished 40 seconds later, on a headless server with
+Michael's whole mod list that was also regenerating the spawn area. No column
+of that band counted as loaded until the band was done, so the gate saw no
+progress. The gate now waits up to 3 minutes while a band is in flight and
+keeps the 30 seconds for the gaps between bands.

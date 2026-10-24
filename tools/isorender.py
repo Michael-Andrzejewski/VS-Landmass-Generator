@@ -75,7 +75,8 @@ if a.ymin >= 0: s &= ys >= a.ymin
 s &= ys <= a.ymax
 if a.crop:
     cx, cz, r = [int(v) for v in a.crop.split(",")]
-    lx, lz = h["cx"] - h["ox"] + cx, h["cz"] - h["oz"] + cz   # offsets from the dump centre
+    lx = h.get("cx", h["ox"] + h["sx"] // 2) - h["ox"] + cx   # offsets from the dump centre
+    lz = h.get("cz", h["oz"] + h["sz"] // 2) - h["oz"] + cz   # (area dumps carry no cx/cz)
     xs = np.arange(sx)[None, None, :]; zs = np.arange(sz)[None, :, None]
     s &= (abs(xs - lx) <= r) & (abs(zs - lz) <= r)
 if a.cut == "x": s[:, :, sx // 2 + 1:] = False

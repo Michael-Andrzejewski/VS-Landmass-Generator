@@ -876,3 +876,57 @@ open water, metal blocks, chests) instead of eyeballing. Copy Michael's own
 Mods folder into the scratch data folder and keep `"Mods"` in `ModPaths`
 (it is the game install's core mods; dropping it fails with `game@1.22.0 -
 Missing`); a stale second path in `ModPaths` silently loads an old mod build.
+
+## The Great Machine, rebuilt (0.63.0)
+
+Michael's brief: an island twice the size with a vast impact crater, the
+machine hung on chains between floating islands and propped by stalagmites,
+chasms shattering the island out from it, red fog with rising particles, a
+double helix over a 30-block sphere, and two pillars shaped like the blades
+of a Halo energy sword (he sent the toy's picture) with the sphere at the hilt.
+What carried over:
+
+- **Split the work between terrain and structure.** The crater BOWL is
+  terrain: twelve ring regions with heights from a bowl profile, which the
+  5-cell height smoothing blends into one smooth slope for free (the
+  previewer's `columnSurface` sweep confirms floor 2, rim 55, plateau 49
+  above the sea). Anything sheer or below the sea is structure: the abyss,
+  the chasms, the fractures. Terrain cannot go below the sea dry, and a
+  structure carving a 450-wide bowl would stage tens of millions of edits.
+- **A dry pit below the sea needs every water path closed.** The abyss sits
+  70 below the sea, dry. The chasms that reach the coast are dry and deep
+  inland, rise to a rubble sill at sea level 24-40 blocks from the coast,
+  and only the stretch seaward of the sill holds sea water. A `/gendumparea`
+  plus a "water or lava touching air below the sea" count is the proof; the
+  first build had none from the carving.
+- **Deep-ocean islands stand on a sheet of trapped sea water.** The island
+  fill starts at `sea - maxdepth` (y 30 by default), and below it the natural
+  ocean floor keeps its water: a 2-5 block layer at y 25-29 and pockets in
+  limestone up to ~60-75. The second full build's deep chasm floor cut into
+  one 490 blocks out. Every dry cut below the sea now leaves rock wherever
+  the cell would sit beside water (a world read sees exactly the natural
+  water, since our own staged writes are only rock and air), and the build
+  log counts those cells.
+- **Bare soil grows grass back.** Barren soil on the crater rim came out of
+  the test build with chunk-shaped squares of sparse grass: the chunks the
+  server kept loaded got ticked and grass spread. A devastated landscape
+  wants a surface that cannot green: the crater is `surface=rocksand` now
+  and the structure scatters drock and devastated soil over the plateau.
+- **Trace a picture into a polygon.** The blade outline is 21 points read off
+  the image in (out from the centre line, up from the hilt) coordinates,
+  then stretched and shifted so the helix fits between the blades. Point in
+  polygon plus distance to the outline gives a lens section (thin sharp
+  edges, thick middle) and the edge band. `packedglacierice` is the
+  sword's opaque pale cyan, `glacierice` (translucent, glow 16) makes the
+  edges, `glass-blue` veins on the faces.
+- **Judge it from where the player stands.** The isometric render hid the
+  sword; a straight orthographic view from the walkway side (south, looking
+  north) showed it at once. `tools/ortho.py` does that, and
+  `tools/lmdview.py` makes a top-down map and vertical slices of a dump too
+  big to load whole, one y layer at a time.
+- **Red fog is a client effect.** It copies vanilla's
+  ModSystemDevastationEffects: an AmbientModifier (fog colour, density,
+  a slight red ambient) weighted by distance, a fog sphere for the dome seen
+  from outside (the shader has three slots; vanilla's devastation uses slot
+  0 while its area exists, so ours takes the next), and an async particle
+  spawner. Particle colours: `ColorUtil.ToRgba(a, r, g, b)`.

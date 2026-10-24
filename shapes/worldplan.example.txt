@@ -61,7 +61,7 @@ island 3740 -5030 shape=divingbell_mine diameter=460 height=26 water=30 stone=ro
 # maps and /devastate machine point here; a Rustfall-only patch makes it
 # place an empty schematic). Round it: the refinery, the power plant and
 # two sunken pylon lines carrying power in; the Eerie Island far east.
-island 0 -5330 shape=great_machine diameter=600 height=30 water=40 stone=rock-basalt sand=sand-basalt climate=arid
+island 0 -5330 shape=great_machine diameter=1200 height=50 water=30 stone=rock-basalt sand=sand-basalt climate=arid
 island -1200 -4400 shape=refinery_island diameter=280 height=7 water=30 stone=rock-basalt sand=sand-basalt climate=arid
 island 1500 -4300 shape=power_plant diameter=320 height=12 water=36 stone=rock-basalt sand=sand-basalt climate=cold
 island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=244

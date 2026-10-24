@@ -116,6 +116,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
     {
         capi = api;
         api.Event.MapRegionLoaded += OnClientMapRegionLoaded;
+        StartRedFogClient(api);
     }
 
     private void OnClientMapRegionLoaded(Vec2i coord, IMapRegion region)
@@ -243,6 +244,8 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // built their story structure.
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryChestWatcher);
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
+        // The Great Machine's red fog zones (RedFog.cs).
+        StartRedFogServer(api);
 
         // Headless dump pipeline (tools/dumpgen.mjs): a dumpjobs.txt in the
         // LandmassGenerator folder is consumed at boot, each line runs as a
@@ -842,7 +845,7 @@ island 3740 -5030 shape=divingbell_mine diameter=460 height=26 water=30 stone=ro
 # maps and /devastate machine point here; a Rustfall-only patch makes it
 # place an empty schematic). Round it: the refinery, the power plant and
 # two sunken pylon lines carrying power in; the Eerie Island far east.
-island 0 -5330 shape=great_machine diameter=600 height=30 water=40 stone=rock-basalt sand=sand-basalt climate=arid
+island 0 -5330 shape=great_machine diameter=1200 height=50 water=30 stone=rock-basalt sand=sand-basalt climate=arid
 island -1200 -4400 shape=refinery_island diameter=280 height=7 water=30 stone=rock-basalt sand=sand-basalt climate=arid
 island 1500 -4300 shape=power_plant diameter=320 height=12 water=36 stone=rock-basalt sand=sand-basalt climate=cold
 island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=244
@@ -2047,7 +2050,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
     {
         err = null;
 
-        int diameter = OptInt(opt, "diameter", 120, 8, 1024);
+        int diameter = OptInt(opt, "diameter", 120, 8, 2048);   // the Great Machine's island is 1200
         int height = OptInt(opt, "height", 40, 3, 220);
         int water = OptInt(opt, "water", 30, 0, 200);
         int maxdepth = OptInt(opt, "maxdepth", 80, 8, 250);
@@ -3259,7 +3262,11 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             {
                 // Keep waiting as long as the loader is making progress; only
                 // give up after 30s of NO new columns (big islands can take
-                // longer than 30s in total, and that is fine).
+                // longer than 30s in total, and that is fine). While a band
+                // is still in flight allow 3 minutes: vanilla may publish a
+                // band's columns only when the whole band is done, and on a
+                // busy server one band of a 1200 wide island took over 30s
+                // (the build then wrote into unloaded chunks, papercuts).
                 if (missing < job.LastMissing)
                 {
                     if (job.LastMissing == int.MaxValue)
@@ -3267,7 +3274,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                     job.LastMissing = missing;
                     job.WaitTicks = 0;
                 }
-                if (job.WaitTicks++ < 750) return;
+                if (job.WaitTicks++ < (job.PreloadInFlight ? 4500 : 750)) return;
                 job.ChunksLoaded = true;
                 ReportIsland(job, $"WARNING: {missing} chunk column(s) never loaded (30s without progress); parts of the island may be missing. Stand closer to the target area and regenerate.");
             }

@@ -193,7 +193,7 @@ leaves sea water where the sea would be). They take their own keys on the
 | `refinery` | Concrete pads, a four-line pipe rack on trestles (a fallen section hanging), two colossal penstocks sloping to the shore, storage tanks (one torn open), distillation columns with ring platforms (one toppled), scaffolding towers, a gantry crane with its hook over a flooded sump, the control room with two chests. | `size` (half-width) |
 | `graveyard` | Weathered stone pillars (some fallen), black obsidian monoliths with red ochre X marks (decor), a great monolith in an obsidian circle, rows of grave mounds and headstones with a coffin (or a chest) buried under each, and mausoleums with crypts. | `size`, `pillars`, `monoliths`, `graves`, `mausoleums`, `great`, `ring` |
 | `powerplant` | Three hyperboloid cooling towers (one broken off, its shell heaped round it), a brutalist reactor hall with a finned facade and a burst dome, a transformer yard; under the hall a ramp down 30 blocks to a pillared chamber with the warp rig (an upright lit ring, drock floor) and coolant tunnels out under each tower. | `size` |
-| `greatmachine` | The Great Machine: 40-block enclosure walls with fins and four gates, a stepped pyramid (pillared halls inside every second terrace, grand stairs on the axes) with a round heart cut out to the sky, an altar of three tiers with the Spreading Devastation machine core on its pedestal, a double helix to `top=` (default 250); under it a 176-wide gear hall (eight 16-block gears round a crown gear, four 64-block cardinal gears over them, drive shaft, rim columns), a ring of empty halls with leaning slab pillars and a corridor loop, two slab-stepped helical ramps down, radial and ring pipes. | `size` (enclosure half-width, default 150), `steps`, `turns`, `top` |
+| `greatmachine` | The Great Machine (rebuilt in 0.63.0, `GreatMachine.cs`): on the `great_machine` island's impact crater, a scorched crater surface; an abyss cut into the crater floor 70 below the sea (dry, scree walls, lava pools); six chasms from the abyss out to the sea (dry and deep inland, a rubble sill near the coast, sea water only in the last stretch), each with a branch crack, and thin fractures across the plateau; a 30-block steel sphere hanging in the crater just under the plateau's level, on chains from five floating islands (stalactites under them, a stalagmite rising to each, a loot chest on one), propped by three stalagmites out of the abyss; inside it a double iron door, a deck, the control area round the Spreading Devastation core, machinery under the deck, and a rupture torn outward at the top right as seen from the walkway; a double helix from the sphere's top to a point with the beacon; two crystal blades shaped like a Halo energy sword's either side of the helix, twice its height, the sphere at the hilt; a walkway with rusted iron railings on a truss and stalagmite piers from the crater wall to the doors, and a stone stair from its landing to the rim; an 18-sided ring of ruined walls round the crater (five sides gone, five partial, blast holes, a south gate) that the chasms cut through; a red fog zone over the island. | `rim` (crater rim radius, default 248), `abyss` (84), `wall` (300), `sphere` (radius, 15), `turns`, `fog` (fog radius, 640; 0 = none), `fogfade` (200). Radii are for a 4-blocks-a-cell island and scale with it. |
 
 Islands for them: `eerie_island`, `refinery_island`, `power_plant`,
 `pylon_line` (open sea) and `great_machine` (with four bastion ruins and four
@@ -620,6 +620,17 @@ Early standalone build, kept separate from Building Commands until it proves sta
 ## Building
 
 `dotnet build -c Release` compiles the mod and deploys `LandmassGenerator_<version>.zip` to `%APPDATA%\VintagestoryData\Mods`, replacing the previous build. Requires the Vintage Story API DLLs at `%APPDATA%\Vintagestory`.
+
+### Red fog: `/genfog list | here [radius] [fade] | clear` (0.63.0)
+
+The Great Machine's island is shrouded in red fog, the way the vanilla
+Devastation area wears its brown one: an ambient fog close up, a red dome
+seen from out at sea, and embers and ash rising from the ground. The
+`greatmachine` structure adds its zone when it is built; `/genfog here 640
+200` adds one where you stand (for a world whose machine predates 0.63.0),
+`/genfog list` shows them and `/genfog clear` removes them. Zones are kept in
+the save and sent to players as they join. Clients without the mod simply
+see no fog.
 
 ### Inspecting a built world: `/gendumparea x z [radius] [name]` (0.59.0)
 
