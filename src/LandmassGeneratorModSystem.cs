@@ -243,6 +243,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // Story chests (plan `storychest` lines): filled once the game has
         // built their story structure.
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryChestWatcher);
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartRelightWatcher);
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
         // The Great Machine's red fog zones (RedFog.cs).
         StartRedFogServer(api);
@@ -850,7 +851,7 @@ island -1200 -4400 shape=refinery_island diameter=280 height=7 water=30 stone=ro
 island 1500 -4300 shape=power_plant diameter=320 height=12 water=36 stone=rock-basalt sand=sand-basalt climate=cold
 island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=244
 island -650 -4850 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=352
-island 4300 -1300 shape=eerie_island diameter=260 height=26 water=36
+island 4300 -1300 shape=eerie_island diameter=420 height=22 water=36 climate=lush
 
 # Scattered Ruins around the Great Machine
 island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40
@@ -8683,12 +8684,56 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 sapi.Logger.Notification("[landmassgen] {0}: {1} emitter(s) pinned to the nearest surface, {2} dropped with nothing in reach",
                     def.Kind, floated, orphaned);
             glowSpots = pinned;
+
+            // The megastructures go one step further: every light is set
+            // INTO the wall or floor it rests against, flush with the
+            // surface, never standing on a step or sticking out of a face
+            // (Michael, on the Eerie Island: "inset in the floor or wall
+            // always"). A light already in a full block stays. Otherwise
+            // its host is the touching full block, walls first, then the
+            // floor, then the ceiling. Chests, slabs, stairs and other
+            // part blocks are never hosts.
+            if (MegaKinds.Contains(def.Kind))
+            {
+                bool Host(int x, int y, int z)
+                {
+                    gpos.Set(x, y, z);
+                    var b = gba.GetBlock(gpos, BlockLayersAccess.SolidBlocks);
+                    if (b == null || b.Id == 0 || b.EntityClass != null || b.IsLiquid()) return false;
+                    for (int f = 0; f < 6; f++) if (!b.SideSolid[f]) return false;
+                    return true;
+                }
+                var order = new[] { BlockFacing.NORTH, BlockFacing.EAST, BlockFacing.SOUTH, BlockFacing.WEST, BlockFacing.DOWN, BlockFacing.UP };
+                var taken = new HashSet<long>();
+                var inset = new List<(int X, int Y, int Z, int Id)>();
+                int sunk = 0;
+                foreach (var g in glowSpots)
+                {
+                    (int X, int Y, int Z)? at = null;
+                    if (Host(g.X, g.Y, g.Z)) at = (g.X, g.Y, g.Z);
+                    else
+                        foreach (var f in order)
+                        {
+                            int hx = g.X + f.Normali.X, hy = g.Y + f.Normali.Y, hz = g.Z + f.Normali.Z;
+                            if (hy < 5 || !Host(hx, hy, hz) || taken.Contains(GKey(hx, hy, hz))) continue;
+                            at = (hx, hy, hz);
+                            break;
+                        }
+                    if (at == null || !taken.Add(GKey(at.Value.X, at.Value.Y, at.Value.Z))) continue;
+                    if (at.Value.X != g.X || at.Value.Y != g.Y || at.Value.Z != g.Z) sunk++;
+                    inset.Add((at.Value.X, at.Value.Y, at.Value.Z, g.Id));
+                }
+                sapi.Logger.Notification("[landmassgen] {0}: {1} of {2} emitter(s) set into the wall or floor they touched, {3} with no host dropped",
+                    def.Kind, sunk, glowSpots.Count, glowSpots.Count - inset.Count);
+                glowSpots = inset;
+            }
             foreach (var g in glowSpots)
             {
                 gpos.Set(g.X, g.Y, g.Z);
                 gba.SetBlock(g.Id, gpos);
                 placed++;
             }
+            QueueRelight(job.Dim, glowSpots);
             // Ground truth that the light actually baked. Probe an emitter
             // that has somewhere to send its light: one walled into solid
             // rock stores no block light and reads 0, which looks exactly
@@ -8742,8 +8787,13 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
 
         if (clutterSpots.Count > 0)
         {
-            int clutterId = Id("clutter-devastation");
-            if (clutterId != 0)
+            // Two clutter blocks share the shape-from-attributes trick, each
+            // with its own list of types: the devastation machinery lives on
+            // clutter-devastation, coffins and the other everyday props on
+            // plain clutter. A type set on the wrong one renders as nothing
+            // (the first coffins on the Eerie Island were invisible).
+            int clutterId = Id("clutter-devastation"), plainClutterId = Id("clutter");
+            if (clutterId != 0 || plainClutterId != 0)
             {
                 var wba = sapi.World.BlockAccessor;
                 var cpos = new BlockPos(0, 0, 0, job.Dim);
@@ -8753,7 +8803,9 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 {
                     cpos.Set(c.X, c.Y, c.Z);
                     if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue;
-                    wba.SetBlock(clutterId, cpos);
+                    int useId = c.Type.StartsWith("coffin") ? plainClutterId : clutterId;
+                    if (useId == 0) continue;
+                    wba.SetBlock(useId, cpos);
                     var beh = wba.GetBlockEntity(cpos)?.GetBehavior<BEBehaviorShapeFromAttributes>();
                     if (beh != null)
                     {

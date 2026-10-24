@@ -7,6 +7,8 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 5184;
+// Localhost only by default; set HOST=0.0.0.0 to view from another device.
+const HOST = process.env.HOST || '127.0.0.1';
 const MIME = {
   '.html': 'text/html', '.js': 'application/javascript', '.txt': 'text/plain',
   '.json': 'application/json', '.css': 'text/css',
@@ -57,14 +59,13 @@ http.createServer((req, res) => {
   let url = decodeURIComponent(req.url.split('?')[0]);
   if (url === '/' || url === '') url = '/viewer/index.html';
   const fp = path.normalize(path.join(ROOT, url));
-  if (!fp.startsWith(ROOT)) { res.writeHead(403); return res.end('forbidden'); }
+  if (!fp.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end('forbidden'); }
   fs.readFile(fp, (err, data) => {
     if (err) { res.writeHead(404); return res.end('not found: ' + url); }
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(fp).toLowerCase()] || 'application/octet-stream',
-      'Access-Control-Allow-Origin': '*',
     });
     res.end(data);
   });
-}).listen(PORT, () => console.log('island previewer on http://localhost:' + PORT));
+}).listen(PORT, HOST, () => console.log('island previewer on http://localhost:' + PORT));
 

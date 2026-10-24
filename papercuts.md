@@ -918,6 +918,29 @@ from the cut side), crops, and `--only metal` for lattices; count blocks per
 layer before believing a render. Struct `Set` now commits the bulk accessor
 every ~500k blocks: the Great Machine stages over 5 million.
 
+## Megastructure lights lit nothing, and the coffins were invisible (fixed in 0.62.0)
+
+Michael on the first Eerie Island: the ghostlights glowed but lit nothing,
+and the crypt coffins could not be seen. The build log's glow probes all
+read 22 at the emitter, so the build itself looked fine. The game ignores
+that number: in play there was no light around the emitters. This is the
+same problem the Underwater Horrors ruins had, and the fix is the same
+one: every struct's final emitter positions are saved (`lgRelight`,
+GlowRelight.cs), and each one is removed and set again through the world
+accessor the first time a player comes within 160 blocks. The server log
+says `relit N structure light(s)`. Do not trust the build-time probe as
+proof the light shows in game.
+
+The coffins were the invisible-pipes mistake again: `coffin-rot-*` is a
+type of plain `game:clutter`, not `clutter-devastation`, and a type set
+on the wrong clutter block renders as nothing. Clutter() now sends
+coffin types to `clutter`.
+
+Megastructure lights are also always set INTO the full block they touch
+(walls first, then the floor, then the ceiling), never standing on a step
+or sticking out of a face. The mausoleum light used to sit on the crypt
+stair.
+
 ## A 1200-wide island came out 1024 wide (fixed in 0.63.0)
 
 `diameter=` was clamped to 1024 with no note, so the new Great Machine island

@@ -66,7 +66,7 @@ island -1200 -4400 shape=refinery_island diameter=280 height=7 water=30 stone=ro
 island 1500 -4300 shape=power_plant diameter=320 height=12 water=36 stone=rock-basalt sand=sand-basalt climate=cold
 island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=244
 island -650 -4850 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=352
-island 4300 -1300 shape=eerie_island diameter=260 height=26 water=36
+island 4300 -1300 shape=eerie_island diameter=420 height=22 water=36 climate=lush
 
 # Scattered Ruins around the Great Machine
 island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40

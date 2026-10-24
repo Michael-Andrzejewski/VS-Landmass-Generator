@@ -417,10 +417,15 @@ public partial class LandmassGeneratorModSystem
                 int x = cx + (int)Math.Round(Math.Cos(a) * 11), z = cz + (int)Math.Round(Math.Sin(a) * 11);
                 Monolith(x, z, 7 + k.RI(0, 5), a + Math.PI / 2, i % 3 == 0);
             }
-            if (glowGreen != 0) for (int i = 0; i < 4; i++) k.Glow(cx + (i < 2 ? -3 : 3), g + 1, cz + (i % 2 == 0 ? -2 : 2), glowGreen);
+            if (glowGreen != 0)
+                for (int i = 0; i < 4; i++)
+                {
+                    int lx = cx + (i < 2 ? -3 : 3), lz = cz + (i % 2 == 0 ? -2 : 2);
+                    k.Glow(lx, k.Ground(lx, lz), lz, glowGreen);   // flush with the turf
+                }
         }
 
-        void Monolith(int x, int z, int H, double yaw, bool broken)
+        void Monolith(int x, int z, int H, double yaw, bool broken, int half = 1)
         {
             int g = k.Ground(x, z);
             bool alongX = Math.Abs(Math.Cos(yaw)) > Math.Abs(Math.Sin(yaw));
@@ -429,7 +434,9 @@ public partial class LandmassGeneratorModSystem
             for (int y = -3; y <= top; y++)
             {
                 int off = (int)Math.Round(lean * Math.Max(0, y));
-                for (int w = -1; w <= 1; w++)
+                // a broad slab narrows toward its crown
+                int hw = half > 1 && y > top - 4 ? Math.Max(1, half - (y - (top - 4)) / 2) : half;
+                for (int w = -hw; w <= hw; w++)
                     for (int d = 0; d <= 1; d++)                               // two blocks thick
                     {
                         if (y == top && !broken && w != 0) continue;           // a blunt crown
@@ -449,12 +456,15 @@ public partial class LandmassGeneratorModSystem
             used.Add((x, z, 3));
         }
 
-        // 2. Obsidian monoliths standing alone across the island.
+        // 2. Obsidian monoliths standing alone across the island, far
+        // apart: one or two on every hill, each a landmark of its own.
+        int monoGap = k.OptI("monogap", 16);
         for (int i = 0; i < nMono; i++)
         {
-            var s = Spot(16, R, 6);
+            var s = Spot(18, R, monoGap);
             if (s == null) continue;
-            Monolith(s.Value.X, s.Value.Z, 12 + k.RI(0, 14), k.R() * Math.PI, k.R() < 0.25);
+            bool slab = k.R() < 0.3;
+            Monolith(s.Value.X, s.Value.Z, (slab ? 10 : 13) + k.RI(0, slab ? 8 : 15), k.R() * Math.PI, k.R() < 0.2, slab ? 2 : 1);
         }
 
         // 3. Stone pillars: square, weathered, some fallen.
@@ -517,11 +527,14 @@ public partial class LandmassGeneratorModSystem
                 }
             // the crypt under it, reached by a stair along the back wall
             int cy = mg - 6;
-            for (int x = mx - hx + 1; x <= mx + hx - 1; x++)
-                for (int z = mz - hz + 1; z <= mz + hz - 1; z++)
+            for (int x = mx - hx; x <= mx + hx; x++)
+                for (int z = mz - hz; z <= mz + hz; z++)
                 {
-                    for (int y = cy; y <= cy + 3; y++) k.Set(x, y, z, 0);
+                    bool cwall = Math.Abs(x - mx) == hx || Math.Abs(z - mz) == hz;
                     k.Set(x, cy - 1, z, brick);
+                    for (int y = cy; y <= cy + 3; y++)
+                        k.Set(x, y, z, cwall ? (k.Hash01(x * 7 + y, z * 3 - y) < 0.3 ? mbrick : brick) : 0);
+                    k.Set(x, cy + 4, z, brick);   // the ceiling; the stair cuts its own way through
                 }
             for (int st = 0; st < 6; st++)
             {
@@ -540,7 +553,14 @@ public partial class LandmassGeneratorModSystem
                 if (i < 3) k.Clutter(mx + hx - 1, cy, zx, i == 1 ? "coffin-rot-open" : "coffin-rot-ajar", -Math.PI / 2);
             }
             k.Job.StructChests.Add((new BlockPos(mx + 1, cy, mz - hz + 2, k.Job.Dim), "normal-aged", RollLoot(k.Rand, GraveLoot, 4 + k.RI(0, 2)), "mausoleum"));
-            if (glowGreen != 0) k.Glow(mx, cy + 3, mz, glowGreen);
+            if (glowGreen != 0)
+            {
+                // set into the crypt's brick: the front wall facing the
+                // stair, and both side walls over the coffin rows
+                k.Glow(mx, cy + 2, mz - hz, glowGreen);
+                k.Glow(mx - hx, cy + 2, mz - 1, glowGreen);
+                k.Glow(mx + hx, cy + 2, mz - 1, glowGreen);
+            }
             used.Add((mx, mz, 9));
         }
 
