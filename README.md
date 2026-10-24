@@ -580,6 +580,22 @@ new world (saved with it; `/devastate start` resumes). `storychest <code>
 the game has built it (the highest chest near a heavy door in its footprint);
 `/genstorychests` runs that check at once without waiting for a player.
 
+World plan line (0.63.3): `rain <x> <z> <rainfall 0..1> [radius] [fade]` sets
+how often it rains around a spot, nothing else (temperature untouched, grass
+tint follows rainfall a little). Rain is decided at the player's own block from
+the climate map's rainfall there, plus a bonus of up to 0.16 near sea level.
+The character screen calls 0.3-0.45 "uncommon"; 0.4 rains roughly 10-13% of
+the time on land, against ~50% at 1.0. The Rustfall plan has `rain 0 0 0.4 400
+150` (spawn was "very common"). Applied to each map region as it generates, so
+a new world has it from the first chunk; each region remembers the zones it got.
+
+    /genrain                      read the rainfall where you stand
+    /genrain 0.4 [radius] [fade]  set it around you (default 400, fading over 150)
+    /genrain plan                 apply the plan's rain lines to land that already exists
+
+`/genrain plan` is for a world made before its plan had the line. Zones set with
+`/genrain <value>` are kept in the save and reach later land too.
+
     /genchests
 
 Brings an existing world up to date with its plan islands: builds missing `lab`

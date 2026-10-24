@@ -247,6 +247,8 @@ public partial class LandmassGeneratorModSystem : ModSystem
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
         // The Great Machine's red fog zones (RedFog.cs).
         StartRedFogServer(api);
+        // Rain zones: how often it rains round spawn (RainZones.cs).
+        StartRainZones(api);
 
         // Headless dump pipeline (tools/dumpgen.mjs): a dumpjobs.txt in the
         // LandmassGenerator folder is consumed at boot, each line runs as a
@@ -796,6 +798,9 @@ public partial class LandmassGeneratorModSystem : ModSystem
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
 #   island <mapX> <mapZ> <genisland options>   build a drawn island (runs
 #       before the story pregeneration; shape file must be installed)
+#   rain <mapX> <mapZ> <rainfall 0..1> [radius] [fade]   how often it rains
+#       there (0.4 'uncommon', 1.0 almost always), temperature untouched;
+#       applied as the land generates (/genrain plan for an older world)
 # Codes: resonancearchive, lazaret, village, devastationarea, tobiascave,
 # treasurehunter, greatmachine (Spreading Devastation)
 #
@@ -811,6 +816,8 @@ devastation off
 
 # Home waters
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
+# Spawn came out raining nearly all the time (rainfall 'very common').
+rain 0 0 0.4 400 150
 # Cattail isles off the north-west shore. Plan coordinates are for the
 # 150-block starter; the starter diameter slider slides them straight
 # outward, so with the starter at 360 they land at -136, -238.
@@ -953,8 +960,18 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                     }
                     islands.Add((imx, imz, string.Join(" ", parts, 3, parts.Length - 3)));
                     break;
+                case "rain":
+                    // Applied as regions generate (read at worldgen init);
+                    // a world that is only now getting its plan has its
+                    // loaded regions rewritten right here.
+                    if (!TryParsePlanRain(parts, out RainZone rainZone, out string rainErr))
+                        return TextCommandResult.Error($"Plan line {lineNo} is {rainErr}: {line}");
+                    if (!System.Linq.Enumerable.Any(_planRainZones, z => z.Key == rainZone.Key))
+                        _planRainZones = new List<RainZone>(_planRainZones) { rainZone };
+                    StampRainZoneNow(rainZone, loadMissing: false);
+                    break;
                 default:
-                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, devastation, storychest, storyloc, island.");
+                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, devastation, storychest, storyloc, island, rain.");
             }
         }
         if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0 && islands.Count == 0)
@@ -3706,6 +3723,11 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
     private void InitWorldgenIslandJobs()
     {
         _wgIslandJobs = null;
+        // Rain zones apply as regions generate, from here on (RainZones.cs):
+        // load the saved ones now, on the main thread, before any region.
+        _planRainZones = new List<RainZone>();
+        _savedRainZones = null;
+        SavedRainZones();
         var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
         if (!wc.GetBool("lgPureOcean", false) && !wc.GetBool("rustfallWorld", false)) return;
 
@@ -3752,15 +3774,25 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         try
         {
             var planIslands = new List<(int MapX, int MapZ, string Options)>();
+            var planRain = new List<RainZone>();
             foreach (string raw in File.ReadAllLines(planPath))
             {
                 string line = raw.Trim();
                 if (line.Length == 0 || line.StartsWith("#")) continue;
                 string[] parts = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+                if (parts[0].Equals("rain", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (TryParsePlanRain(parts, out RainZone rz, out string rerr)) planRain.Add(rz);
+                    else sapi.Logger.Warning("[landmassgenerator] Plan rain line ignored ({0}): {1}", rerr, line);
+                    continue;
+                }
                 if (parts.Length < 4 || !parts[0].Equals("island", StringComparison.OrdinalIgnoreCase)) continue;
                 if (!int.TryParse(parts[1], out int px) || !int.TryParse(parts[2], out int pz)) continue;
                 planIslands.Add((px, pz, string.Join(" ", parts, 3, parts.Length - 3)));
             }
+            _planRainZones = planRain;
+            if (planRain.Count > 0)
+                sapi.Logger.Notification("[landmassgenerator] {0} plan rain zone(s) apply as map regions generate.", planRain.Count);
             planIslands = ApplyWorldConfigToPlanIslands(planIslands);
             foreach (var pi in planIslands)
             {

@@ -11,6 +11,9 @@
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
 #   island <mapX> <mapZ> <genisland options>   build a drawn island (runs
 #       before the story pregeneration; shape file must be installed)
+#   rain <mapX> <mapZ> <rainfall 0..1> [radius] [fade]   how often it rains
+#       there (0.4 'uncommon', 1.0 almost always), temperature untouched;
+#       applied as the land generates (/genrain plan for an older world)
 # Codes: resonancearchive, lazaret, village, devastationarea, tobiascave,
 # treasurehunter, greatmachine (Spreading Devastation)
 #
@@ -26,6 +29,8 @@ devastation off
 
 # Home waters
 island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
+# Spawn came out raining nearly all the time (rainfall 'very common').
+rain 0 0 0.4 400 150
 # Cattail isles off the north-west shore. Plan coordinates are for the
 # 150-block starter; the starter diameter slider slides them straight
 # outward, so with the starter at 360 they land at -136, -238.

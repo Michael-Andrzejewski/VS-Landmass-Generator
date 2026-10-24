@@ -930,3 +930,24 @@ What carried over:
   from outside (the shader has three slots; vanilla's devastation uses slot
   0 while its area exists, so ours takes the next), and an async particle
   spawner. Particle colours: `ColorUtil.ToRgba(a, r, g, b)`.
+
+## Rain at spawn (0.63.3)
+
+Vintage Story decides rain at the player's own block: the climate map's
+rainfall there goes into `WeatherSystemBase.GetRainCloudness`, a noise formula
+offset by `(rainfall - 0.6) * 2`. Simulated with the game's own SimplexNoise
+over 1500 days, it rains ~54% of the time at rainfall 1.0, ~28% at 0.7, ~17%
+at 0.55, ~10-13% at 0.4. Rustfall's spawn sat at "very common" and Michael
+found it raining almost constantly. Two things to know before touching it:
+
+- `Climate.GetRainFall` adds a sea-level bonus to the stored value: up to
+  +40/255 (0.16) at and just below sea level, almost nothing a few blocks up.
+  The first `/genrain` read at sea level said 0.56 for a stored 0.40; on the
+  starter island (y ~120) it is 0.42. Read rainfall at the player's height.
+- The character screen's label thresholds are worldgen rainfall > 0.9 "all
+  the time", > 0.7 "very common", > 0.45 "common", > 0.3 "uncommon", > 0.15
+  "rarely" (CharacterExtraDialogs.getEnvText).
+
+`rain` plan lines rewrite only the rainfall byte of the climate pixels, as each
+map region generates (MapRegionGeneration hook), and mark the region in its
+moddata so `/genrain plan` on an older world never applies a zone twice.
