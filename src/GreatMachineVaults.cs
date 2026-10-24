@@ -117,7 +117,9 @@ public partial class LandmassGeneratorModSystem
         Link("Quartermaster's Stores", "down", "Foundry", "w+");
 
         // the ways in: from a hall door on the plateau, a short pipe into
-        // the hall to a stairwell, down to the work's top doorway
+        // the hall to a stairwell, down to the work's top doorway. With
+        // entrances=0 there are none and earth seals the works entirely.
+        if (g.K.OptI("entrances", 1) == 0) return;
         foreach (var hd in g.HallDoors)
         {
             var w = g.Works.Where(x => x.Ports.ContainsKey("surface"))

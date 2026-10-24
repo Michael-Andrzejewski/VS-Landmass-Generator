@@ -1012,6 +1012,11 @@ earth all round. What carried over:
   the area let go lit only 576 of 1,404. `/genrelight` with the area held,
   then `/genlightcheck` a minute later: all 1,390 lamps with a lit type at
   full strength (mean 21.3), every sampled ghostlight seam lit (8 to 22).
+  The 14 lamps left unlit were `lightsource/off` lamps of another
+  structure 330+ blocks out; the works place only `on` types.
+- **`entrances=0` seals the works completely.** Built and checked: with no
+  stairwells the twelve works are one network of 1.18 million open cells
+  and none of it reaches the sky.
 - **Check fluids in the dump.** `tools/fluidcheck.py` counts water or lava
   with air beside or below it; `tools/hslice.py` draws floor plans at given
   heights. Natural caves under the island hold some running water of their

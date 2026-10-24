@@ -85,6 +85,7 @@ public partial class LandmassGeneratorModSystem
             var pos = new BlockPos(0, 0, 0, 0);
             var counts = new Dictionary<string, (int N, int Lit, int Dark, long LightSum, int NearSum)>();
             var dark = new List<string>();
+            var unlit = new List<string>();
             int mapCY = sapi.WorldManager.MapSizeY / cs;
             for (int ccx = FloorDiv(x - r, cs); ccx <= FloorDiv(x + r, cs); ccx++)
                 for (int ccz = FloorDiv(z - r, cs); ccz <= FloorDiv(z + r, cs); ccz++)
@@ -134,6 +135,8 @@ public partial class LandmassGeneratorModSystem
                 c.N++; if (lit) c.Lit++; else if (shines) c.Dark++;
                 c.LightSum += Math.Max(own, near); c.NearSum += near;
                 counts[kind] = c;
+                if (!shines && unlit.Count < 20)
+                    unlit.Add($"{kind} type '{be2(at) ?? "(none)"}' at HUD {at.X - sapi.WorldManager.MapSizeX / 2}, {at.Y}, {at.Z - sapi.WorldManager.MapSizeZ / 2}");
                 if (shines && !lit && dark.Count < 12)
                     dark.Add($"{kind} ({(be2(at) ?? "")}) at HUD {at.X - sapi.WorldManager.MapSizeX / 2}, {at.Y}, {at.Z - sapi.WorldManager.MapSizeZ / 2}: light {own}/{near}, should be about {hsv[2]}");
             }
@@ -144,6 +147,7 @@ public partial class LandmassGeneratorModSystem
                     kv.Key, kv.Value.N, kv.Value.Lit, kv.Value.Dark, kv.Value.N == 0 ? 0 : kv.Value.LightSum / (double)kv.Value.N);
             sapi.Logger.Notification("[genlightcheck] {0} ghostlight block(s) in the box", ghost);
             foreach (string d in dark) sapi.Logger.Notification("[genlightcheck] dark: {0}", d);
+            foreach (string d in unlit) sapi.Logger.Notification("[genlightcheck] no lit type: {0}", d);
         });
         return TextCommandResult.Success($"Checking lamps within {r} of HUD {hx}, {hz}; results in the log.");
     }
