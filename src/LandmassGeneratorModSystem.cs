@@ -247,6 +247,8 @@ public partial class LandmassGeneratorModSystem : ModSystem
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
         // The Great Machine's red fog zones (RedFog.cs).
         StartRedFogServer(api);
+        // Each world keeps the plan it was set up with (WorldPlanStore.cs).
+        StartWorldPlanStore(api);
         // Rain zones: how often it rains round spawn (RainZones.cs).
         StartRainZones(api);
 
@@ -922,7 +924,10 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         var sites = new List<(string Code, int MapX, int MapZ)>();
         var islands = new List<(int MapX, int MapZ, string Options)>();
         int lineNo = 0;
-        foreach (string raw in File.ReadAllLines(planPath))
+        // Kept in the save once the setup runs (WorldPlanStore.cs): the
+        // world draws its islands from this text from then on, not the file.
+        string planText = File.ReadAllText(planPath);
+        foreach (string raw in planText.Replace("\r", "").Split('\n'))
         {
             lineNo++;
             string line = raw.Trim();
@@ -986,6 +991,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         // Remember which plan this world uses, so the worldgen island
         // renderer reads the same plan after every restart.
         sapi.WorldManager.SaveGame.StoreData("lgWorldPlanName", planName);
+        KeepWorldPlan(planText, shapeFolder);
 
         // 1. Pure ocean: from here on, land only exists where forced.
         if (pureOcean)
@@ -1264,8 +1270,14 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             opts += " skipterrain=1";
         sapi.BroadcastMessageToAllGroups($"[genworldsetup] Building island {idx + 1} of {islands.Count} at {isl.MapX}, {isl.MapZ}...", EnumChatType.Notification);
         TextCommandResult sub = null;
-        sapi.ChatCommands.ExecuteUnparsed($"/genisland {opts} x={isl.MapX} z={isl.MapZ}",
-            new TextCommandCallingArgs { Caller = caller }, r => sub = r);
+        // the same kept shape the worldgen renderer drew from
+        _useKeptShapes = true;
+        try
+        {
+            sapi.ChatCommands.ExecuteUnparsed($"/genisland {opts} x={isl.MapX} z={isl.MapZ}",
+                new TextCommandCallingArgs { Caller = caller }, r => sub = r);
+        }
+        finally { _useKeptShapes = false; }
         if (sub == null || sub.Status != EnumCommandStatus.Success)
         {
             sapi.BroadcastMessageToAllGroups($"[genworldsetup] Island at {isl.MapX}, {isl.MapZ} failed to start ({sub?.StatusMessage ?? "no response"}); skipping it.", EnumChatType.Notification);
@@ -2250,11 +2262,16 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
 
         string file = name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) ? name : name + ".txt";
         string path = Path.Combine(shapeFolder, file);
-        if (!File.Exists(path)) { err = $"No shape '{file}' in {shapeFolder}. Use /genisland shapes to list them."; return null; }
+        // A plan island of a world that keeps its plan uses the shape text
+        // kept in its save, not today's file (WorldPlanStore.cs).
+        string kept = _useKeptShapes ? KeptShapeText(file.Substring(0, file.Length - 4)) : null;
+        if (kept == null && !File.Exists(path)) { err = $"No shape '{file}' in {shapeFolder}. Use /genisland shapes to list them."; return null; }
 
         string[] lines;
-        try { lines = File.ReadAllLines(path); }
-        catch (Exception e) { err = $"Could not read {file}: {e.Message}"; return null; }
+        if (kept != null) lines = kept.Replace("\r", "").Split('\n');
+        else
+            try { lines = File.ReadAllLines(path); }
+            catch (Exception e) { err = $"Could not read {file}: {e.Message}"; return null; }
 
         var shape = new ShapeDef();
         var markerDefs = new Dictionary<char, (ITreeGenerator gen, float size)>();
@@ -3761,21 +3778,26 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         }
         else sapi.Logger.Warning("[landmassgenerator] GenMaps not found; the vanilla forced spawn land stays and a vanilla landmass will appear at map center.");
 
+        // The plan this world was set up with, kept in its save (0.64.0);
+        // a world from before that reads the plan file, as it always did.
+        string[] planLines = StoredWorldPlanLines();
         string planName = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) ?? "worldplan";
         string planPath = Path.Combine(shapeFolder, planName + ".txt");
-        if (!File.Exists(planPath))
+        if (planLines == null && !File.Exists(planPath))
         {
             if (!wc.GetBool("rustfallWorld", false)) return;
             try { File.WriteAllText(planPath, DefaultWorldPlan); }
             catch (Exception e) { sapi.Logger.Error("[landmassgenerator] Could not write the default world plan: {0}", e.Message); return; }
         }
+        sapi.Logger.Notification("[landmassgenerator] World plan: {0}", planLines != null ? "kept in this world's save" : planPath + " (this world predates kept plans)");
 
         var jobs = new List<IslandJob>();
+        _useKeptShapes = true;
         try
         {
             var planIslands = new List<(int MapX, int MapZ, string Options)>();
             var planRain = new List<RainZone>();
-            foreach (string raw in File.ReadAllLines(planPath))
+            foreach (string raw in planLines ?? File.ReadAllLines(planPath))
             {
                 string line = raw.Trim();
                 if (line.Length == 0 || line.StartsWith("#")) continue;
@@ -3819,6 +3841,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             sapi.Logger.Error("[landmassgenerator] Reading the world plan for worldgen island rendering failed:");
             sapi.Logger.Error(e);
         }
+        finally { _useKeptShapes = false; }
         if (jobs.Count > 0)
         {
             _wgIslandJobs = jobs;

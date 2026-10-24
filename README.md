@@ -596,6 +596,23 @@ a new world has it from the first chunk; each region remembers the zones it got.
 `/genrain plan` is for a world made before its plan had the line. Zones set with
 `/genrain <value>` are kept in the save and reach later land too.
 
+Each world keeps its own plan (0.64.0). The world setup stores the plan's text
+and every shape it names in the save; from then on the worldgen renderer, the
+setup's island builds, the rain zones and `/genscan` read those, so editing
+`worldplan.txt` or a shape never changes a world that already exists, and a
+world copied from another data folder draws only its own islands. A hand-run
+`/genisland` still uses today's files.
+
+    /genplan                     which plan this world draws from
+    /genplan adopt [name]        keep a plan in this world's save
+
+`adopt` is for worlds set up before 0.64.0, which still read the live files at
+every load. `name` is `LandmassGenerator/<name>.txt`, or a folder
+`LandmassGenerator/<name>/` holding a `worldplan.txt` plus any shapes that
+differ from the live ones (the shapes the world was really built with);
+nothing given adopts the live `worldplan.txt`. It takes effect at the next
+world load and builds nothing.
+
     /genchests
 
 Brings an existing world up to date with its plan islands: builds missing `lab`

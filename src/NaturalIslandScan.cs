@@ -78,10 +78,15 @@ public partial class LandmassGeneratorModSystem
     private HashSet<string> PlanStoryCodes()
     {
         var codes = new HashSet<string>();
-        string planName = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) ?? "worldplan";
-        string planPath = Path.Combine(shapeFolder, planName + ".txt");
-        if (!File.Exists(planPath)) return codes;
-        foreach (string raw in File.ReadAllLines(planPath))
+        string[] lines = StoredWorldPlanLines();
+        if (lines == null)
+        {
+            string planName = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) ?? "worldplan";
+            string planPath = Path.Combine(shapeFolder, planName + ".txt");
+            if (!File.Exists(planPath)) return codes;
+            lines = File.ReadAllLines(planPath);
+        }
+        foreach (string raw in lines)
         {
             string[] parts = raw.Trim().Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 2 && parts[0].Equals("storyloc", StringComparison.OrdinalIgnoreCase)) codes.Add(parts[1].ToLowerInvariant());

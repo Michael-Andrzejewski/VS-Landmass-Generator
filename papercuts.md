@@ -977,3 +977,13 @@ the renderer used (PlanIslandSeed: world seed and plan coordinates) and
 (that seed is for world seed 20261020). Checked headless: graveyard built,
 31,534 plants, none floating. Any world copied between data folders, or any
 edit to the live plan, has the same trap.
+
+Fixed in 0.64.0: the world setup keeps the plan's text and every shape it
+names in the save (`lgWorldPlanText`, `lgWorldShape:<name>`), and the renderer
+reads those, so neither a copied world nor a later edit to the live plan or a
+shape can draw islands the world never built. Worlds from before keep reading
+the files until `/genplan adopt` fixes them to one plan. For Michael's two
+worlds the adoption folders are `LandmassGenerator/rustfall-world/` (the plan
+his Rustfall world was built with in rfworld18 plus the rain line, and the old
+600-wide great_machine shape) and `LandmassGenerator/gm-preview/` (starter,
+Great Machine, Eerie Island, rain line).
