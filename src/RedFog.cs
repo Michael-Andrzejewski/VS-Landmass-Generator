@@ -32,8 +32,12 @@ public partial class LandmassGeneratorModSystem
     // The three parts of the effect can be switched off per world
     // (/genfog dome|haze|embers off): Michael kept the haze and dropped the
     // dome, which read too red and showed through the water from outside.
+    // A world that never used the command starts with the dome off. The
+    // save holds every part as "part:on" or "part:off" once one is set
+    // (0.63.1 kept only the names of the parts switched off).
     private const string RedFogHiddenKey = "lgRedFogHidden";
     private static readonly string[] RedFogParts = { "dome", "haze", "embers" };
+    private static readonly string[] RedFogHiddenByDefault = { "dome" };
 
     [ProtoContract]
     public class RedFogPacket
@@ -69,7 +73,22 @@ public partial class LandmassGeneratorModSystem
     // ── server ──────────────────────────────────────────────────────────
 
     private List<string> RedFogList() => sapi.WorldManager.SaveGame.GetData<List<string>>(RedFogKey, null) ?? new List<string>();
-    private List<string> RedFogHidden() => sapi.WorldManager.SaveGame.GetData<List<string>>(RedFogHiddenKey, null) ?? new List<string>();
+    private HashSet<string> RedFogHidden()
+    {
+        var hidden = new HashSet<string>(RedFogHiddenByDefault);
+        var stored = sapi.WorldManager.SaveGame.GetData<List<string>>(RedFogHiddenKey, null);
+        if (stored == null || stored.Count == 0) return hidden;
+        foreach (string e in stored)
+        {
+            int c = e.IndexOf(':');
+            string part = c < 0 ? e : e.Substring(0, c);
+            if (c < 0 || e.Substring(c + 1) == "off") hidden.Add(part); else hidden.Remove(part);
+        }
+        return hidden;
+    }
+
+    private void StoreRedFogHidden(HashSet<string> hidden)
+        => sapi.WorldManager.SaveGame.StoreData(RedFogHiddenKey, RedFogParts.Select(pt => pt + (hidden.Contains(pt) ? ":off" : ":on")).ToList());
 
     private void StartRedFogServer(ICoreServerAPI api)
     {
@@ -80,7 +99,7 @@ public partial class LandmassGeneratorModSystem
         RegisterCmd(api, "genfog", name =>
             api.ChatCommands.Create(name)
                 .WithDescription("Red fog zones (the Great Machine's shroud). /genfog list; /genfog here [radius] [fade] adds one centred on you; /genfog clear removes them all. "
-                    + "/genfog dome|haze|embers on|off switches one part for this world: the dome is the red sphere seen from outside, the haze is the fog inside, the embers are the rising particles. The Great Machine adds its own zone when it is built.")
+                    + "/genfog dome|haze|embers on|off switches one part for this world: the dome is the red sphere seen from outside (off unless switched on), the haze is the fog inside, the embers are the rising particles. The Great Machine adds its own zone when it is built.")
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(p.OptionalWord("action"), p.OptionalAll("rest"))
                 .HandleWith(OnGenFog));
@@ -101,7 +120,7 @@ public partial class LandmassGeneratorModSystem
                 return TextCommandResult.Success($"Red fog {part} is {(hidden.Contains(part) ? "off" : "on")} in this world. /genfog {part} on|off");
             hidden.Remove(part);
             if (want == "off") hidden.Add(part);
-            sapi.WorldManager.SaveGame.StoreData(RedFogHiddenKey, hidden);
+            StoreRedFogHidden(hidden);
             SendRedFog(null);
             return TextCommandResult.Success($"Red fog {part} {want} for this world.");
         }

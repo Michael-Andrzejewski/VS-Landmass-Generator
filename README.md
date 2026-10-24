@@ -636,7 +636,9 @@ Each part can be switched off for a world (0.63.1): `/genfog dome off` drops
 the red sphere seen from outside (it reads very red and shows through the
 water), `/genfog haze off` the fog inside, `/genfog embers off` the rising
 particles. `sphere` and `particles` work as names too; `on` brings a part
-back, and `/genfog list` shows which are on.
+back, and `/genfog list` shows which are on. Since 0.63.2 a world starts
+with the dome off and the haze and embers on; `/genfog dome on` brings the
+dome back.
 
 ### Inspecting a built world: `/gendumparea x z [radius] [name]` (0.59.0)
 
