@@ -9106,5 +9106,50 @@
 103,
 118,
 120
+],
+"game:mossystonebricks-andesite": [
+104,
+118,
+98
+],
+"game:rock-obsidian": [
+36,
+32,
+42
+],
+"game:rockpolished-obsidian": [
+28,
+24,
+34
+],
+"game:cobbleskull-andesite": [
+176,
+168,
+150
+],
+"game:crackedstonebricks-andesite": [
+128,
+132,
+136
+],
+"game:rockpolished-andesite": [
+168,
+170,
+172
+],
+"game:stonebrickslab-andesite-down-free": [
+140,
+146,
+150
+],
+"game:cobblestoneslab-granite-down-free": [
+150,
+144,
+132
+],
+"game:bonyremains-ribcage": [
+226,
+218,
+196
 ]
 }

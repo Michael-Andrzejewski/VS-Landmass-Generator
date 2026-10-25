@@ -13,7 +13,10 @@ monoliths are what the island is about.
 - B: a dark basalt sand beach all round
 - k: a few rock skerries offshore
 
-The structure itself is the `graveyard` megastructure (MegaStructs.cs) on Q.
+The structure itself is the `graveyard` megastructure (EerieIsland.cs) on Q:
+the Burying Isle, where the wardens laid the dead of the Devastation, with a
+mass grave under every marker, catacombs under the island's heart, buried
+vaults, trenches, wells, a chapel and the robbers' tunnels (lore/eerie_*.txt).
 
     python tools/gen_eerie_island.py > shapes/eerie_island.txt
 
@@ -77,7 +80,7 @@ def main():
               f"scatter=flower-heather-free:0.004,fieldmushroom:0.002 height={h} shore=40 rough=0.08")
     print("region B rock=andesite sand=sand-basalt surface=sand stones=0.01 height=0.12 shore=30 rough=0.04")
     print("region k rock=basalt surface=rock height=0.45 shore=3 rough=0.5")
-    print("struct Q kind=graveyard size=150 seed=13 monoliths=44 pillars=40 graves=200 mausoleums=4 great=34 ring=9")
+    print("struct Q kind=graveyard size=150 seed=13 monoliths=44 pillars=40 graves=700 plots=12 mausoleums=4 great=34 ring=9 catacombs=4 vaults=14 trenches=6 wells=4 robbers=3")
     print("map")
     for row in grid:
         print("".join(row))

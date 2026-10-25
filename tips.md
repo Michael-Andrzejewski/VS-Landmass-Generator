@@ -1083,3 +1083,39 @@ fix clutter left floating.
   teleporters, resonators). Translocator Engineering Redux (in the pack)
   adds a crowbar and linkers for translocators, and its parts are in the
   jonas table; a code the game lacks is skipped and logged by the table roll.
+
+## Eerie Island, the Burying Isle (0.66.1)
+
+The graveyard megastructure moved to `EerieIsland.cs` and grew underground.
+The lore (`lore/eerie_*.txt`, drafted with Opus 4.6 from the established
+facts): after the Devastation, Tobias had the dead of The Machine's works,
+mines, bell fleets and towns ferried here; his wardens laid them in pits and
+raised a marker of black glass (ground round The Machine fused by the last
+firing) over each, a red ochre cross meaning sealed.
+
+- **Plain clutter props need `clutter|`.** A bare type goes to
+  `clutter-devastation` unless it starts with `coffin`, and renders as
+  nothing there: skeletons, bones, cloth piles, gravestones, candles,
+  statues and furniture all go through `EerieCtx.Prop`, which adds it.
+  There is no plain `skull` clutter type; `pile-bones1/2`,
+  `skeleton-long`, `skeleton-compact2/3`, `pile-cloth1..5` and the blocks
+  `drycarcass-humanoid1/2` and `bonyremains-ribcage` carry the dead.
+- **The chest placer skips a chest with another within 3 sideways and 2
+  up or down.** The first build planned 224 and placed 204. `EerieCtx.Chest`
+  now refuses one that close to a chest already planned (the caller falls
+  back: a pit tries its next floor cell, a grave gets a skeleton), and
+  always keeps a lore chest.
+- **Underground parts stay apart by construction.** The catacombs' floor is
+  20 under the lowest ground over them, and every other dig checks
+  `Diggable`: under enough ground, more than one above the catacombs'
+  highest masonry in that column, and no natural water at or beside the
+  cell (a world read, as the Great Machine does). A pit's roof hangs 4
+  under the lowest ground over its footprint, and a marker is only raised
+  where its pit fits.
+- **Checking a build.** `/gendumparea 4300 -1300 178 <name>`, then
+  `tools/fluidcheck.py` (the running water left was in natural caves at
+  y 12 to 38) and a pocket labelling: restricted to space with ground above
+  it, no pocket joins the deep caves to the build. The places the sky
+  reaches down are the Warden's Gate, the wells, the chapel's fallen roof,
+  the mausoleum crypts and the robbers' holes (with the pits their tunnels
+  reach).
