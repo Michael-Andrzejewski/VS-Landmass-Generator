@@ -319,19 +319,26 @@ public partial class LandmassGeneratorModSystem
                     }
                     for (int y = top + 1; y <= F + H + 1; y++) k.Set(x, y, z, 0);
                 }
-            // inside: rubble, charred furniture, ash
+            // the cell a way down starts from (GmWarrens): the middle of a big
+            // building, for a spiral stair, else a corner, for a ladder
+            bool spiral = !hall && x1 - x0 - 1 >= 9 && z1 - z0 - 1 >= 9;
+            int sx = spiral ? (x0 + x1) / 2 : x0 + 1, sz = spiral ? (z0 + z1) / 2 : z0 + 1, sr = spiral ? 5 : 1;
+            // inside: rubble, charred furniture, ash, each on a sound floor
             int nIn = (x1 - x0) * (z1 - z0) / 8;
             for (int i = 0; i < nIn; i++)
             {
                 int x = g.RI(x0 + 1, x1 - 1), z = g.RI(z0 + 1, z1 - 1);
+                if (Math.Abs(x - sx) <= sr && Math.Abs(z - sz) <= sr) continue;
+                k.Set(x, F - 1, z, floorM);
                 double r0 = g.R();
                 if (r0 < 0.25) { int h = g.RI(1, 2); for (int y = F; y < F + h; y++) k.Set(x, y, z, g.R() < 0.5 ? g.BrickC : g.Drock); }
                 else if (r0 < 0.45) k.Set(x, F, z, g.Pick(new[] { g.PartsS, g.PartsM, g.Stones, g.Gears1 }));
-                else k.Clutter(x, F, z, "clutter|" + g.Pick(new[] { "rubble-cracked1", "rubble-cracked2", "rubble-cracked3", "rubble-wood1", "rubble-wood3",
+                else k.Clutter(x, F, z, "~clutter|" + g.Pick(new[] { "rubble-cracked1", "rubble-cracked2", "rubble-cracked3", "rubble-wood1", "rubble-wood3",
                     "table-ruined1", "table-ruined4", "chair-ruined2", "bed/bed-ruined3", "barrel-metal2", "pile-trash-scrap", "crate/crate-small-ruined3" }), g.R() * Math.PI * 2);
             }
             nFried++;
             if (keepOut) g.Keep.Add(((x0 + x1) / 2.0, (z0 + z1) / 2.0, Math.Max(x1 - x0, z1 - z0) / 2.0 + 1));
+            g.Buildings.Add((x0, z0, x1, z1, F, hall ? 1 : 0, sx, sz));
             return F;
         }
 
@@ -441,9 +448,12 @@ public partial class LandmassGeneratorModSystem
                 if (OverWork(doorX - dxd + dxd * GmLead, doorZ - dzd + dzd * GmLead)) continue;
                 if (!FootprintOk(x0, z0, x1, z1, 3)) continue;
                 int F = Building(x0, z0, x1, z1, 2, 1, true);
+                var hb = g.Buildings[^1]; hb.Kind = 2; g.Buildings[^1] = hb;     // it has its stairwell already
                 for (int s = -3; s <= 3; s++)
                     for (int y = F; y < F + 8; y++) k.Set(doorX + (alongX ? 0 : s), y, doorZ + (alongX ? s : 0), 0);
                 g.HallDoors.Add((doorX - dxd, F, doorZ - dzd, dxd, dzd));
+                sapi.Logger.Notification("[landmassgenerator] great machine plateau hall ({0}) at HUD {1}, {2}, {3}", name,
+                    doorX - dxd + dxd * GmLead - sapi.WorldManager.MapSizeX / 2, F, doorZ - dzd + dzd * GmLead - sapi.WorldManager.MapSizeZ / 2);
                 done = true;
                 nMachines++;
             }

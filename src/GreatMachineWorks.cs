@@ -33,6 +33,45 @@ public partial class LandmassGeneratorModSystem
         public List<(double X0, double Y0, double Z0, double X1, double Y1, double Z1)> Chains = new();
         public List<(double X, double Z, double R)> Keep = new();        // surface spots taken
         public List<(int X, int Y, int Z, int Dx, int Dz)> HallDoors = new();   // plateau halls the stairwells rise into
+        // the surface buildings a way down may start in: footprint, floor,
+        // kind (0 a town ruin, 1 an engine hall) and the cell kept free for it
+        public List<(int X0, int Z0, int X1, int Z1, int F, int Kind, int SX, int SZ)> Buildings = new();
+        public readonly List<(int X, int Y, int Z, string Kind, double H)> Loot = new();    // floor cells for chests, stands, ingots, devices
+        public readonly List<List<(double X, double Y, double Z)>> PipeRuns = new();         // every walkable pipe's floor points
+
+        // Every hollow registered so far, for finding a work's inside from
+        // outside it: its box, its shape, the work it belongs to (CurWork
+        // while that work is built) and its kind ('r' a room or hall, 'p' a
+        // pipe, 'w' the warrens, set with CurKind).
+        public readonly List<GmHollow> Hollows = new();
+        private readonly Dictionary<long, List<GmHollow>> hollowGrid = new();
+        public string CurWork;
+        public char CurKind = 'r';
+        public int Groups;                                  // a pipe's segments share a group
+        private static long HKey(int i, int j) => ((long)i << 32) ^ (uint)j;
+        public GmHollow AddHollow(int x0, int y0, int z0, int x1, int y1, int z1, Func<int, int, int, bool> inside, int group = 0)
+        {
+            var h = new GmHollow { X0 = x0, Y0 = y0, Z0 = z0, X1 = x1, Y1 = y1, Z1 = z1, In = inside, Work = CurWork, Kind = CurKind, Group = group };
+            Hollows.Add(h);
+            for (int i = x0 >> 5; i <= x1 >> 5; i++)
+                for (int j = z0 >> 5; j <= z1 >> 5; j++)
+                {
+                    if (!hollowGrid.TryGetValue(HKey(i, j), out var list)) hollowGrid[HKey(i, j)] = list = new List<GmHollow>();
+                    list.Add(h);
+                }
+            return h;
+        }
+        // a fitting of a pipe (group) or a stairwell goes in only where no
+        // other space but pipes has its hollow: a pipe's floor must not fill
+        // a ladder's head or a chamber it ends in
+        public bool FreeFor(int x, int y, int z, int group) => HollowAt(x, y, z, o => o.Group == 0 && o.Group != group) == null;
+        public GmHollow HollowAt(int x, int y, int z, Func<GmHollow, bool> pick = null)
+        {
+            if (!hollowGrid.TryGetValue(HKey(x >> 5, z >> 5), out var list)) return null;
+            foreach (var h in list)
+                if (x >= h.X0 && x <= h.X1 && y >= h.Y0 && y <= h.Y1 && z >= h.Z0 && z <= h.Z1 && (pick == null || pick(h)) && h.In(x, y, z)) return h;
+            return null;
+        }
 
         // the safe ceiling
         public int SX0, SZ0, SW;
@@ -105,16 +144,18 @@ public partial class LandmassGeneratorModSystem
         }
 
         // Things that are not blocks: plain clutter by default, devastation
-        // clutter (machinery) with Dev, a lit Jonas lamp with Lamp.
+        // clutter (machinery) with Dev, a lit Jonas lamp with Lamp. The ~
+        // asks the clutter commit to settle each onto real support (a floor
+        // under it, or the wall or ceiling it hangs on) or leave it out.
         public void Clut(int x, int y, int z, string type, double heading)
         {
             if (y < 5 || y > SafeTop(x, z)) return;
-            K.Clutter(x, y, z, type.IndexOf('|') > 0 ? type : "clutter|" + type, heading);
+            K.Clutter(x, y, z, "~" + (type.IndexOf('|') > 0 ? type : "clutter|" + type), heading);
         }
         public void Dev(int x, int y, int z, string type, double heading)
         {
             if (y < 5 || y > SafeTop(x, z)) return;
-            K.Clutter(x, y, z, type, heading);
+            K.Clutter(x, y, z, "~" + type, heading);
         }
         public void Lamp(int x, int y, int z, string type, double heading)
         {
@@ -130,12 +171,21 @@ public partial class LandmassGeneratorModSystem
         }
     }
 
+    private sealed class GmHollow
+    {
+        public int X0, Y0, Z0, X1, Y1, Z1;
+        public Func<int, int, int, bool> In;
+        public string Work;
+        public char Kind;
+        public int Group;           // the pipe it is part of (0: not a pipe)
+    }
+
     // A place in the works: its box (for keeping others clear), and the
     // doors the pipes join it at.
     private sealed class GmWork
     {
         public string Name;
-        public int X0, Y0, Z0, X1, Y1, Z1;
+        public int X0, Y0, Z0, X1, Y1, Z1, Floor;
         public readonly Dictionary<string, GmPort> Ports = new();
         public bool Overlaps(int x0, int z0, int x1, int z1, int y0, int y1, int pad)
             => x0 <= X1 + pad && x1 >= X0 - pad && z0 <= Z1 + pad && z1 >= Z0 - pad && y0 <= Y1 + pad && y1 >= Y0 - pad;
@@ -180,6 +230,7 @@ public partial class LandmassGeneratorModSystem
     private static void GmSpace(GmCtx g, int x0, int y0, int z0, int x1, int y1, int z1, int wall,
         Func<int, int, int, double, bool> inside, Func<int, int, int, int> shell)
     {
+        g.AddHollow(x0, y0, z0, x1, y1, z1, (x, y, z) => inside(x, y, z, 0));
         g.Shells.Add(() =>
         {
             for (int x = x0 - wall; x <= x1 + wall; x++)
@@ -275,22 +326,25 @@ public partial class LandmassGeneratorModSystem
     private static void GmPipe(GmCtx g, List<(double X, double Y, double Z)> pts, bool openEnd = false, double r = 3.5, double wall = 1.6)
     {
         double s0 = 0;
+        int grp = ++g.Groups;
         for (int i = 0; i + 1 < pts.Count; i++)
         {
             var a = pts[i]; var b = pts[i + 1];
             double len = Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y) + (b.Z - a.Z) * (b.Z - a.Z));
             if (len < 0.5) continue;
-            GmPipeSeg(g, a.X, a.Y, a.Z, b.X, b.Y, b.Z, r, wall, s0, openEnd && i + 2 == pts.Count);
+            GmPipeSeg(g, a.X, a.Y, a.Z, b.X, b.Y, b.Z, r, wall, s0, openEnd && i + 2 == pts.Count, grp);
             s0 += len;
         }
         g.Pipes++;
         g.PipeLen += (int)s0;
+        g.PipeRuns.Add(pts);
     }
 
     // openB: the far end opens to the air (a way in at the surface): the
     // cap is cut back to a collar.
-    private static void GmPipeSeg(GmCtx g, double ax, double ay, double az, double bx, double by, double bz, double r, double wall, double sOff, bool openB = false)
+    private static void GmPipeSeg(GmCtx g, double ax, double ay, double az, double bx, double by, double bz, double r, double wall, double sOff, bool openB = false, int grp = -1)
     {
+        if (grp < 0) grp = ++g.Groups;
         const double Lift = 2;
         double cay = ay + Lift, cby = by + Lift;
         double dx = bx - ax, dy = cby - cay, dz = bz - az, len2 = dx * dx + dy * dy + dz * dz, len = Math.Sqrt(len2);
@@ -305,6 +359,10 @@ public partial class LandmassGeneratorModSystem
             double qx = px - dx * t, qy = py - dy * t, qz = pz - dz * t;
             return (Math.Sqrt(qx * qx + qy * qy + qz * qz), t);
         }
+        char kind = g.CurKind;
+        g.CurKind = g.CurKind == 'r' ? 'p' : g.CurKind;
+        g.AddHollow(x0, y0, z0, x1, y1, z1, (x, y, z) => At(x, y, z).D <= r, grp);
+        g.CurKind = kind;
         g.Shells.Add(() =>
         {
             for (int x = x0; x <= x1; x++)
@@ -342,6 +400,7 @@ public partial class LandmassGeneratorModSystem
                         if (d > r) continue;
                         double fy = Math.Round((ay + (by - ay) * t) * 2) / 2.0;
                         int full = (int)Math.Floor(fy);
+                        if (y > full || !g.FreeFor(x, y, z, grp)) continue;
                         if (y < full) g.Solid(x, y, z, y == full - 1 ? ((x + z) % 5 == 0 ? g.SteelR : g.IronR) : g.Rust());
                         else if (y == full && fy - full > 0.25) g.Solid(x, y, z, g.SlabG);
                     }
@@ -358,7 +417,8 @@ public partial class LandmassGeneratorModSystem
                 double sa = sOff + s;
                 int si = (int)Math.Floor(sa);
                 // the glowing seam in the crown, two on, one off
-                if (si % 3 != 2) g.Glow((int)Math.Round(sx), (int)Math.Round(cy + r + 0.6), (int)Math.Round(sz));
+                int gx = (int)Math.Round(sx), gy = (int)Math.Round(cy + r + 0.6), gz = (int)Math.Round(sz);
+                if (si % 3 != 2 && g.FreeFor(gx, gy, gz, grp)) g.Glow(gx, gy, gz);
                 // gas lamps on alternate walls every 12
                 if (si % 12 == 6)
                 {
@@ -366,8 +426,9 @@ public partial class LandmassGeneratorModSystem
                     int lx = (int)Math.Round(sx + nx * lampSide * (r - 0.6)), lz = (int)Math.Round(sz + nz * lampSide * (r - 0.6));
                     g.Lamp(lx, (int)Math.Round(cy), lz, si % 24 == 6 ? "gas-wall1" : "gas-wall2", Math.Atan2(-nz * lampSide, -nx * lampSide));
                 }
-                // the conduit along the left wall, a lumi lamp every 6
-                if (straight && level)
+                // the conduit along the left wall, a lumi lamp every 6 (a
+                // small pipe has no room for it)
+                if (straight && level && r >= 3)
                 {
                     int cx2 = (int)Math.Round(sx + nx * 2), cz2 = (int)Math.Round(sz + nz * 2);
                     g.Clut(cx2, (int)Math.Round(cy) + 2, cz2, si % 6 == 3 ? "jonas-lamp|lightsource/on/lumi-pipe-h-lamp" : "pipe-veryrusted-h-EW", heading);
@@ -432,7 +493,8 @@ public partial class LandmassGeneratorModSystem
                     for (int i = 0; i < 8; i++)
                     {
                         double a = i * Math.PI / 4;
-                        g.Glow(sx + (int)Math.Round(Math.Cos(a) * (rIn + 0.8)), y, sz + (int)Math.Round(Math.Sin(a) * (rIn + 0.8)));
+                        int rx = sx + (int)Math.Round(Math.Cos(a) * (rIn + 0.8)), rz = sz + (int)Math.Round(Math.Sin(a) * (rIn + 0.8));
+                        if (g.HollowAt(rx, y, rz) == null) g.Glow(rx, y, rz);          // not across a doorway
                     }
             foreach (var e in entries)
                 g.Lamp(sx + (int)Math.Round(Math.Cos(e.A) * 2), e.Y + 2, sz + (int)Math.Round(Math.Sin(e.A) * 2), "gas-wall2", e.A);
@@ -629,6 +691,11 @@ public partial class LandmassGeneratorModSystem
         ["machine"] = (new[] { "!boilerend", "!tank1bracket-aged", "!column3-aged", "!column6-broke", "!pipelong3-aged", "!pipelong4bent-aged", "!junktanksmallbase",
             "!junktanksmall1", "!gear24", "!gear36", "!brokengear/big02", "machine1", "machine4", "machine6", "mech-part2", "mech-part5", "mechanics-ruined1" },
             new[] { "!gearbox1", "!geartrain3", "!tower2", "machine7", "machine8", "!boilerbody" }, 0.6),
+        // where the locusts were assembled, and the camps of the diggers
+        ["locust"] = (new[] { "toolrack-locust", "locust-parts", "locust-limbs1", "locust-limbs2", "mech-part1", "mech-part4", "mech-part6", "golem-hand2", "golem-foot2", "inactivelocustnest" },
+            new[] { "locust-body", "locust-full", "machine3", "machine5", "golem-head" }, 0.65),
+        ["minecamp"] = (new[] { "crate/crate-large-ore2", "pile-trash-oldore", "pile-tools1", "pile-tools3", "barrel-metal1", "toolrack-ruined1", "crate/crate-small-stacked", "bucket2" },
+            new[] { "table-ruined2", "crate/crate-large-junk", "table-long" }, 0.6),
     };
 
     // Furnish a room: interior u0..u1 x w0..w1 in a frame, floor at v0,
@@ -692,6 +759,16 @@ public partial class LandmassGeneratorModSystem
         // a little ruin: cobweb and rubble
         if (g.R() < 0.5) g.Solid(f.X(u0, w1), f.Y(v1), f.Z(u0, w1), g.Spider);
         if (g.R() < 0.6) Place(g.RI(u0 + 1, Math.Max(u0 + 1, u1 - 1)), g.RI(w0 + 1, Math.Max(w0 + 1, w1 - 1)), "rubble-cracked" + g.RI(1, 4), 0, 1);
+        // a find in most rooms, against a wall: a chest, an ingot pile, an
+        // armor stand or a Jonas device, by what the room was for
+        if (g.R() < 0.75)
+            for (int t = 0; t < 8; t++)
+            {
+                int u = g.RI(u0, u1), w = g.RI(w0, w1);
+                if (!(u == u0 || u == u1 || w == w0 || w == w1) || NearDoor(u, w)) continue;
+                g.Loot.Add((f.X(u, w), f.Y(v0), f.Z(u, w), GmLootFor(g, kind), f.H(u == u0 ? 1 : u == u1 ? -1 : 0, w == w0 ? 1 : w == w1 ? -1 : 0)));
+                break;
+            }
     }
 
     // ── Wings: hallways with rooms either side ───────────────────────────
@@ -929,6 +1006,7 @@ public partial class LandmassGeneratorModSystem
         GmBuriedMachinery(g, k.OptI("buried", 900));
         GmPlaceWorks(g);
         GmNetwork(g);
+        if (k.OptI("warrens", 1) != 0) GmWarrens(g);
 
         int nFill = g.Fill.Count, nShell = g.Shells.Count, nCarve = g.Carves.Count, nDet = g.Details.Count;
         foreach (var a in g.Fill) a();
@@ -942,5 +1020,6 @@ public partial class LandmassGeneratorModSystem
             "blocks: {7} buried machinery, {8} shells, {9} emptied, {10} fittings; {11} cell(s) kept solid under the safe ceiling; passes {12}/{13}/{14}/{15}",
             g.Works.Count, string.Join(", ", g.Works.Select(w => w.Name)), g.Pipes, g.PipeLen, g.Shafts, g.Rooms, g.Lamps,
             afterFill, afterShell - afterFill, afterCarve - afterShell, g.Placed - afterCarve, g.Clipped, nFill, nShell, nCarve, nDet);
+        if (k.OptI("loot", 1) != 0) GmQueueLoot(g);
     }
 }

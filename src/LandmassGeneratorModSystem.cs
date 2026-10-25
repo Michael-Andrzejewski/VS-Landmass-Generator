@@ -8862,11 +8862,28 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                     .GetField("<rotateY>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
                 var namedIds = new Dictionary<string, int>();
                 var litClutter = new List<(int X, int Y, int Z, int Id)>();
+                int settleMoved = 0, settleDropped = 0;
+                var droppedKinds = new Dictionary<string, int>();
                 foreach (var c in clutterSpots)
                 {
                     cpos.Set(c.X, c.Y, c.Z);
-                    if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue;
                     string type = c.Type, variant = null, type2 = null;
+                    // "~": settle it onto what really holds it up, or leave it out
+                    if (type.Length > 0 && type[0] == '~')
+                    {
+                        type = type.Substring(1);
+                        int sy = ClutterSettle(wba, cpos, type);
+                        if (sy == int.MinValue)
+                        {
+                            settleDropped++;
+                            string dk = type.Substring(type.IndexOf('|') + 1);
+                            if (dk.Length > 28) dk = dk.Substring(0, 28);
+                            droppedKinds[dk] = droppedKinds.TryGetValue(dk, out int dn) ? dn + 1 : 1;
+                            continue;
+                        }
+                        if (sy != c.Y) { settleMoved++; cpos.Set(c.X, sy, c.Z); }
+                    }
+                    if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue;
                     int useId, bar = type.IndexOf('|');
                     if (bar > 0)
                     {
@@ -8895,7 +8912,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                         if (hsv != null && hsv[2] > 0)
                         {
                             wba.ExchangeBlock(useId, cpos);
-                            litClutter.Add((c.X, c.Y, c.Z, useId));
+                            litClutter.Add((c.X, cpos.Y, c.Z, useId));
                         }
                     }
                     placed++;
@@ -8905,9 +8922,65 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                     QueueRelight(job.Dim, litClutter);
                     sapi.Logger.Notification("[landmassgen] {0}: {1} lit clutter lamp(s)", def.Kind, litClutter.Count);
                 }
+                if (settleMoved + settleDropped > 0)
+                {
+                    var most = new List<KeyValuePair<string, int>>(droppedKinds);
+                    most.Sort((a, b) => b.Value.CompareTo(a.Value));
+                    var top = new List<string>();
+                    for (int i = 0; i < most.Count && i < 14; i++) top.Add(most[i].Key + " " + most[i].Value);
+                    sapi.Logger.Notification("[landmassgen] {0}: clutter settled onto its support: {1} moved down, {2} left out (nothing to hold them up){3}", def.Kind, settleMoved, settleDropped,
+                        top.Count == 0 ? "" : "; most left out: " + string.Join(", ", top));
+                }
             }
         }
         return placed;
+    }
+
+    // Where a settled clutter goes, read from the committed world. Things
+    // that hang (wall lamps, conduits, hooks, gauges and valves, shelves,
+    // banners) stay where a wall or a floor holds them, ceiling lamps also
+    // where the ceiling does; anything else wants a full floor under it,
+    // and drops through open air (up to 4) to find one. A slab or a step in
+    // the way, or no floor in reach: int.MinValue, leave it out.
+    private static int ClutterSettle(IBlockAccessor wba, BlockPos at, string type)
+    {
+        string t = type.Substring(type.IndexOf('|') + 1);
+        bool wall = t.Contains("gas-wall") || t.Contains("lumi-pipe") || t.StartsWith("pipe-") || t.Contains("wallhook") || t.Contains("banner")
+            || t.Contains("toolrack") || t.StartsWith("shelf") || t.StartsWith("valve") || t.StartsWith("gauge") || t.StartsWith("switch")
+            || t.StartsWith("lever") || t.StartsWith("sightglass");
+        bool ceiling = t.Contains("ceiling");
+        bool shelf = type.StartsWith("clutteredbookshelf") || t.StartsWith("bookshelves/bookshelf");
+        bool chain = t.Contains("chain");
+        var p = new BlockPos(0, 0, 0, at.dimension);
+        Block B(int dx, int dy, int dz) { p.Set(at.X + dx, at.Y + dy, at.Z + dz); return wba.GetBlock(p, BlockLayersAccess.SolidBlocks); }
+        bool Free(Block b) => b == null || b.Id == 0;
+        bool FloorUnder(int dy) { var b = B(0, dy - 1, 0); return b != null && b.Id != 0 && b.SideSolid[BlockFacing.UP.Index]; }
+        if (!Free(B(0, 0, 0))) return int.MinValue;
+        if (FloorUnder(0)) return at.Y;
+        // a shelf stands on the shelf under it; a chain hangs from the link or the beam over it
+        if (shelf && (B(0, -1, 0)?.Code?.Path ?? "").StartsWith("clutteredbookshelf")) return at.Y;
+        if (chain)
+        {
+            var o = B(0, 1, 0);
+            if (o != null && o.Id != 0 && (o.SideSolid[BlockFacing.DOWN.Index] || (o.Code?.Path ?? "").StartsWith("clutter"))) return at.Y;
+        }
+        if (wall || ceiling)
+        {
+            foreach (var f in BlockFacing.HORIZONTALS)
+            {
+                var b = B(f.Normali.X, 0, f.Normali.Z);
+                if (b != null && b.Id != 0 && b.SideSolid[f.Opposite.Index]) return at.Y;
+            }
+            var up = B(0, 1, 0);
+            if (ceiling && up != null && up.Id != 0 && up.SideSolid[BlockFacing.DOWN.Index]) return at.Y;
+            return int.MinValue;
+        }
+        for (int d = 1; d <= 4; d++)
+        {
+            if (!Free(B(0, -d, 0))) return int.MinValue;
+            if (FloorUnder(-d)) return at.Y - d;
+        }
+        return int.MinValue;
     }
 
     // climate= support. Grass and leaf COLOR is not in the block: the client

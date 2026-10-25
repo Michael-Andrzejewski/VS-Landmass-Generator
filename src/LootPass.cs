@@ -137,6 +137,33 @@ public partial class LandmassGeneratorModSystem
             ("game:drygrass", 8, 20, 1), ("game:scythe-copper", 1, 1, 0.6), ("game:hoe-copper", 1, 1, 0.6), ("game:candle", 2, 4, 0.8),
             ("game:rope", 2, 4, 0.8), ("game:flaxtwine", 3, 8, 0.8), ("game:seeds-turnip", 4, 10, 0.8), ("game:seeds-carrot", 4, 10, 0.8),
         },
+        // the Great Machine's works and warrens (GreatMachineLoot.cs)
+        ["jonas"] = new (string, int, int, double)[]
+        {
+            ("game:gear-temporal", 1, 2, 1.6), ("game:jonasparts-connector01", 1, 2, 1.2), ("game:jonasparts-cylinder01", 1, 2, 1), ("game:jonasparts-cylinder02", 1, 2, 1),
+            ("game:jonasparts-tank01", 1, 1, 0.8), ("game:jonasparts-tank02", 1, 1, 0.8), ("game:jonasparts-valve01", 1, 2, 1), ("game:jonasparts-pumphead", 1, 1, 0.6),
+            ("game:jonasframes-gearbox01", 1, 1, 0.7), ("game:jonasframes-oscillator01", 1, 1, 0.6), ("game:jonasframes-spring01", 1, 1, 0.6), ("game:eidolongearbox", 1, 1, 0.3),
+            ("game:nightvisiondevice", 1, 1, 0.25), ("game:nightvisionupgrades-nightvisionlens1", 1, 1, 0.3), ("game:returnbase-returnbasetop", 1, 1, 0.4),
+            ("game:returndeath-returndeath1", 1, 1, 0.4), ("game:tobtlocatorpart", 1, 1, 0.25), ("game:creature-mechhelper", 1, 1, 0.35),
+            ("translocatorengineeringredux:powercore", 1, 1, 0.35), ("translocatorengineeringredux:gatearray", 1, 1, 0.35),
+            ("translocatorengineeringredux:particulationcomponent", 1, 2, 0.4), ("translocatorengineeringredux:coalescencecrystalshard", 2, 6, 0.5),
+            ("translocatorengineeringredux:crowbar", 1, 1, 0.2), ("translocatorengineeringredux:linker", 1, 1, 0.2),
+            ("game:ingot-steel", 2, 6, 0.8), ("game:ingot-meteoriciron", 1, 4, 0.5),
+        },
+        ["machinist"] = new (string, int, int, double)[]
+        {
+            ("game:gear-rusty", 2, 6, 1.4), ("game:gear-temporal", 1, 1, 0.35), ("game:metalplate-iron", 2, 4, 1), ("game:metalplate-steel", 1, 3, 0.6),
+            ("game:metalnailsandstrips-iron", 4, 12, 1.2), ("game:ingot-iron", 2, 6, 1.2), ("game:ingot-steel", 1, 3, 0.7), ("game:hammer-iron", 1, 1, 0.6),
+            ("game:chisel-steel", 1, 1, 0.4), ("game:jonasparts-connector01", 1, 2, 0.7), ("game:jonasparts-valve01", 1, 1, 0.6), ("game:metalchain-iron", 2, 4, 0.7),
+            ("game:metal-scraps", 2, 6, 0.8), ("game:jonasframes-gears01", 1, 1, 0.5), ("game:jonasframes-joint01", 1, 1, 0.5),
+        },
+        ["gmlab"] = new (string, int, int, double)[]
+        {
+            ("game:gear-temporal", 1, 1, 0.6), ("game:jonasparts-tank01", 1, 2, 0.8), ("game:jonasparts-cylinder01", 1, 1, 0.8), ("game:jonasframes-oscillator01", 1, 1, 0.6),
+            ("game:glass-quartz", 4, 12, 0.8), ("game:gem-diamond-rough", 1, 1, 0.3), ("game:gem-emerald-rough", 1, 2, 0.5), ("game:ingot-silver", 2, 4, 0.8),
+            ("game:ingot-gold", 1, 3, 0.6), ("game:nightvisionupgrades-nightvisionlens2", 1, 1, 0.3), ("game:candle", 2, 6, 0.8),
+            ("game:nightvisionupgrades-nightvisionpower", 1, 1, 0.25),
+        },
         ["ruin"] = new (string, int, int, double)[]
         {
             ("game:arrow-copper", 6, 16, 1.2), ("game:spear-generic-copper", 1, 1, 0.8), ("game:ingot-copper", 1, 3, 1), ("game:ingot-silver", 1, 2, 0.5),

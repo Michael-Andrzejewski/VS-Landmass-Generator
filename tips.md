@@ -1030,3 +1030,56 @@ earth all round. What carried over:
   with air beside or below it; `tools/hslice.py` draws floor plans at given
   heights. Natural caves under the island hold some running water of their
   own: look at what surrounds a cell before calling it a leak.
+
+## The warrens, the ways in and the finds (0.66.0)
+
+Michael's ask: tie the works to the surface and the chasms so a player can
+stumble into them (huge pipes jutting into the ravines, stairs and shafts
+from almost every building, an underground that feels like an endless maze),
+then make it lucrative (chests, armor stands, ingots, Jonas devices), and
+fix clutter left floating.
+
+- **A maze from a grid and a spanning tree.** Chambers on a 24-block grid on
+  seven levels, every grid link that clears the works, the wet works (by 12),
+  the abyss column and the safe ceiling; a random spanning tree, then a third
+  of the other tunnels and a fifth of the other ladders put back, so it
+  branches, dead-ends and loops. Levels join by ladders in chamber corners
+  and spiral stair towers on the cell middles (one doorway a level, each on a
+  different side). Straight grid tunnels read as engineered, which suits
+  Jonas; the styles (masonry, iron, mine drift, small pipe), the rooms and
+  the dead ends keep it from feeling regular.
+- **The graph says joined; the blocks must agree.** A union-find over the
+  links is not proof. Two things cut the first builds apart: a mine drift's
+  roof cap laid across a ladder shaft, and a mine chamber's corner post on
+  the very corner its ladder climbs. Fix: a fitting (floor fill, slab,
+  timber, a ladder's backing wall) never goes into another space's hollow
+  (`GmCtx.HollowAt`, every space registers its inside). Ways in only attach
+  to parts of the maze a tie-in joins to the works.
+- **Check reach by plugging the known ways in.** A ground-line mask ("under
+  the lowest ground nearby") cuts shallow shafts and fake-joins the air under
+  floating islands. Instead plug every logged way in (shaft tops, pipe mouths
+  near their wall, plateau hall stairwells), label all open cells, and ask:
+  is the works' pocket sealed, and is every way in's inner end in it?
+  `tools/gmcheck.py` does this from a dump and the server log.
+- **The crater's slope is too gentle for culverts.** Pipes meant to come out
+  of the bowl's side found no slope (the ground never rose 9 within 30).
+  Standpipes do the job: huge broken pipes standing out of the crater floor
+  with a doorway at the foot and a spiral stair inside.
+- **Settle clutter at commit, not at build.** The commit reads the committed
+  world, so it knows what really ended up under, beside and over each piece.
+  A `~` type asks for it: floor things need a full top face under them (or
+  drop up to 4 through air to one), hanging things (wall lamps, conduits,
+  hooks, gauges, shelves) a wall or floor, ceiling lamps a ceiling, a shelf
+  may stand on a shelf and a chain hang from a link. What fails is left out
+  and counted by type in the log. Most left out are honest: conduits with no
+  wall beside them where a tunnel widens into a chamber, crates on slab
+  steps. Don't place those in the first place.
+- **Loot after the commit, in the real world.** Builders leave floor spots
+  with a kind; after the commit each is checked (open cell, solid floor,
+  head room, nothing beside it) and filled: chests from the jonas, machinist,
+  gmlab and the old tables, armor stands, ingot piles as ground storage (the
+  legacy ingotpile block renders invisible), and devices (static
+  translocators broken and whole, rift wards, base and corpse return
+  teleporters, resonators). Translocator Engineering Redux (in the pack)
+  adds a crowbar and linkers for translocators, and its parts are in the
+  jonas table; a code the game lacks is skipped and logged by the table roll.

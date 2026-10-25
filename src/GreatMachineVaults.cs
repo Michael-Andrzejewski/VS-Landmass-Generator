@@ -99,9 +99,11 @@ public partial class LandmassGeneratorModSystem
                 continue;
             }
             var r2 = best.Rect(s.U0, s.W0, s.U1, s.W1);
-            var work = new GmWork { Name = s.Name, X0 = r2.X0, Z0 = r2.Z0, X1 = r2.X1, Z1 = r2.Z1, Y0 = best.Y(-4), Y1 = best.Y(s.Top + 4) };
+            var work = new GmWork { Name = s.Name, X0 = r2.X0, Z0 = r2.Z0, X1 = r2.X1, Z1 = r2.Z1, Y0 = best.Y(-4), Y1 = best.Y(s.Top + 4), Floor = best.Oy };
             g.Works.Add(work);
+            g.CurWork = s.Name;
             s.Build(g, best, work);
+            g.CurWork = null;
             sapi.Logger.Notification("[landmassgenerator] great machine work {0}: floor y {1} at {2}, {3} (bearing {4:0}, {5} lower than planned)",
                 s.Name, best.Oy, best.Ox - g.Cx, best.Oz - g.Cz, s.Bearing + bestOff, bestDrop);
         }
