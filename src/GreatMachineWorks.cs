@@ -36,6 +36,7 @@ public partial class LandmassGeneratorModSystem
         // the surface buildings a way down may start in: footprint, floor,
         // kind (0 a town ruin, 1 an engine hall) and the cell kept free for it
         public List<(int X0, int Z0, int X1, int Z1, int F, int Kind, int SX, int SZ)> Buildings = new();
+        public readonly List<(int X, int Z)> EmptyLots = new();          // the town's burnt squares, where standpipes stand
         public readonly List<(int X, int Y, int Z, string Kind, double H)> Loot = new();    // floor cells for chests, stands, ingots, devices
         public readonly List<List<(double X, double Y, double Z)>> PipeRuns = new();         // every walkable pipe's floor points
 

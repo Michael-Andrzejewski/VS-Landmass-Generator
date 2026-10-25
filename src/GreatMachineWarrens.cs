@@ -286,19 +286,26 @@ public partial class LandmassGeneratorModSystem
         int bTotal = 0, bMissed = 0, nStand = 0;
         var shafts = g.Buildings.Where(b => b.Kind != 2)
             .Select(b => (b.SX, b.SZ, b.F, Kind: b.Kind == 0 && b.X1 - b.X0 - 1 >= 9 && b.Z1 - b.Z0 - 1 >= 9 ? 1 : 0, Building: true)).ToList();
-        for (int t = 0, want = 0; t < 400 && want < 9; t++)
+        // the town's empty lots first, then anywhere open in the crater
+        var spots = g.EmptyLots.OrderBy(_ => g.R()).ToList();
+        for (int t = 0; t < 400; t++)
         {
             double a = g.R() * Math.PI * 2, r = g.AbyssR * 1.5 + g.R() * (g.RimR - 14 - g.AbyssR * 1.5);
-            int x = cx + (int)Math.Round(Math.Cos(a) * r), z = cz + (int)Math.Round(Math.Sin(a) * r);
+            spots.Add((cx + (int)Math.Round(Math.Cos(a) * r), cz + (int)Math.Round(Math.Sin(a) * r)));
+        }
+        int wantStand = 0;
+        foreach (var (x, z) in spots)
+        {
+            if (wantStand >= 9) break;
             if (x >= cx - 14 && x <= cx + 13 && z >= cz - 4) continue;                                  // the walkway
             bool flat = true;
             int g0 = g.Floor(x, z);
-            for (int ox = -6; ox <= 6 && flat; ox += 3) for (int oz = -6; oz <= 6 && flat; oz += 3)
-                if (Math.Abs(g.Floor(x + ox, z + oz) - g0) > 2 || g.Floor(x + ox, z + oz) < g.K.Ground(x + ox, z + oz) - 1) flat = false;
-            if (!flat || g.Keep.Any(c => Hyp(x - c.X, z - c.Z) < c.R + 7) || g.Buildings.Any(b => x >= b.X0 - 7 && x <= b.X1 + 7 && z >= b.Z0 - 7 && z <= b.Z1 + 7)) continue;
+            for (int ox = -5; ox <= 5 && flat; ox += 5) for (int oz = -5; oz <= 5 && flat; oz += 5)
+                if (Math.Abs(g.Floor(x + ox, z + oz) - g0) > 3 || g.Floor(x + ox, z + oz) < g.K.Ground(x + ox, z + oz) - 1) flat = false;
+            if (!flat || g.Keep.Any(c => Hyp(x - c.X, z - c.Z) < c.R + 6) || g.Buildings.Any(b => x >= b.X0 - 6 && x <= b.X1 + 6 && z >= b.Z0 - 6 && z <= b.Z1 + 6)) continue;
             if (shafts.Any(s => !s.Building && Hyp(s.SX - x, s.SZ - z) < 40)) continue;
             shafts.Add((x, z, g0 + 1, 2, false));
-            want++;
+            wantStand++;
         }
         foreach (var b in shafts)
         {
@@ -471,18 +478,19 @@ public partial class LandmassGeneratorModSystem
         {
             var chasmBear = g.Chasms.Where(l => l.Count > 1).Select(l => Math.Atan2(l[1].Z - cz, l[1].X - cx)).ToList();
             int want = 8;
-            for (int i = 0; i < want * 3 && nAbyss < want; i++)
+            var placedA = new List<double>();
+            for (int i = 0; i < 80 && nAbyss < want; i++)
             {
-                double a = (i + g.R() * 0.6) * Math.PI * 2 / (want * 3);
+                double a = g.R() * Math.PI * 2;
                 double deg = (a * 180 / Math.PI + 360) % 360;
                 if (Math.Abs(deg - 90) < 16 || chasmBear.Any(cb => Math.Abs(Math.IEEERemainder(a - cb, Math.PI * 2)) < 0.2)) continue;
-                if (i % 3 != 0 && g.R() < 0.6) continue;
+                if (placedA.Any(p => Math.Abs(Math.IEEERemainder(a - p, Math.PI * 2)) < 0.5)) continue;
                 double ca = Math.Cos(a), sa = Math.Sin(a);
                 int fy = Math.Max(14, g.Sea - 70) + 20 + g.RI(0, 40);
                 double rw = WallAlong(cx, cz, ca, sa, fy, 4.5, g.AbyssR * 0.5, g.AbyssR * 1.6);
                 if (rw < 0) { No("abyss: no wall"); continue; }
                 double jut = g.RI(3, 8);
-                if (Mouth(cx + ca * (rw - jut), cz + sa * (rw - jut), cx + ca * (rw + 14), cz + sa * (rw + 14), fy, 4.5, "abyss")) nAbyss++;
+                if (Mouth(cx + ca * (rw - jut), cz + sa * (rw - jut), cx + ca * (rw + 14), cz + sa * (rw + 14), fy, 4.5, "abyss")) { nAbyss++; placedA.Add(a); }
             }
         }
         // the crater: culverts out of its slope at the ground, from just

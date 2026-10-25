@@ -527,7 +527,7 @@ public partial class LandmassGeneratorModSystem
                     if (pr < townIn || pr > townOut) inside = false;
                 }
                 if (!inside) { rejBounds++; continue; }
-                if (g.R() < 0.06) continue;                      // now and then an empty lot, a burnt square
+                if (g.R() < 0.08) { g.EmptyLots.Add((gx + Lot / 2, gz + Lot / 2)); continue; }   // now and then an empty lot, a burnt square
                 if (!FootprintOk(x0, z0, x1, z1, 1))
                 {
                     // a smaller ruin squeezed into what is left of the lot
