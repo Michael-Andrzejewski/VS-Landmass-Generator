@@ -448,9 +448,13 @@ public partial class LandmassGeneratorModSystem
     // Each end may offer several doorways: every pairing and every route
     // is scored by its length, by any other work a leg passes through, and
     // above all by a stairwell that would drop through another work.
+    // A pipe runs GmLead straight out of a doorway; a stairwell at that end
+    // stands there, so a plateau hall's stairwell is GmLead in from its door.
+    private const int GmLead = 9;
+
     private void GmConnect(GmCtx g, IList<GmPort> aCands, IList<GmPort> bCands, string label, bool openEnd = false)
     {
-        const int Lead = 9;
+        const int Lead = GmLead;
         int cx = g.Cx, cz = g.Cz;
         GmWork Owner(GmPort p) => g.Works.FirstOrDefault(w => w.Ports.ContainsValue(p));
         bool ShaftBlocked(int x, int z, int y0, int y1, GmWork own)

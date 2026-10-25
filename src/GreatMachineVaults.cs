@@ -27,9 +27,8 @@ namespace LandmassGenerator;
 public partial class LandmassGeneratorModSystem
 {
     // ── Placement ────────────────────────────────────────────────────────
-    private void GmPlaceWorks(GmCtx g)
-    {
-        var specs = new (string Name, double Bearing, double R, int Floor, int U0, int U1, int W0, int W1, int Top, bool Upper, Action<GmCtx, GmFrame, GmWork> Build)[]
+    private (string Name, double Bearing, double R, int Floor, int U0, int U1, int W0, int W1, int Top, bool Upper, Action<GmCtx, GmFrame, GmWork> Build)[] GmWorkSpecs()
+        => new (string, double, double, int, int, int, int, int, int, bool, Action<GmCtx, GmFrame, GmWork>)[]
         {
             ("Axle Well",              0,   0,   7, -50, 50, -50, 50, 26, false, GmAxleWell),
             ("Resonator",             25, 190,   8, -36, 36, -36, 36, 47, false, GmResonator),
@@ -44,28 +43,47 @@ public partial class LandmassGeneratorModSystem
             ("Drafting Offices",      45, 250, 110, -42, 42, -14, 14, 8, true, GmOffices),
             ("Quartermaster's Stores",222, 250, 110, -42, 42, -14, 14, 8, true, GmStores),
         };
-        foreach (var s in specs)
+
+    // A work's frame at a bearing and distance from the crater's centre,
+    // facing out along whichever axis is nearer the bearing.
+    private static GmFrame GmPlaceFrame(GmCtx g, double bearing, double r, int floor)
+    {
+        double th = bearing * Math.PI / 180;
+        int ox = g.Cx + (int)Math.Round(Math.Cos(th) * r), oz = g.Cz + (int)Math.Round(Math.Sin(th) * r);
+        int wx, wz;
+        if (r == 0) { wx = 1; wz = 0; }
+        else if (Math.Abs(Math.Cos(th)) >= Math.Abs(Math.Sin(th))) { wx = Math.Sign(Math.Cos(th)); wz = 0; }
+        else { wx = 0; wz = Math.Sign(Math.Sin(th)); }
+        return new GmFrame(ox, floor, oz, wx, wz);
+    }
+
+    private void GmPlaceWorks(GmCtx g)
+    {
+        // A plateau hall's stairwell drops from the hall floor to its pipe,
+        // which keeps under the safe ceiling; over an upper work it would cut
+        // down into the work's top. The halls stand beside the planned works
+        // (GmSurface), and the upper works first look for a spot clear of
+        // the stairwells, then for any spot.
+        bool UnderStair((int X0, int Z0, int X1, int Z1) rc)
+            => g.HallDoors.Any(hd => hd.X + hd.Dx * GmLead >= rc.X0 - 8 && hd.X + hd.Dx * GmLead <= rc.X1 + 8
+                                  && hd.Z + hd.Dz * GmLead >= rc.Z0 - 8 && hd.Z + hd.Dz * GmLead <= rc.Z1 + 8);
+        foreach (var s in GmWorkSpecs())
         {
             GmFrame best = default;
             bool found = false;
             int bestDrop = 0;
             double bestOff = 0;
+            for (int pass = s.Upper ? 0 : 1; pass < 2 && !found; pass++)
             for (int drop = 0; drop <= (s.Upper ? 44 : 0) && !found; drop += 4)
                 foreach (double off in new[] { 0.0, 4, -4, 8, -8, 12, -12, 16, -16 })
                     foreach (double dr in new[] { 0.0, -10, 10 })
                     {
                         if (found) break;
                         if (s.R == 0 && (off != 0 || dr != 0)) continue;
-                        double th = (s.Bearing + off) * Math.PI / 180;
-                        int ox = g.Cx + (int)Math.Round(Math.Cos(th) * (s.R + dr)), oz = g.Cz + (int)Math.Round(Math.Sin(th) * (s.R + dr));
-                        int wx, wz;
-                        if (s.R == 0) { wx = 1; wz = 0; }
-                        else if (Math.Abs(Math.Cos(th)) >= Math.Abs(Math.Sin(th))) { wx = Math.Sign(Math.Cos(th)); wz = 0; }
-                        else { wx = 0; wz = Math.Sign(Math.Sin(th)); }
-                        var f = new GmFrame(ox, s.Floor - drop, oz, wx, wz);
+                        var f = GmPlaceFrame(g, s.Bearing + off, s.R + dr, s.Floor - drop);
                         var rc = f.Rect(s.U0, s.W0, s.U1, s.W1);
                         int top = f.Y(s.Top);
-                        bool ok = true;
+                        bool ok = pass == 1 || !UnderStair(rc);
                         if (s.Upper)
                             for (int x = rc.X0 - 4; x <= rc.X1 + 4 && ok; x += 2)
                                 for (int z = rc.Z0 - 4; z <= rc.Z1 + 4 && ok; z += 2)

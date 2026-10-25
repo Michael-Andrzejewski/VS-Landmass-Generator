@@ -986,6 +986,15 @@ earth all round. What carried over:
   works a leg passes through, and heavily by a stairwell that would drop
   through another work (the Laboratories sit partly over the Engine
   Gallery, and the first router dropped a stairwell into its hall).
+- **A penalty can't fix a stairwell every route shares (0.65.1).** A plateau
+  hall's stairwell stands GmLead inside its door whatever the route, and
+  drops to below the safe ceiling, about 7 under the plateau. With the halls
+  on their works' bearings, the Laboratories' stairwell came down through
+  its dome top in the first Rustfall build (the test world cleared it by 2
+  blocks). The halls now keep their stairwells off every upper work's
+  planned footprint, and the upper works first look for a spot clear of
+  the stairwells. "(a stairwell crosses another work)" in a pipe's log line
+  means every choice it had was blocked.
 - **Jonas lamps stay lit on their own.** `jonas-lamp` is a clutter block;
   a `lightsource/on/...` type stays on as long as no control point network
   is set. Its light comes from the block entity's type, so set the type,

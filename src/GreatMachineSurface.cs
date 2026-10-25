@@ -415,11 +415,18 @@ public partial class LandmassGeneratorModSystem
             k.Gear(x - ux * 13, g0 + 8, z - uz * 13, Math.Abs(ux) > Math.Abs(uz) ? 'z' : 'x', 7, 2, 6, 0.2, () => g.RustA);
         }
 
-        // the three halls the stairwells come up in, toward the upper works
+        // the three halls the stairwells come up in, beside the upper works
+        // they serve: the stairwell drops from the hall floor to below the
+        // safe ceiling, and over a work it would cut into the work's top
+        // (the Laboratories' dome is barely under that ceiling), so a hall
+        // keeps its stairwell off where every upper work is planned to go
+        var planned = GmWorkSpecs().Where(s => s.Upper)
+            .Select(s => GmPlaceFrame(g, s.Bearing, s.R, s.Floor).Rect(s.U0, s.W0, s.U1, s.W1)).ToList();
+        bool OverWork(int x, int z) => planned.Any(r => x >= r.X0 - 12 && x <= r.X1 + 12 && z >= r.Z0 - 12 && z <= r.Z1 + 12);
         foreach (var (name, bearing) in new[] { ("Workers' Quarters", 157.0), ("Archive", 262.0), ("Laboratories", 335.0) })
         {
             bool done = false;
-            foreach (double off in new[] { 0.0, 4, -4, 8, -8, 12, -12 })
+            foreach (double off in new[] { 0.0, 4, -4, 8, -8, 12, -12, 16, -16, 20, -20, 24, -24 })
             {
                 if (done) break;
                 double th = (bearing + off) * Math.PI / 180;
@@ -428,11 +435,12 @@ public partial class LandmassGeneratorModSystem
                 bool alongX = Math.Abs(Math.Sin(th)) > Math.Abs(Math.Cos(th));
                 int hl = 12, hw = 7;
                 int x0 = hx - (alongX ? hl : hw), x1 = hx + (alongX ? hl : hw), z0 = hz - (alongX ? hw : hl), z1 = hz + (alongX ? hw : hl);
-                if (!FootprintOk(x0, z0, x1, z1, 3)) continue;
-                int F = Building(x0, z0, x1, z1, 2, 1, true);
-                // a doorway at the hall's west (or north) end, the stairwell 9 inside it
+                // a doorway at the hall's west (or north) end, the stairwell GmLead inside it
                 int dxd = alongX ? 1 : 0, dzd = alongX ? 0 : 1;
                 int doorX = alongX ? x0 : hx, doorZ = alongX ? hz : z0;
+                if (OverWork(doorX - dxd + dxd * GmLead, doorZ - dzd + dzd * GmLead)) continue;
+                if (!FootprintOk(x0, z0, x1, z1, 3)) continue;
+                int F = Building(x0, z0, x1, z1, 2, 1, true);
                 for (int s = -3; s <= 3; s++)
                     for (int y = F; y < F + 8; y++) k.Set(doorX + (alongX ? 0 : s), y, doorZ + (alongX ? s : 0), 0);
                 g.HallDoors.Add((doorX - dxd, F, doorZ - dzd, dxd, dzd));
