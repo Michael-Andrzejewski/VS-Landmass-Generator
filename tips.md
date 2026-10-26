@@ -1215,3 +1215,26 @@ Spoils sit on the old cold-granary and flatcave spots.
   islands clean at 100; at 400 it finds natural land round 23 of them, the
   nearest 204 blocks off an edge (the flattening reaches edge + 228, less the
   landform map's blend).
+- **`/genmapexport` (0.67.4) draws the M map without walking the world.** The
+  client keeps its map in `VintagestoryData/Maps/<SavegameIdentifier>.db`,
+  table `mappiece(position integer primary key, data blob)`. The key is
+  `FastVec2i.ToChunkIndex`, `(z << 27) | x` in chunk columns. The data is a
+  `MapPieceDB` protobuf: 1024 ABGR ints written unpacked (tag `0x08` and a
+  varint per pixel, about 11 KB a piece). The server paints each piece the way
+  `ChunkMapLayer.GenerateChunkImage` does and writes it with the game's own
+  `MapDB.SetMapPieces`. `tools/mapdb2png.py` renders such a file to a PNG.
+- **A headless server drops unwatched chunks within moments.** The first
+  export loaded each tile with `KeepLoaded = false` and lost 441 of 258,860
+  columns, unloaded before they were drawn. Load with `KeepLoaded = true`,
+  draw, then `UnloadChunkColumn` the tile and its border.
+- **The story locations make a poor bounding box.** The game rolls story
+  locations far from the plan (Calix at -14720, 7061; the University at
+  10448, 10518). One rectangle round all of them is 755,000 columns, mostly
+  empty sea. The default draws the plan's area as one rectangle and a square
+  round each far location: 381,684 columns on Rustfall 0.67.
+- **The export draws exactly what the client draws.** Test on Rustfall 0.67:
+  121 pieces round spawn in the installed map were painted solid magenta, and
+  a Pilot client played the world with the map open. It redrew all 121 from
+  its own chunks, each byte-identical to the export's piece. Pilot's
+  `/mapshot?x=&z=&zoom=` photographs the open map without touching the
+  window.

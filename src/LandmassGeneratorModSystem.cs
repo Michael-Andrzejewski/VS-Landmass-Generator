@@ -191,6 +191,12 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(p.OptionalWord("action"), p.OptionalInt("rule"))
                 .HandleWith(OnGenKeepOut));
+        RegisterCmd(api, "genmapexport", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("/genmapexport [x1 z1 x2 z2 | core | list]: draw the world map (M) as if explored: loads, generating where needed, every chunk column of the area (HUD coordinates; default every plan island and the story locations within 2200 of one, plus 640, and a square round each story location farther out; core: without those squares; list: show the areas) and writes the map pieces the client would draw into Maps/<world id>.db in this server's data folder. Copy that file into a player's VintagestoryData/Maps.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.OptionalWord("x1"), p.OptionalInt("z1"), p.OptionalInt("x2"), p.OptionalInt("z2"))
+                .HandleWith(OnGenMapExport));
 
         RegisterCmd(api, "genworldsetup", name =>
             api.ChatCommands.Create(name)

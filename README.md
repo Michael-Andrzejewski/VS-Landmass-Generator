@@ -729,3 +729,39 @@ read dark until relit with the area held loaded; give the light queue a
 minute or two after a relight before checking. Use `tools/sealcheck.py`
 on a dump to see which open spaces join the sky, and `tools/fluidcheck.py`
 for water or lava that would run.
+
+### Checking the keep-out: `/genkeepout check [rule]` (0.67.3)
+
+Walks the ring from every plan island's edge out to `rule` blocks (default
+100), generating chunks as needed, and reports natural land in it per island.
+Island and story land are left out. On the installed Rustfall 0.67 all 47
+islands are clear at 100.
+
+### Drawing the whole world map: `/genmapexport [x1 z1 x2 z2 | core | list]` (0.67.4)
+
+The world map (M) is drawn by the game client from the chunks the server has
+sent it, one 32 x 32 piece per chunk column, and kept in
+`VintagestoryData/Maps/<world id>.db`. This command draws the same pieces on
+the server: it loads every chunk column in the area (generating the ones not
+generated yet), paints each piece the way the client does (the parchment
+palette, slope shading, water edges), and writes them into
+`Maps/<world id>.db` in the server's data folder.
+
+The default area is every plan island (the ruin isles among them) and every
+story location within 2200 blocks of one, plus 640 blocks, and a square of its
+own round each story location farther out. `core` leaves those squares out,
+`list` shows the areas without drawing, and four numbers give one area in HUD
+coordinates. A rerun skips tiles already drawn, so a stopped export picks up
+where it left off.
+
+To give a player the whole map:
+
+1. Copy the save to a throwaway server data folder (the export generates and
+   saves every chunk in the area, so the copy grows by gigabytes).
+2. Run `/genmapexport` there. On Rustfall 0.67 the core alone is 259,000
+   chunk columns, about 55 minutes and 3.2 GB.
+3. With the game closed, copy `Maps/<world id>.db` into the player's
+   `VintagestoryData/Maps`. The copy of the save keeps the world id, so the
+   file name matches the player's own save.
+
+Chunks the player visits later are redrawn by the client as usual.
