@@ -1154,12 +1154,19 @@ Spoils sit on the old cold-granary and flatcave spots.
   then `PlaceEntitiesAndBlockEntities` and `PlaceDecors` through the live
   accessor (the bulk accessor has no block entities before it commits, and
   `Place` would spawn the creatures twice). Start y is ground + 1 + offsety.
-- **A plan rule a played world can see must be gated.** Michael's
-  `Rustfall.vcdbs` still reads the live plan file, so the ruin isles and the
-  natural-island keep-out only apply to worlds whose first load is under
-  0.67.0 (flag `lgNaturalKeepOut`, and the ruins expand only when the plan is
-  kept in the save or the world is new). New plan islands still reach an
-  un-adopted world: `/genplan adopt rustfall-world` fixes it.
+- **What reaches a played world.** Michael's `Rustfall.vcdbs` still reads
+  the live plan file. The ruin isles only expand where the plan is kept in
+  the save or the world is new (an old world's setup has run, so it would
+  get bare land). The natural-island keep-out (0.67.2) and the megastructure
+  guard apply to every world; in an old world the keep-out reaches only the
+  regions not yet generated. New plan islands still reach an un-adopted
+  world as bare land: `/genplan adopt rustfall-world` fixes it.
+- **The megastructure guard** (`MegaGuard.cs`, 0.67.2) is a Harmony prefix
+  on `WorldGenStructure.TryGenerate` (the game ships `Lib/0Harmony.dll`;
+  the csproj references it, not bundled). It refuses a `megastructures`
+  group placement whose rolled spot is within 500 + 120 of a lore island's
+  edge. Test world with the rolls on (no ruins line): 23,100 of 23,108
+  attempts refused, all near the islands whose chunks the setup loaded.
 - **Struct `size=` stops at 160.** The Spoils' heap and the gardens' spread
   take `radius=` instead.
 - **Megastructure lights are set into walls.** The emitter pass moves every
@@ -1185,9 +1192,7 @@ Spoils sit on the old cold-granary and flatcave spots.
   land past the inscribed circle (Iron Mine 325 against 280, The Spoils 307
   against 280, Salt Teeth, Forge Volcano, the Great Machine). The keep-out
   and the ruin margin measure the shape's farthest land cell (`LandRadius`,
-  `PlanIslandEdge`). A world built before that keeps half the diameter
-  (flag `lgKeepOutLand`), so regions generated later agree with the earlier
-  ones and no natural island is cut along a region border.
+  `PlanIslandEdge`).
 - **Checking the keep-out:** dump a spot where the old scan of the same seed
   had a natural island close to a lore island and count land one above the
   sea outside every island's edge. On the 0.67 build the natural islands

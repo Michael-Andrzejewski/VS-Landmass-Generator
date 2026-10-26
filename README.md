@@ -482,14 +482,23 @@ game's own rolls for the megastructures group are switched off in such a world
 (`vanilla=keep` leaves them on). `skip=` leaves families out by schematic folder
 or structure code (the Rustfall plan skips `megastructure-10`, the cathedral,
 which stands on Cardinals). Only worlds set up from 0.67.0 on, or keeping their
-plan in the save, expand the line.
+plan in the save, expand the line (an older world reading the live plan has had
+its setup and would only get the islands' bare land).
+
+In every Rustfall world (0.67.2), wherever the game's own megastructure rolls
+are on, a guard refuses any megastructure the game tries to place within 500
+blocks of a plan island's or pinned story location's edge (plus 120 for its
+own size), so they still turn up around the world, never next to a lore
+island. The log reports how many attempts it refused.
 
 Natural islands keep clear of islands (0.67.0): with "Natural world-gen
 islands" on, no natural island breaches within 100 blocks of the edge of a plan
 island (half its plan diameter) or a story location's forced land. The
 underwater landforms there are flattened as each map region generates, out to
-another 128 blocks for the landform map's blending. Only worlds set up from
-0.67.0 on; a world being played keeps its natural islands as they were.
+another 128 blocks for the landform map's blending. The edge is where the
+island's land really ends (a drawn shape can reach past half its diameter in its
+corners). Every Rustfall world (0.67.2); in a world set up earlier it reaches
+the regions not yet generated, and natural islands already there stay.
 
 ### World creation screen (0.56.0+)
 

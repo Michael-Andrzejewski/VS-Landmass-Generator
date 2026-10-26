@@ -249,6 +249,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         StartRedFogServer(api);
         // Each world keeps the plan it was set up with (WorldPlanStore.cs).
         StartWorldPlanStore(api);
+        StartMegaGuard();
         // Rain zones: how often it rains round spawn (RainZones.cs).
         StartRainZones(api);
         StartLightCheck(api);
@@ -348,19 +349,15 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // locations. The landform map blends across cells and wobbles, so
         // the flattened ring reaches another 128 blocks out.
         var keepOut = new List<(int X, int Z, long RadSq)>();
-        // (only in worlds set up since 0.67.0: a world being played keeps its
-        // natural islands as they were, with no new cut seams beside old ones)
-        if (naturalIslands && sapi.WorldManager.SaveGame.GetData<bool>("lgNaturalKeepOut", false))
+        // In a world set up before 0.67.0 this reaches only the regions not
+        // yet generated; natural islands already there stay as they were.
+        if (naturalIslands)
         {
             const int Rule = 100, Blend = 128;
-            // the edge: where the shape's land really ends (a world set up
-            // before that was measured keeps half the diameter, so its
-            // regions all agree)
-            bool landEdge = sapi.WorldManager.SaveGame.GetData<bool>("lgKeepOutLand", false);
             if (_wgIslandJobs != null)
                 foreach (var job in _wgIslandJobs)
                 {
-                    long r = (long)Math.Ceiling(landEdge ? Math.Max(job.Diameter / 2.0, job.LandRadius) : job.Diameter / 2.0) + Rule + Blend;
+                    long r = (long)Math.Ceiling(Math.Max(job.Diameter / 2.0, job.LandRadius)) + Rule + Blend;
                     keepOut.Add((job.Cx, job.Cz, r * r));
                 }
             var gsKeep = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
@@ -3887,16 +3884,16 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             if (planRain.Count > 0)
                 sapi.Logger.Notification("[landmassgenerator] {0} plan rain zone(s) apply as map regions generate.", planRain.Count);
             planIslands = ApplyWorldConfigToPlanIslands(planIslands);
-            // 0.67.0's ruin islands and natural-island keep-out are for worlds
-            // set up from now on (first load) or keeping their plan in the
-            // save. A world from before 0.64.0 that still reads the live plan
-            // file gets neither, so a plan edit cannot drop bare ruin isles or
-            // cut natural islands into a world someone is playing.
+            // 0.67.0's ruin islands are for worlds set up from now on (first
+            // load) or keeping their plan in the save. A world from before
+            // 0.64.0 that still reads the live plan file has had its setup, so
+            // it would only get their bare land. Every world keeps the game's
+            // own megastructure rolls off its lore islands (MegaGuard.cs) and
+            // its natural islands off every island's edge.
             bool freshWorld = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) == null;
-            if (freshWorld) { sapi.WorldManager.SaveGame.StoreData("lgNaturalKeepOut", true); sapi.WorldManager.SaveGame.StoreData("lgKeepOutLand", true); }
+            string[] lines = planLines ?? File.ReadAllLines(planPath);
             if (freshWorld || planLines != null)
             {
-                string[] lines = planLines ?? File.ReadAllLines(planPath);
                 planIslands.AddRange(PlanRuinIslands(lines, planIslands));
                 SwitchOffVanillaMegastructures(lines);
             }
@@ -3919,6 +3916,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 }
                 jobs.Add(job);
             }
+            SetMegaKeepOut(jobs, lines);
         }
         catch (Exception e)
         {
