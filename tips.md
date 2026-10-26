@@ -1083,6 +1083,13 @@ fix clutter left floating.
   teleporters, resonators). Translocator Engineering Redux (in the pack)
   adds a crowbar and linkers for translocators, and its parts are in the
   jonas table; a code the game lacks is skipped and logged by the table roll.
+- **Looking at it in game (Pilot `/shot`).** Yaw 0 looks west, 90 south,
+  180 east, 270 north; a negative pitch looks down. Wait 20 to 35 seconds
+  after a far teleport. A camera inside solid rock sees straight through it
+  (the faces round the camera are culled), so tunnels seem to float in white:
+  that is the camera's fault, not the world's. Put the camera in open air: a
+  chasm's narrow floor is open along the chasm, not across it, and a
+  standpipe in the crowded town reads best from straight above.
 
 ## Eerie Island, the Burying Isle (0.66.1)
 
