@@ -1209,3 +1209,9 @@ Spoils sit on the old cold-granary and flatcave spots.
   near the Ideal Island", which only holds with both where he drew them. The
   island map in the Resonance Archives' chest finds it by shape, so it
   follows; the dream book names no place.
+- **`/genkeepout check [rule]`** (0.67.3) walks the ring from every plan
+  island's edge out to `rule` blocks, generating chunks as needed, and reports
+  natural land in it per island. On the installed Rustfall 0.67: 47 of 47
+  islands clean at 100; at 400 it finds natural land round 23 of them, the
+  nearest 204 blocks off an edge (the flattening reaches edge + 228, less the
+  landform map's blend).

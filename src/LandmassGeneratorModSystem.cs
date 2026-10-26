@@ -185,6 +185,12 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(p.OptionalInt("step"), p.OptionalInt("margin"))
                 .HandleWith(OnGenScan));
+        RegisterCmd(api, "genkeepout", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("/genkeepout check [rule]: is any natural land within [rule] blocks (default 100) of a plan island's edge (where its land really ends)? Loads, and if need be generates, the chunk columns under each island's ring and reads the worldgen heightmap. Results per island go to chat and the log.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.OptionalWord("action"), p.OptionalInt("rule"))
+                .HandleWith(OnGenKeepOut));
 
         RegisterCmd(api, "genworldsetup", name =>
             api.ChatCommands.Create(name)
