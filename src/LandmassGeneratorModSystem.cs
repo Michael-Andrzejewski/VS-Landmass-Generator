@@ -117,6 +117,8 @@ public partial class LandmassGeneratorModSystem : ModSystem
         capi = api;
         api.Event.MapRegionLoaded += OnClientMapRegionLoaded;
         StartRedFogClient(api);
+        // the weather's rainfall cap (RainZones.cs), once the world config is in
+        api.Event.LevelFinalize += () => InstallRainCap(api);
     }
 
     private void OnClientMapRegionLoaded(Vec2i coord, IMapRegion region)
@@ -191,6 +193,12 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(p.OptionalWord("action"), p.OptionalInt("rule"))
                 .HandleWith(OnGenKeepOut));
+        RegisterCmd(api, "genvillages", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("/genvillages: the villages this world's plan founds (plan line 'village x z [type]') and whether each is up yet. /genvillages check <x> <z>: Dynamic Villages' own verdict on a site at HUD x, z, with Rustfall's keep-off-the-lore-islands rule.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.OptionalWord("action"), p.OptionalInt("x"), p.OptionalInt("z"))
+                .HandleWith(OnGenVillages));
         RegisterCmd(api, "genmapexport", name =>
             api.ChatCommands.Create(name)
                 .WithDescription("/genmapexport [x1 z1 x2 z2 | core | list]: draw the world map (M) as if explored: loads, generating where needed, every chunk column of the area (HUD coordinates; default every plan island and the story locations within 2200 of one, plus 640, and a square round each story location farther out; core: without those squares; list: show the areas) and writes the map pieces the client would draw into Maps/<world id>.db in this server's data folder. Copy that file into a player's VintagestoryData/Maps.")
@@ -262,8 +270,12 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // Each world keeps the plan it was set up with (WorldPlanStore.cs).
         StartWorldPlanStore(api);
         StartMegaGuard();
-        // Rain zones: how often it rains round spawn (RainZones.cs).
+        // Rain zones: how often it rains round spawn (RainZones.cs), and the
+        // cap on the rainfall the weather sees.
         StartRainZones(api);
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, () => InstallRainCap(api));
+        // Dynamic Villages off the lore islands, and the plan's own villages (VillageGuard.cs).
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, () => { StartVillageGuard(); StartPlanVillageWatcher(); });
         StartLightCheck(api);
 
         // Headless dump pipeline (tools/dumpgen.mjs): a dumpjobs.txt in the
@@ -854,6 +866,9 @@ public partial class LandmassGeneratorModSystem : ModSystem
 #   ruins [margin=500] [skip=<family>,...]   give every Better Ruins
 #       megastructure its own small island at sea, seeded by the world, at
 #       least `margin` blocks from the edge of every lore island (0.67.0)
+#   village <mapX> <mapZ> [type]   found a Dynamic Villages village there
+#       (hamlet, farmvillage or stockade) when a player first comes near;
+#       no other village founds on a lore island (0.68.0)
 # Codes: resonancearchive, lazaret, village, devastationarea, tobiascave,
 # treasurehunter, greatmachine (Spreading Devastation)
 #
@@ -868,14 +883,16 @@ pureocean
 clearspawn 16
 devastation off
 
-# Home waters
-island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite
+# Home waters. The starter turns 102 degrees clockwise (0.68.0), so its west
+# beach faces north, toward the Great Machine.
+island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite rotate=102
 # Spawn came out raining nearly all the time (rainfall 'very common').
 rain 0 0 0.4 400 150
-# Cattail isles off the north-west shore. Plan coordinates are for the
-# 150-block starter; the starter diameter slider slides them straight
-# outward, so with the starter at 360 they land at -136, -238.
-island -84 -147 shape=cattail_isles diameter=210 height=4 water=34
+# Cattail isles off the reedy tip of the starter's beach, turned with it
+# (they stood at -84, -147 before 0.68.0, off the north-west shore). Plan
+# coordinates are for the 150-block starter; the starter diameter slider
+# slides them straight outward.
+island 161 -52 shape=cattail_isles diameter=210 height=4 water=34 rotate=102
 island 1950 -290 shape=forester_island diameter=300 height=34
 # Harbor turned south, toward the Forest Island and home.
 island 1850 -1610 shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
@@ -914,23 +931,28 @@ island -650 -4850 shape=pylon_line diameter=280 height=6 water=30 stone=rock-bas
 island 4300 -1300 shape=eerie_island diameter=420 height=22 water=36 climate=lush
 
 # The Hanging Gardens Temple: the stranded monks' island of spires, hanging
-# gardens and rope bridges, with its temple, pagoda and three markets.
+# gardens and rope bridges, with its temple, pagoda, four markets and
+# eighteen traders.
 island 1080 -2480 shape=hanging_gardens diameter=520 height=80 water=34 climate=temperate stone=rock-limestone sand=sand-limestone
 # The Ideal Home Island, where the map of 2026-10-25 draws it: east of the
 # gardens, between them and the Eerie Island (it stood on the village coast
 # at -5140, -3910 before 0.67.1).
 island 3380 -2220 shape=ideal_house_island diameter=600 height=18
+# The Ideal Home Island's village, on the open ground north-west of the pond
+# where Michael marked it (Dynamic Villages, 0.68.0).
+village 3280 -2381 farmvillage
 
 # Around the Great Machine: The Spoils, its dumping ground (a heap of pieces
 # cut out of everywhere, caverns, the red fog), and Cardinals, the Better
 # Ruins cathedral on a flat cold island, on the spots of the old flatcave and
-# cold granary ruins; then the Scattered Ruins, three granary ruins (the
-# map's Alchemist Lair, Power Plant and Mansion circles).
+# cold granary ruins; the Alchemist Lair, the alchemists' college the
+# Devastation came out of (0.68.0); a granary ruin (the map's Power Plant
+# circle); and the Mansion, the Better Ruins mansion's own estate (0.68.0).
 island -270 -7240 shape=the_spoils diameter=560 height=20 water=36 climate=arid stone=rock-basalt sand=sand-basalt
 island -2070 -6510 shape=cardinals_island diameter=460 height=22 water=34 climate=cold stone=rock-andesite sand=sand-andesite
-island 1970 -6670 shape=granary_temperate diameter=150 height=26 stone=rock-granite sand=sand-granite
+island 1970 -6670 shape=alchemist_lair diameter=600 height=50 water=34 climate=temperate stone=rock-andesite sand=sand-andesite
 island 2010 -4880 shape=granary_lush diameter=150 height=26 stone=rock-claystone sand=sand-limestone
-island 660 -3550 shape=granary_arid diameter=150 height=26 stone=rock-sandstone sand=sand-sandstone
+island 660 -3550 shape=mansion_island diameter=380 height=18 water=32 climate=temperate stone=rock-granite sand=sand-granite
 
 # The other Better Ruins megastructures, each on its own small island at
 # sea, 500+ blocks clear of every lore island (the cathedral is Cardinals).
@@ -950,6 +972,10 @@ storyloc greatmachine 0 -5330
 # with seed 20261020 rolled onto the Diving Bell Mine, so it is pinned out in
 # open sea east of the map. Skipped harmlessly when Better Ruins is absent.
 storyloc crossroads 7600 -5600
+# The Better Ruins mansion stands on the Mansion island: in a Rustfall world
+# its own story structure places nothing and forces no land, and the island
+# places the house (0.68.0).
+storyloc mansion 660 -3550
 
 # Just inside the Resonance Archives' top entrance: the way to Jonas' dream.
 storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal
@@ -1045,8 +1071,11 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 case "ruins":
                     // expanded into islands below (RuinIsles.cs)
                     break;
+                case "village":
+                    // founded when a player first comes near (VillageGuard.cs)
+                    break;
                 default:
-                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, devastation, storychest, storyloc, island, rain, ruins.");
+                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, devastation, storychest, storyloc, island, rain, ruins, village.");
             }
         }
         if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0 && islands.Count == 0)
@@ -3893,6 +3922,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                 planIslands.Add((px, pz, string.Join(" ", parts, 3, parts.Length - 3)));
             }
             _planRainZones = planRain;
+            ReadPlanVillages(planLines ?? File.ReadAllLines(planPath));
             if (planRain.Count > 0)
                 sapi.Logger.Notification("[landmassgenerator] {0} plan rain zone(s) apply as map regions generate.", planRain.Count);
             planIslands = ApplyWorldConfigToPlanIslands(planIslands);
@@ -6632,7 +6662,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         switch (def.Kind)
         {
             // The megastructures (MegaStructs.cs) get the same tools.
-            case "pylons": case "refinery": case "graveyard": case "powerplant": case "greatmachine": case "ruin": case "spoils": case "gardens":
+            case "pylons": case "refinery": case "graveyard": case "powerplant": case "greatmachine": case "ruin": case "spoils": case "gardens": case "alchemist":
                 BuildMega(new MegaKit
                 {
                     Job = job, Def = def, Rand = rand, Sea = sea, Set = Set, SetFluid = SetFluid, Ground = Ground,

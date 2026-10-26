@@ -28,8 +28,11 @@ namespace LandmassGenerator;
 //   - the approach: a broad stone stair from the lily pond up to the terrace
 //     with torii gates and stone lanterns, and a torii standing in the sea
 //     off the landing beach with its pier;
-//   - three small markets in the lowland, each with its trader: furniture,
-//     agriculture, clothing;
+//   - four small markets in the lowland, three stalls and three traders
+//     each: furniture, clothing, agriculture (with its watered fields) and
+//     survival goods; six more traders keep a spot of their own (the main
+//     hall, the west quarters, the pagoda, booths at the pier, the foot of
+//     the approach and the koi pond), eighteen in all;
 //   - bamboo groves, gravel paths, and the green creeping over all of it.
 // radius= (or size=, which stops at 160) is how far it spreads; spires= how many.
 public partial class LandmassGeneratorModSystem
@@ -56,7 +59,8 @@ public partial class LandmassGeneratorModSystem
             FenceNS, FenceEW, Lantern, Water, Lily, VineSec, VineEnd, Bamboo1, Bamboo2, Bamboo3, BambooLeaf, Copper, Glass;
         public string VineSecCode, VineEndCode;
         public int[] Flowers, Low;
-        public int Buildings, Bridges, Lights, Gardens, Vines, Lanterns, Stalls, Groves;
+        public int Buildings, Bridges, Lights, Gardens, Vines, Lanterns, Stalls, Groves, Fields, Booths;
+        public (int X, int Z) Koi, StairFoot, Pier = (int.MinValue, 0);
 
         public static long Col(int x, int z) => ((long)x << 32) | (uint)z;
         public bool Free(int x0, int z0, int x1, int z1, int pad = 0)
@@ -201,6 +205,7 @@ public partial class LandmassGeneratorModSystem
         GardensSpires(g, k.OptI("spires", 12), Edge);
         GardensBridges(g, Edge);
         GardensHarbor(g);
+        GardensBooths(g);
         GardensPaths(g);
         GardensGroves(g);
 
@@ -209,21 +214,10 @@ public partial class LandmassGeneratorModSystem
 
     // ── shared pieces ─────────────────────────────────────────────────────
 
-    // Fell the trees in a box (the forest went in before the structures).
+    // Fell the trees standing in a box, whole (the forest went in before the
+    // structures; TreeFelling.cs says why not just empty the box).
     private void GardensClearTrees(GardensCtx g, int x0, int z0, int x1, int z1, int y0, int y1)
-    {
-        var wa = sapi.World.BlockAccessor;
-        var p = new BlockPos(0, 0, 0, g.K.Job.Dim);
-        for (int x = x0; x <= x1; x++)
-            for (int z = z0; z <= z1; z++)
-                for (int y = y0; y <= y1; y++)
-                {
-                    p.Set(x, y, z);
-                    var b = wa.GetBlock(p);
-                    if (b != null && b.Id != 0 && (b.BlockMaterial == EnumBlockMaterial.Wood || b.BlockMaterial == EnumBlockMaterial.Leaves || b.BlockMaterial == EnumBlockMaterial.Plant))
-                        g.K.Set(x, y, z, 0);
-                }
-    }
+        => FellTrees(g.K.Set, g.K.Job.Dim, x0, z0, x1, z1, y0, y1);
 
     // Cut and fill a rectangle to level y (top block `top`), blended back into
     // the slope over `blend` blocks. Returns false over water.
@@ -359,7 +353,7 @@ public partial class LandmassGeneratorModSystem
     // A building on a stone podium: timber frame (vermilion posts for the
     // temple, dark ones for the rest), white plaster, a plank skirting, a
     // door in the middle of the front (south, +z) and windows, a roof.
-    private void GardensHall(GardensCtx g, int x0, int z0, int x1, int z1, int floorY, int wallH, bool temple, string furnish)
+    private void GardensHall(GardensCtx g, int x0, int z0, int x1, int z1, int floorY, int wallH, bool temple, string furnish, string trader = null)
     {
         var k = g.K;
         int post = temple ? g.Red : g.Post;
@@ -417,6 +411,8 @@ public partial class LandmassGeneratorModSystem
 
         // inside
         int fy = floorY + 1;
+        // a trader keeping shop in the hall, beside the door
+        if (trader != null) g.Traders.Add((x0 + 2, fy, z1 - 2, GardensTraderCode(g, trader)));
         switch (furnish)
         {
             case "hall":
@@ -507,6 +503,8 @@ public partial class LandmassGeneratorModSystem
         for (int i = 0; i < 9; i++) k.Set(x, y + 2 + i, z, i % 3 == 1 ? g.Copper : g.Post);
         g.Taken.Add((x - 7, z - 7, x + 7, z + 7));
         g.Buildings++;
+        // the pagoda's keeper sells the monks' craft on its ground floor
+        g.Traders.Add((x, baseY + 1, z - 1, GardensTraderCode(g, "artisan")));
     }
 
     // ── the terrace ───────────────────────────────────────────────────────
@@ -517,7 +515,7 @@ public partial class LandmassGeneratorModSystem
         // the court: level, paved down the middle, grass round it
         GardensLevel(g, cx - 42, cz - 34, cx + 42, cz + 30, T, 6, g.Grass);
         // the main hall faces south down the approach
-        GardensHall(g, cx - 12, cz - 26, cx + 12, cz - 10, T + 2, 6, true, "hall");
+        GardensHall(g, cx - 12, cz - 26, cx + 12, cz - 10, T + 2, 6, true, "hall", "luxuries");
         GardensPagoda(g, cx + 28, cz - 14, T + 1);
         // the open pavilion opposite the pagoda: four posts and a roof
         {
@@ -533,7 +531,7 @@ public partial class LandmassGeneratorModSystem
             g.Taken.Add((px - 6, pz - 6, px + 6, pz + 6));
         }
         // the monks' quarters behind the hall
-        GardensHall(g, cx - 38, cz - 33, cx - 24, cz - 25, T + 1, 4, false, "quarters");
+        GardensHall(g, cx - 38, cz - 33, cx - 24, cz - 25, T + 1, 4, false, "quarters", "buildmaterials");
         GardensHall(g, cx + 24, cz - 33, cx + 38, cz - 25, T + 1, 4, false, "quarters");
 
         // the paved way from the hall's steps to the head of the stair, toro either side
@@ -575,6 +573,7 @@ public partial class LandmassGeneratorModSystem
         // the koi pond with its red bridge
         {
             int px = cx + 24, pz = cz + 12, r = 7;
+            g.Koi = (px, pz);
             for (int x = px - r - 1; x <= px + r + 1; x++)
                 for (int z = pz - r - 1; z <= pz + r + 1; z++)
                 {
@@ -788,15 +787,12 @@ public partial class LandmassGeneratorModSystem
                 if (k.R() < 0.35) GardensUnderLichen(g, s, a, l.Y - 2);
             }
             if (planted > 0) g.Gardens++;
-            // a window from the stair out onto the ledge
-            int sec = (int)Math.Round(l.A / (Math.PI / 4)) & 7;
-            for (int dd = 3; dd < s.Rb + 3; dd++)
-            {
-                int x = s.X + sx8[sec] * dd, z = s.Z + sz8[sec] * dd;
-                if (!Solid(x, l.Y + 1, z) && !Solid(x, l.Y + 2, z)) break;
-                k.Set(x, l.Y + 1, z, 0); k.Set(x, l.Y + 2, z, 0);
-                k.Set(x, l.Y, z, g.Floor);
-            }
+            // a doorway from the stair out onto the ledge, two wide on a
+            // diagonal, its floor ramping from the nearest step down (or up)
+            // to the ledge's grass
+            int sec = SectorOf(l.A);
+            double step = GardensLevelAt(s, sec, l.Y + 1);
+            if (step > 0) GardensPassage(g, s, sec, step, l.Y + 1, 0.95, 3, false);
         }
         // vines down the sheer faces, thickest from the crown
         for (int i = 0; i < (int)(s.Rb * 4); i++)
@@ -852,35 +848,55 @@ public partial class LandmassGeneratorModSystem
         g.Vines++;
     }
 
-    // A passage from the shaft out through the spire's side along one of the
-    // eight sector directions, its floor surface at `surf` (a whole block, or
-    // a half when it leaves from a half step), three high, three wide.
-    private void GardensPassage(GardensCtx g, GardenSpire s, int sector, double surf)
+    // Rock in the way of a passage: the spire's own, or the island's ground.
+    private static bool GRock(GardensCtx g, int x, int y, int z) => InSpire(g, x, y, z) || y <= GTop(g, x, z);
+
+    // A passage from the shaft out through the spire's side toward one of
+    // the eight sector bearings, `halfWidth` either side of its centre line
+    // (1.5: three wide) and `height` high, its floor surface at `surf` (a
+    // whole block, or a half when it leaves from a half step), ramping to
+    // `surfOut` at its mouth when that is given. It opens every cell near its
+    // centre line, so a diagonal passage is a real corridor: stepping one
+    // cell along x and z at once opened only every other cell before and left
+    // a checkerboard of rock nobody could walk through (Rustfall 0.67). It
+    // runs on until no rock is left in its section, the spire's or the
+    // island's own ground alike, so it always comes out in the open.
+    private void GardensPassage(GardensCtx g, GardenSpire s, int sector, double surf, double surfOut = double.NaN,
+        double halfWidth = 1.5, int height = 3, bool beams = true)
     {
         var k = g.K;
-        int[] sx8 = { 1, 1, 0, -1, -1, -1, 0, 1 }, sz8 = { 0, 1, 1, 1, 0, -1, -1, -1 };
-        bool half = surf % 1 != 0;
-        int fy = half ? (int)Math.Floor(surf) : (int)surf - 1;   // the floor block
-        int dx = sx8[sector], dz = sz8[sector];
-        int px = -dz, pz = dx;   // across
-        for (int d = 3; d < s.Rb + 8; d++)
+        double a = sector * Math.PI / 4, ux = Math.Cos(a), uz = Math.Sin(a);
+        static int Fy(double sf) => sf % 1 != 0 ? (int)Math.Floor(sf) : (int)sf - 1;   // the floor block
+        bool Shaft(int x, int z) => Math.Abs(x - s.X) <= 2 && Math.Abs(z - s.Z) <= 2;
+        IEnumerable<(int X, int Z)> Disk(double t)
         {
-            int x = s.X + dx * d, z = s.Z + dz * d;
-            bool any = false;
-            for (int w = -1; w <= 1; w++)
-                for (int y = fy + 1; y <= fy + 3; y++)
-                {
-                    int ax = x + px * w, az = z + pz * w;
-                    double ddx = ax - s.X, ddz = az - s.Z;
-                    if (Math.Sqrt(ddx * ddx + ddz * ddz) <= SpireR(s, y, Math.Atan2(ddz, ddx))) any = true;
-                }
-            if (!any) break;
-            for (int w = -1; w <= 1; w++)
+            double cx = s.X + ux * t, cz = s.Z + uz * t;
+            int r = (int)Math.Ceiling(halfWidth);
+            for (int x = (int)Math.Round(cx) - r; x <= (int)Math.Round(cx) + r; x++)
+                for (int z = (int)Math.Round(cz) - r; z <= (int)Math.Round(cz) + r; z++)
+                    if ((x - cx) * (x - cx) + (z - cz) * (z - cz) <= halfWidth * halfWidth && !Shaft(x, z)) yield return (x, z);
+        }
+        // how far the rock goes at the floor's height
+        int fy0 = Fy(surf);
+        double reach = s.Rb + (beams ? 40 : 10), tEnd = -1;
+        for (double t = 2.5; t < reach; t += 0.5)
+            if (!Disk(t).Any(c => Enumerable.Range(fy0 + 1, height).Any(y => GRock(g, c.X, y, c.Z)))) { tEnd = t; break; }
+        // a ledge doorway that would only tunnel into the mountain is left out
+        if (tEnd < 0) { if (!beams) return; tEnd = reach; }
+        var done = new HashSet<long>();
+        for (double t = 2.5; t <= tEnd + 0.01; t += 0.5)
+        {
+            double f = double.IsNaN(surfOut) ? 0 : Math.Clamp((t - 2.5) / Math.Max(0.5, tEnd - 2.5), 0, 1);
+            double sf = Math.Round((surf + ((double.IsNaN(surfOut) ? surf : surfOut) - surf) * f) * 2) / 2;
+            int fy = Fy(sf);
+            bool half = sf % 1 != 0;
+            foreach (var (x, z) in Disk(t))
             {
-                int ax = x + px * w, az = z + pz * w;
-                k.Set(ax, fy, az, half ? g.FloorSlab : g.Floor);
-                for (int y = fy + 1; y <= fy + 3; y++) k.Set(ax, y, az, 0);
-                k.Set(ax, fy + 4, az, dx != 0 && dz == 0 ? g.PostWE : g.PostNS);
+                if (!done.Add(GardensCtx.Col(x, z))) continue;
+                k.Set(x, fy, z, half ? g.FloorSlab : g.Floor);
+                for (int y = fy + 1; y <= fy + height; y++) k.Set(x, y, z, 0);
+                // a timber ceiling where the passage runs under rock
+                if (beams && GRock(g, x, fy + height + 1, z)) k.Set(x, fy + height + 1, z, Math.Abs(ux) >= Math.Abs(uz) ? g.PostWE : g.PostNS);
             }
         }
     }
@@ -995,18 +1011,24 @@ public partial class LandmassGeneratorModSystem
         if (len < 6 || len > 150 || Math.Abs(yb - ya) * 2 > len) return;
         double ux = dxs / len, uz = dzs / len, px = -uz, pz = ux;
         double sag = Math.Min(3, len * 0.035);
-        int steps = (int)Math.Ceiling(len);
-        // first, is the way clear?
-        var cells = new List<(int X, int Z, double Q, int W)>();
+        // Every cell the deck covers, sampled every half block along and
+        // across: stepping a whole block left a diagonal deck full of holes
+        // (0.67). A cell is rail when it is only ever reached at the edge.
+        int steps = (int)Math.Ceiling(len * 2);
+        var at = new Dictionary<long, int>();
+        var cells = new List<(int X, int Z, double Q, double W)>();
         for (int i = 0; i <= steps; i++)
         {
             double t = i / (double)steps;
             double cxp = fa.X + dxs * t, czp = fa.Z + dzs * t;
             double surf = ya + (yb - ya) * t - sag * Math.Sin(Math.PI * t);
             double q = Math.Round(surf * 2) / 2;
-            for (int w = -2; w <= 2; w++)
+            for (double w = -2; w <= 2.001; w += 0.5)
             {
                 int x = (int)Math.Round(cxp + px * w), z = (int)Math.Round(czp + pz * w);
+                long key = GardensCtx.Col(x, z);
+                if (at.TryGetValue(key, out int ci)) { if (Math.Abs(w) < Math.Abs(cells[ci].W)) cells[ci] = (x, z, cells[ci].Q, w); continue; }
+                at[key] = cells.Count;
                 cells.Add((x, z, q, w));
             }
         }
@@ -1033,7 +1055,7 @@ public partial class LandmassGeneratorModSystem
         {
             bool half = c.Q % 1 != 0;
             int yd = half ? (int)Math.Floor(c.Q) : (int)c.Q - 1;
-            if (Math.Abs(c.W) == 2)
+            if (Math.Abs(c.W) >= 1.75)
             {
                 int ys = (int)Math.Floor(c.Q - 0.01);
                 k.Set(c.X, ys, c.Z, g.Deck);
@@ -1076,6 +1098,7 @@ public partial class LandmassGeneratorModSystem
             if (surf <= gy + 1.01) break;
         }
         int footZ = rows[rows.Count - 1].Z;
+        g.StairFoot = (cx, footZ);
         GardensClearTrees(g, cx - 6, z0 - 2, cx + 6, footZ + 3, g.Sea, y0 + 20);
         foreach (var (z, surf) in rows)
         {
@@ -1107,15 +1130,28 @@ public partial class LandmassGeneratorModSystem
     }
 
     // ── the markets ───────────────────────────────────────────────────────
+    // Four markets in the lowland, three stalls each and a trader in every
+    // stall: the market's own trade twice and a neighbour trade once.
+    // Michael asked for 16 or more traders on the island (0.68.0): these 12
+    // and six more at spots of their own (GardensTraderSpots).
+    private static readonly (string Trade, double Bearing, string[] Traders)[] GardensMarketList =
+    {
+        ("furniture", 2.35, new[] { "furniture", "furniture", "buildmaterials" }),
+        ("clothing", 1.15, new[] { "clothing", "clothing", "luxuries" }),
+        ("agriculture", 0.2, new[] { "agriculture", "agriculture", "commodities" }),
+        ("survival", 3.3, new[] { "survivalgoods", "survivalgoods", "artisan" }),
+    };
+
     private void GardensMarkets(GardensCtx g)
     {
         var k = g.K;
-        var trades = new[] { ("furniture", 2.35), ("clothing", 1.15), ("agriculture", 0.2) };
-        foreach (var (trade, bearing) in trades)
+        foreach (var (trade, bearing, traders) in GardensMarketList)
         {
-            for (int t = 0; t < 80; t++)
+            // near its bearing first, then anywhere round the lowland
+            for (int t = 0; t < 160; t++)
             {
-                double a = bearing + (k.R() - 0.5) * 0.7;
+                double a = t < 80 ? bearing + (k.R() - 0.5) * 0.7 : k.R() * Math.PI * 2;
+                if (t >= 80 && AngDist(a, Math.PI / 2) < 0.3) continue;   // not across the approach
                 double d = 105 + k.R() * 60;
                 int x = g.Cx + (int)Math.Round(Math.Cos(a) * d), z = g.Cz + (int)Math.Round(Math.Sin(a) * d);
                 int x0 = x - 10, z0 = z - 9, x1 = x + 10, z1 = z + 9;
@@ -1127,13 +1163,15 @@ public partial class LandmassGeneratorModSystem
                 if (wet) continue;
                 ys.Sort();
                 if (ys[ys.Count - 1] - ys[0] > 7) continue;
-                GardensMarket(g, trade, x0, z0, x1, z1, ys[ys.Count / 2]);
+                GardensMarket(g, trade, traders, x0, z0, x1, z1, ys[ys.Count / 2]);
                 break;
             }
         }
     }
 
-    private void GardensMarket(GardensCtx g, string trade, int x0, int z0, int x1, int z1, int y)
+    private static string GardensTraderCode(GardensCtx g, string trade) => $"trader-{(g.K.R() < 0.5 ? "male" : "female")}-{trade}-temperate";
+
+    private void GardensMarket(GardensCtx g, string trade, string[] traders, int x0, int z0, int x1, int z1, int y)
     {
         var k = g.K;
         GardensLevel(g, x0, z0, x1, z1, y, 5, g.Cobble);
@@ -1149,9 +1187,10 @@ public partial class LandmassGeneratorModSystem
         // three stalls along the back, open to the south
         string[] goods = trade switch
         {
-            "furniture" => new[] { "clutter|wardrobe-small", "clutter|shelf2x1-plain", "clutter|table2x1-plain", "clutter|chair-back", "clutter|bed/bed-straw-single1", "clutter|shelf1x1-plain", "clutter|table1x1-cloth" },
-            "clothing" => new[] { "clutter|coatrack-full1", "clutter|coatrack-full2", "clutter|coatrack-full3", "clutter|shelf-clothing1", "clutter|shelf-clothing2", "clutter|shelf-shoes1", "clutter|clothing1", "clutter|clothing2", "clutter|pile-cloth2", "clutter|pile-sewingkit" },
-            _ => new[] { "clutter|sacks1", "clutter|sacks2", "clutter|sacks3", "clutter|jars1", "clutter|jars2", "clutter|dryingrack2", "clutter|dryingrack4", "clutter|crate/crate-large-pottery", "clutter|pottery/container3" },
+            "furniture" => new[] { "clutter|furniture1", "clutter|furniture2", "clutter|furniture3", "clutter|wardrobe-small", "clutter|shelf2x1-plain", "clutter|table2x1-plain", "clutter|chair-back", "clutter|bed/bed-straw-single1", "clutter|shelf1x1-plain", "clutter|table1x1-cloth" },
+            "clothing" => new[] { "clutter|coatrack-full1", "clutter|coatrack-full2", "clutter|coatrack-full3", "clutter|shelf-clothing1", "clutter|shelf-clothing2", "clutter|shelf-shoes1", "clutter|clothing1", "clutter|clothing2", "clutter|pile-cloth2", "clutter|pile-sewingkit", "clutter|clothing3", "clutter|clothing4" },
+            "survival" => new[] { "clutter|pile-tools1", "clutter|pile-tools2", "clutter|pile-tools3", "clutter|shelf-tools", "clutter|ropecoil1", "clutter|ropecoil2", "clutter|crate/large-tools1", "clutter|barrel-big", "clutter|sacks2", "clutter|lantern/ground1", "clutter|survival1", "clutter|survival2", "clutter|survival3", "clutter|survival4" },
+            _ => new[] { "clutter|agriculture1", "clutter|agriculture2", "clutter|agriculture3", "clutter|sacks1", "clutter|sacks2", "clutter|sacks3", "clutter|jars1", "clutter|jars2", "clutter|dryingrack2", "clutter|dryingrack4", "clutter|crate/crate-large-pottery", "clutter|pottery/container3" },
         };
         string awning = trade switch { "furniture" => "clutter|overhang2x1-angled-woodplain", "clothing" => "clutter|overhang2x1-angled-clothfancy", _ => "clutter|overhang2x1-angled-clothplain" };
         for (int i = 0; i < 3; i++)
@@ -1159,25 +1198,29 @@ public partial class LandmassGeneratorModSystem
             int sx0 = x0 + 1 + i * 7, sz0 = z0 + 1, sx1 = sx0 + 5, sz1 = sz0 + 4;
             foreach (var (px, pz) in new[] { (sx0, sz0), (sx1, sz0), (sx0, sz1), (sx1, sz1) })
                 for (int yy = y + 1; yy <= y + 4; yy++) k.Set(px, yy, pz, g.Post);
-            // back wall of planks, a counter along the front
+            // planks at the back and both sides, a counter along the front: the
+            // trader stays in, and trades over it. The counter is bare in front
+            // of the trader: goods there hid him and blocked reaching him.
+            int tx = sx0 + 2 + (i == 1 ? 1 : 0), tz = sz0 + 2;
             for (int x = sx0 + 1; x < sx1; x++)
             {
                 for (int yy = y + 1; yy <= y + 3; yy++) k.Set(x, yy, sz0, g.DarkPlank);
                 k.Set(x, y + 1, sz1 - 1, g.Floor);
-                k.Clutter(x, y + 2, sz1 - 1, goods[k.RI(0, goods.Length - 1)], Math.PI);
+                if (x != tx) k.Clutter(x, y + 2, sz1 - 1, goods[k.RI(0, goods.Length - 1)], Math.PI);
             }
+            for (int z = sz0 + 1; z <= sz1 - 1; z++)
+                foreach (int x in new[] { sx0, sx1 })
+                    for (int yy = y + 1; yy <= y + 3; yy++) k.Set(x, yy, z, yy == y + 3 ? g.PostNS : g.DarkPlank);
+            // goods along the back wall; the trader's own floor stays clear
             for (int x = sx0 + 1; x < sx1; x++)
-                for (int z = sz0 + 1; z < sz1 - 1; z++)
-                    if (k.R() < 0.35) k.Clutter(x, y + 1, z, goods[k.RI(0, goods.Length - 1)], k.RI(0, 3) * Math.PI / 2);
+                if (Math.Abs(x - tx) > 0 && k.R() < 0.6) k.Clutter(x, y + 1, sz0 + 1, goods[k.RI(0, goods.Length - 1)], 0);
             GardensRoof(g, sx0 - 1, sz0 - 1, sx1 + 1, sz1 + 1, y + 5, trade != "furniture");
             k.Clutter(sx0 + 1, y + 4, sz1 + 1, awning, Math.PI);
             k.Clutter(sx1 - 2, y + 4, sz1 + 1, awning, Math.PI);
             GardensLantern(g, (sx0 + sx1) / 2, y + 4, sz1);
             g.Stalls++;
+            g.Traders.Add((tx, y + 1, tz, GardensTraderCode(g, traders[i])));
         }
-        // the trader keeps the middle stall
-        string code = $"trader-{(k.R() < 0.5 ? "male" : "female")}-{trade}-temperate";
-        g.Traders.Add((x0 + 1 + 7 + 3, y + 1, z0 + 3, code));
         // goods out on the square too
         for (int i = 0; i < 10; i++)
         {
@@ -1188,29 +1231,146 @@ public partial class LandmassGeneratorModSystem
         }
         k.Clutter(x0 + 2, y + 1, z1 - 1, "clutter|chair-long", 0);
         k.Clutter(x1 - 2, y + 1, z1 - 1, "clutter|chair-long", 0);
-        // the agriculture trader's plot beside the square
+        // the agriculture traders' fields beside the square: level beds of
+        // moist farmland, three wide, between channels of fresh water at the
+        // beds' own level (farmland only counts water on its own level, up to
+        // three blocks off), a stone kerb holding the water in. Gravel rows
+        // between the crops (0.67) left them dry.
         if (trade == "agriculture")
         {
-            int farm = k.IdF("farmland-moist-compost", "farmland-dry-compost", "farmland-dry-medium");
-            string[] crops = { "crop-cabbage-6", "crop-carrot-7", "crop-onion-6", "crop-rice-9", "crop-turnip-5", "crop-soybean-9", "crop-flax-8" };
-            int fx0 = x1 + 3, fz0 = z0;
-            if (farm != 0 && g.Free(fx0, fz0, fx0 + 10, fz0 + 12))
+            int farm = k.IdF("farmland-moist-compost", "farmland-moist-high", "farmland-moist-medium");
+            string[] crops = { "crop-rice-9", "crop-onion-6", "crop-cabbage-6", "crop-carrot-7", "crop-turnip-5", "crop-soybean-9", "crop-flax-8" };
+            int fz0 = z0, fz1 = fz0 + 14;
+            // east of the square if the ground allows, else west of it
+            foreach (int fx0 in new[] { x1 + 4, x0 - 20 })
             {
-                for (int x = fx0; x <= fx0 + 10; x++)
-                    for (int z = fz0; z <= fz0 + 12; z++)
+                int fx1 = fx0 + 16;
+                bool ok = farm != 0 && g.Water != 0 && g.Free(fx0 - 1, fz0 - 1, fx1 + 1, fz1 + 1);
+                for (int x = fx0 - 1; ok && x <= fx1 + 1; x += 2)
+                    for (int z = fz0 - 1; ok && z <= fz1 + 1; z += 2)
                     {
                         int gy = GTop(g, x, z);
-                        if (gy < k.Sea + 1 || Math.Abs(gy - y) > 3) continue;
-                        if ((x - fx0) % 4 == 3) { k.Set(x, gy, z, g.Gravel); continue; }
-                        k.Set(x, gy, z, farm);
-                        int crop = k.Id(crops[((x - fx0) / 4 + (z - fz0) / 4) % crops.Length]);
-                        if (crop != 0) k.Set(x, gy + 1, z, crop); else k.Need(crops[0]);
+                        if (gy < k.Sea + 2 || Math.Abs(gy - y) > 6 || GWet(g, x, z) || InSpire(g, x, gy + 2, z)) ok = false;
                     }
-                g.Taken.Add((fx0, fz0, fx0 + 10, fz0 + 12));
+                if (!ok) continue;
+                GardensLevel(g, fx0 - 1, fz0 - 1, fx1 + 1, fz1 + 1, y, 4, g.Grass);
+                int bed = 0;
+                for (int x = fx0 - 1; x <= fx1 + 1; x++)
+                {
+                    bool rim = x == fx0 - 1 || x == fx1 + 1;
+                    bool channel = !rim && (x - fx0) % 4 == 3;
+                    if (!rim && !channel && (x - fx0) % 4 == 0) bed++;
+                    for (int z = fz0 - 1; z <= fz1 + 1; z++)
+                    {
+                        bool end = z == fz0 - 1 || z == fz1 + 1;
+                        if (rim || end) { k.Set(x, y, z, k.R() < 0.3 ? g.MossCobble : g.Cobble); continue; }
+                        if (channel) { k.Set(x, y - 1, z, g.Dirt); k.SetFluid(x, y, z, g.Water); continue; }
+                        k.Set(x, y, z, farm);
+                        int crop = k.Id(crops[(bed - 1 + (z - fz0) / 5) % crops.Length]);
+                        if (crop != 0) k.Set(x, y + 1, z, crop); else k.Need(crops[0]);
+                    }
+                }
+                g.Taken.Add((fx0 - 1, fz0 - 1, fx1 + 1, fz1 + 1));
+                g.Fields++;
+                break;
             }
         }
         g.Taken.Add((x0 - 2, z0 - 2, x1 + 2, z1 + 2));
         g.Doors.Add((x0 + 10, z1 + 2));
+    }
+
+    // ── trader booths ─────────────────────────────────────────────────────
+    // Three of the six traders who keep a spot of their own stand in a booth:
+    // one at the root of the pier, one by the torii at the foot of the
+    // approach, one at the koi pond. (The other three keep shop in the main
+    // hall, the west quarters and the pagoda.)
+    private void GardensBooths(GardensCtx g)
+    {
+        if (g.Pier.X != int.MinValue)
+            GardensBoothNear(g, g.Pier.X - 8, g.Pier.Z - 10, 3, "commodities", 14);
+        if (g.StairFoot.Z != 0)
+            GardensBoothNear(g, g.StairFoot.X + 11, g.StairFoot.Z + 1, 1, "treasurehunter", 14);
+        if (g.Koi.Z != 0)
+            GardensBoothNear(g, g.Koi.X, g.Koi.Z + 13, 2, "agriculture", 8);
+    }
+
+    // A booth near (x, z): the nearest spot within `search` that is free,
+    // dry and nearly level. `face` is where its counter looks: 0 south (+z),
+    // 1 west, 2 north, 3 east.
+    private void GardensBoothNear(GardensCtx g, int x, int z, int face, string trade, int search)
+    {
+        var k = g.K;
+        for (int r = 0; r <= search; r += 2)
+            for (int dx = -r; dx <= r; dx += 2)
+                for (int dz = -r; dz <= r; dz += 2)
+                {
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dz)) != r) continue;
+                    int bx = x + dx, bz = z + dz;
+                    if (!g.Free(bx - 4, bz - 4, bx + 4, bz + 4)) continue;
+                    var ys = new List<int>();
+                    bool bad = false;
+                    for (int u = -4; u <= 4 && !bad; u++)
+                        for (int v = -4; v <= 4 && !bad; v++)
+                        {
+                            int gy = GTop(g, bx + u, bz + v);
+                            if (gy < k.Sea + 1 || GWet(g, bx + u, bz + v) || InSpire(g, bx + u, gy + 1, bz + v)) bad = true;
+                            ys.Add(gy);
+                        }
+                    if (bad) continue;
+                    ys.Sort();
+                    if (ys[ys.Count - 1] - ys[0] > 4) continue;
+                    GardensBooth(g, bx, bz, ys[ys.Count / 2], face, trade);
+                    return;
+                }
+        sapi.Logger.Warning("[landmassgenerator] gardens: no room for the {0} booth near HUD {1}, {2}", trade,
+            x - sapi.WorldManager.MapSizeX / 2, z - sapi.WorldManager.MapSizeZ / 2);
+    }
+
+    // The booth: planks at the back and sides, a counter across the front with
+    // the goods on it, a red-posted roof, a lantern; the trader inside.
+    private void GardensBooth(GardensCtx g, int x, int z, int y, int face, string trade)
+    {
+        var k = g.K;
+        int fx = face == 1 ? -1 : face == 3 ? 1 : 0, fz = face == 0 ? 1 : face == 2 ? -1 : 0;
+        int rx = -fz, rz = fx;   // along the front
+        (int X, int Z) W(int u, int v) => (x + rx * u + fx * v, z + rz * u + fz * v);
+        GardensLevel(g, x - 4, z - 4, x + 4, z + 4, y, 3, g.Polished);
+        string[] goods = trade switch
+        {
+            "commodities" => new[] { "clutter|commodities1", "clutter|commodities2", "clutter|commodities3", "clutter|sacks1", "clutter|barrel-big", "clutter|crate/crate-large-pottery" },
+            "treasurehunter" => new[] { "clutter|treasurehunter1", "clutter|treasurehunter2", "clutter|treasurehunter3", "clutter|pile-navigation", "clutter|ropecoil1" },
+            _ => new[] { "clutter|agriculture1", "clutter|agriculture2", "clutter|agriculture4", "clutter|jars1", "clutter|sacks3" },
+        };
+        for (int u = -2; u <= 2; u++)
+            for (int v = -1; v <= 3; v++)
+            {
+                var (wx, wz) = W(u, v);
+                for (int yy = y + 1; yy <= y + 4; yy++) k.Set(wx, yy, wz, 0);
+                bool post = (u == -2 || u == 2) && (v == -1 || v == 3);
+                if (post) { for (int yy = y + 1; yy <= y + 3; yy++) k.Set(wx, yy, wz, g.Red); continue; }
+                if (v == -1 || ((u == -2 || u == 2) && v <= 1))
+                {
+                    for (int yy = y + 1; yy <= y + 2; yy++) k.Set(wx, yy, wz, g.DarkPlank);
+                    k.Set(wx, y + 3, wz, fx != 0 ? g.PostNS : g.PostWE);
+                    continue;
+                }
+                if (v == 1 && Math.Abs(u) <= 1)
+                {
+                    k.Set(wx, y + 1, wz, g.Floor);
+                    if (u != 0) k.Clutter(wx, y + 2, wz, goods[k.RI(0, goods.Length - 1)], face * Math.PI / 2);   // bare in front of the trader
+                }
+            }
+        var (a, b) = W(-3, -2);
+        var (c, d) = W(3, 4);
+        GardensRoof(g, Math.Min(a, c), Math.Min(b, d), Math.Max(a, c), Math.Max(b, d), y + 4, true);
+        var (lx, lz) = W(0, 2);
+        GardensLantern(g, lx, y + 3, lz);
+        var (tx, tz) = W(0, 0);
+        g.Traders.Add((tx, y + 1, tz, GardensTraderCode(g, trade)));
+        var (q0, q1) = W(-4, -3);
+        var (q2, q3) = W(4, 5);
+        g.Taken.Add((Math.Min(q0, q2), Math.Min(q1, q3), Math.Max(q0, q2), Math.Max(q1, q3)));
+        g.Booths++;
     }
 
     // ── the landing ───────────────────────────────────────────────────────
@@ -1223,6 +1383,7 @@ public partial class LandmassGeneratorModSystem
         while (z < g.Cz + g.R + 120 && k.Ground(x, z) >= k.Sea) z++;
         if (z >= g.Cz + g.R + 120) return;
         int shore = z;
+        g.Pier = (x, shore);
         GardensClearTrees(g, x - 3, shore - 8, x + 3, shore + 28, k.Sea - 2, k.Sea + 12);
         for (int zz = shore - 6; zz <= shore + 24; zz++)
             for (int xx = x - 2; xx <= x + 2; xx++)
@@ -1333,7 +1494,7 @@ public partial class LandmassGeneratorModSystem
         int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
         foreach (var s in g.Spires)
             sapi.Logger.Notification("[landmassgenerator] gardens spire at HUD {0}, {1}: foot {2}, top {3}, door {4}", s.X - mx, s.Z - mz, s.Base, s.Top, s.F);
-        sapi.Logger.Notification("[landmassgenerator] hanging gardens temple at HUD {0}, {1} (terrace {2}): {3} spires, {4} hanging gardens, {5} bridges, {6} buildings, {7} market stalls, {8} traders, {9} trees, {10} bamboo groves, {11} vines, {12} lanterns",
-            g.Cx - mx, g.Cz - mz, g.T0, g.Spires.Count, g.Gardens, g.Bridges, g.Buildings, g.Stalls, traders, trees, g.Groves, g.Vines, g.Lanterns);
+        sapi.Logger.Notification("[landmassgenerator] hanging gardens temple at HUD {0}, {1} (terrace {2}): {3} spires, {4} hanging gardens, {5} bridges, {6} buildings, {7} market stalls, {8} booths, {9} fields, {10} of {11} traders, {12} trees, {13} bamboo groves, {14} vines, {15} lanterns",
+            g.Cx - mx, g.Cz - mz, g.T0, g.Spires.Count, g.Gardens, g.Bridges, g.Buildings, g.Stalls, g.Booths, g.Fields, traders, g.Traders.Count, trees, g.Groves, g.Vines, g.Lanterns);
     }
 }

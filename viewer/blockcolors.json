@@ -20,6 +20,11 @@
 200,
 194
 ],
+"game:agedstonebricks-chert": [
+121,
+92,
+73
+],
 "game:agedstonebricks-claystone": [
 157,
 129,
@@ -34,6 +39,11 @@
 154,
 148,
 135
+],
+"game:agedstonebricks-limestone": [
+200,
+188,
+159
 ],
 "game:agedstonebricks-peridotite": [
 126,
@@ -55,6 +65,46 @@
 64,
 58
 ],
+"game:agedwallpaperplanks-blue-east": [
+7,
+45,
+153
+],
+"game:agedwallpaperplanks-blue-north": [
+7,
+45,
+153
+],
+"game:agedwallpaperplanks-blue-south": [
+7,
+45,
+153
+],
+"game:agedwallpaperplanks-blue-west": [
+7,
+45,
+153
+],
+"game:agedwallpaperplanks-green-east": [
+37,
+153,
+7
+],
+"game:agedwallpaperplanks-green-north": [
+37,
+153,
+7
+],
+"game:agedwallpaperplanks-green-south": [
+37,
+153,
+7
+],
+"game:agedwallpaperplanks-green-west": [
+37,
+153,
+7
+],
 "game:altar-east": [
 92,
 80,
@@ -70,10 +120,80 @@
 80,
 78
 ],
+"game:aquatic-kelp-section": [
+84,
+89,
+12
+],
+"game:aquatic-kelp-top": [
+74,
+87,
+4
+],
+"game:aquatic-seagrass-green-section": [
+87,
+132,
+49
+],
+"game:aquaticplant-bladderwrack": [
+46,
+110,
+70
+],
+"game:aquaticplant-irishmoss": [
+46,
+110,
+70
+],
+"game:aquaticplant-sealace": [
+46,
+110,
+70
+],
+"game:bamboo-grown-green-segment1": [
+135,
+150,
+24
+],
+"game:bamboo-grown-green-segment2": [
+135,
+150,
+24
+],
+"game:bamboo-grown-green-segment3": [
+135,
+150,
+24
+],
+"game:bambooleaves-green-grown": [
+37,
+153,
+7
+],
 "game:barrelcactus-normal": [
 114,
 113,
 58
+],
+"game:bed-hay-feet-east": [
+146,
+126,
+83
+],
+"game:bed-hay-feet-south": [
+146,
+126,
+83
+],
+"game:bed-hay-head-east": [
+146,
+126,
+83
+],
+"game:bed-hay-head-south": [
+146,
+126,
+83
 ],
 "game:bed-woodaged-feet-east": [
 119,
@@ -115,55 +235,45 @@
 103,
 82
 ],
+"game:bonyremains-cowskull-up": [
+116,
+116,
+127
+],
+"game:bonyremains-ribcage": [
+171,
+145,
+132
+],
 "game:bonysoil": [
 140,
 128,
 100
+],
+"game:brickcourse-four-running-gray": [
+43,
+43,
+41
 ],
 "game:brickruin-irregular-gray": [
 63,
 60,
 53
 ],
-"game:burnedplanks-narrow-charred-ns": [
-40,
-33,
-30
+"game:brickstairs-four-gray-down-east-free": [
+46,
+45,
+42
 ],
-"game:burnedplanks-narrow-charred-ud": [
-40,
-33,
-30
+"game:brickstairs-four-gray-down-south-free": [
+46,
+45,
+42
 ],
-"game:burnedplanks-narrow-charred-we": [
-40,
-33,
-30
-],
-"game:burnedplanks-narrow-scorched-ud": [
-70,
-52,
-40
-],
-"game:burnedplanks-normal-blackened-ud": [
-30,
-26,
-24
-],
-"game:burnedplanks-normal-charred-ns": [
-44,
-36,
-32
-],
-"game:burnedplanks-normal-charred-ud": [
-44,
-36,
-32
-],
-"game:burnedplanks-normal-charred-we": [
-44,
-36,
-32
+"game:bunchocandles-1": [
+125,
+133,
+114
 ],
 "game:carvedlog-acacia-aged-bottom-fancy-ns": [
 103,
@@ -171,9 +281,9 @@
 60
 ],
 "game:carvedlog-acacia-aged-bottom-fancy-ud": [
-120,
-82,
-50
+103,
+74,
+60
 ],
 "game:carvedlog-acacia-aged-bottom-fancy-we": [
 103,
@@ -185,20 +295,15 @@
 77,
 61
 ],
-"game:carvedlog-acacia-aged-middle-fancy-ud": [
-120,
-82,
-50
-],
 "game:carvedlog-acacia-aged-middle-fancy-we": [
 105,
 77,
 61
 ],
-"game:carvedlog-acacia-aged-top-fancy-ud": [
-120,
-82,
-50
+"game:chair-aged": [
+94,
+85,
+72
 ],
 "game:chandelier-candle0": [
 176,
@@ -210,20 +315,70 @@
 64,
 48
 ],
-"game:claybricks-damaged-fire": [
-110,
-55,
+"game:chiseledblock": [
+104,
+121,
+100
+],
+"game:claybrickchimney-four-gray-we": [
+46,
+45,
 42
 ],
 "game:claybricks-good-fire": [
-150,
-70,
-50
+251,
+151,
+24
+],
+"game:clayoven-east": [
+125,
+137,
+98
 ],
 "game:clayplanter-cthonic": [
 75,
 73,
 71
+],
+"game:clayshingleblock-black": [
+13,
+13,
+13
+],
+"game:clayshingleblock-gray": [
+88,
+81,
+76
+],
+"game:clayshingleblock-red": [
+224,
+35,
+12
+],
+"game:clayshinglelabs-gray-down-free": [
+88,
+81,
+76
+],
+"game:clayshinglelabs-red-down-free": [
+224,
+35,
+12
+],
+"game:clayshinglestairs-gray-down-north-free": [
+88,
+81,
+76
+],
+"game:clayshinglestairs-gray-down-south-free": [
+88,
+81,
+76
+],
+"game:clayshinglestairs-gray-down-west-free": [
+88,
+81,
+76
 ],
 "game:clutter": [
 66,
@@ -234,6 +389,66 @@
 81,
 38,
 23
+],
+"game:clutter-devastation|boilerbody": [
+110,
+82,
+60
+],
+"game:clutter-devastation|boilerdoor": [
+110,
+82,
+60
+],
+"game:clutter-devastation|boilerdoor-aged": [
+110,
+82,
+60
+],
+"game:clutter-devastation|boilerend": [
+110,
+82,
+60
+],
+"game:clutter-devastation|brokengear/big02": [
+98,
+90,
+80
+],
+"game:clutter-devastation|column1-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|column3-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|column6-broke": [
+115,
+100,
+88
+],
+"game:clutter-devastation|gauge1": [
+140,
+110,
+70
+],
+"game:clutter-devastation|gauge2": [
+140,
+110,
+70
+],
+"game:clutter-devastation|gauge3": [
+140,
+110,
+70
+],
+"game:clutter-devastation|gauge4": [
+140,
+110,
+70
 ],
 "game:clutter-devastation|gear12": [
 98,
@@ -325,7 +540,37 @@
 82,
 60
 ],
+"game:clutter-devastation|lever1-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|lever2-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|lever3-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|lever4-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|misc1-aged": [
+115,
+100,
+88
+],
 "game:clutter-devastation|pipelong2": [
+122,
+74,
+52
+],
+"game:clutter-devastation|pipelong3-aged": [
 122,
 74,
 52
@@ -335,10 +580,85 @@
 74,
 52
 ],
+"game:clutter-devastation|pipelong4bent-aged": [
+122,
+74,
+52
+],
+"game:clutter-devastation|sightglass1-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|sightglass2-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|sightglass3-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|switch1-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|switch2-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|switch3-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|switch4-aged": [
+115,
+100,
+88
+],
+"game:clutter-devastation|tank1-aged": [
+110,
+82,
+60
+],
+"game:clutter-devastation|tank1bracket-aged": [
+110,
+82,
+60
+],
+"game:clutter-devastation|tank2-aged": [
+110,
+82,
+60
+],
+"game:clutter-devastation|tower2": [
+115,
+100,
+88
+],
+"game:clutter-devastation|valve1-aged": [
+140,
+110,
+70
+],
 "game:clutter-devastation|valve2-aged": [
 140,
 110,
 70
+],
+"game:clutter-devastation|valve3-aged": [
+140,
+110,
+70
+],
+"game:clutter-devastation|vtankend": [
+110,
+82,
+60
 ],
 "game:clutteredbookshelf": [
 96,
@@ -350,7 +670,82 @@
 130,
 164
 ],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-alchemy01": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-alchemy01front": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-alchemy02front": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-alchemy03front": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-fancy1": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-fancy2": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-fancy3": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-fancy4": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-fancy5": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-full": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-reagents02": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-reagents05": [
+115,
+100,
+88
+],
 "game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-empty1": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-empty2": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-empty3": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-empty4": [
 115,
 100,
 88
@@ -360,10 +755,125 @@
 100,
 88
 ],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-empty6": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full1": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full10": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full12": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full13": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full14": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full15": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full16": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full17": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full2": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full3": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full4": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full5": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full6": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full7": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full8": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-ruined-full9": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-standard1": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-standard3": [
+115,
+100,
+88
+],
+"game:clutteredbookshelf-agedacacia|bookshelves/bookshelf-stuff03": [
+115,
+100,
+88
+],
 "game:clutteredbookshelfwithlore": [
 149,
 160,
 95
+],
+"game:clutteredbookshelfwithlore|bookshelves/bookshelf-ruined-full-lore3": [
+115,
+100,
+88
+],
+"game:clutteredbookshelfwithlore|bookshelves/bookshelf-ruined-full-lore5": [
+115,
+100,
+88
+],
+"game:clutteredbookshelfwithlore|bookshelves/bookshelf-ruined-full-lore6": [
+115,
+100,
+88
 ],
 "game:clutteredbookshelfwithlore|bookshelves/bookshelf-ruined-full-lore7": [
 115,
@@ -485,7 +995,47 @@
 100,
 88
 ],
+"game:clutter|abacus1": [
+115,
+100,
+88
+],
+"game:clutter|abacus2": [
+115,
+100,
+88
+],
 "game:clutter|abacus3": [
+115,
+100,
+88
+],
+"game:clutter|abacus4": [
+115,
+100,
+88
+],
+"game:clutter|agriculture1": [
+115,
+100,
+88
+],
+"game:clutter|agriculture2": [
+115,
+100,
+88
+],
+"game:clutter|agriculture3": [
+115,
+100,
+88
+],
+"game:clutter|agriculture4": [
+115,
+100,
+88
+],
+"game:clutter|alidade": [
 115,
 100,
 88
@@ -505,7 +1055,32 @@
 100,
 88
 ],
+"game:clutter|armillary1": [
+115,
+100,
+88
+],
+"game:clutter|armillary2": [
+115,
+100,
+88
+],
 "game:clutter|armillary3": [
+115,
+100,
+88
+],
+"game:clutter|astrolabe": [
+115,
+100,
+88
+],
+"game:clutter|banner-aged-red-segment": [
+115,
+100,
+88
+],
+"game:clutter|barrel-big": [
 115,
 100,
 88
@@ -526,6 +1101,11 @@
 88
 ],
 "game:clutter|barrel-metal4": [
+115,
+100,
+88
+],
+"game:clutter|barricade6": [
 115,
 100,
 88
@@ -590,6 +1170,16 @@
 100,
 88
 ],
+"game:clutter|bed/bed-metal-ruined3": [
+115,
+100,
+88
+],
+"game:clutter|bed/bed-ruined1": [
+115,
+100,
+88
+],
 "game:clutter|bed/bed-ruined2": [
 115,
 100,
@@ -645,12 +1235,47 @@
 100,
 88
 ],
+"game:clutter|bell-clapper": [
+115,
+100,
+88
+],
+"game:clutter|bell-funnel": [
+115,
+100,
+88
+],
+"game:clutter|bell-head": [
+115,
+100,
+88
+],
 "game:clutter|bell-parts": [
 115,
 100,
 88
 ],
+"game:clutter|bell-spine": [
+115,
+100,
+88
+],
+"game:clutter|block-tackle": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/bookpile-aged1": [
+115,
+100,
+88
+],
 "game:clutter|bookshelves/bookpile-aged2": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/bookpile-aged2-evaporating": [
 115,
 100,
 88
@@ -661,6 +1286,31 @@
 88
 ],
 "game:clutter|bookshelves/bookpile-aged4": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/bookpile-aged5": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/bookpile-aged5-evaporating": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/bookpile1": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/bookpile2": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/bookpile4": [
 115,
 100,
 88
@@ -680,12 +1330,62 @@
 100,
 88
 ],
+"game:clutter|bookshelves/bookstand-verylarge-book-open": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/cartography-book-open": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/large-book-open": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/large-book-pile1": [
+115,
+100,
+88
+],
 "game:clutter|bookshelves/large-book-pile2": [
 115,
 100,
 88
 ],
+"game:clutter|bookshelves/large-book-pile3": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/large-book-standing3": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/large-book-standing5": [
+115,
+100,
+88
+],
 "game:clutter|bookshelves/large-book-standing6": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/lectern-large-book-open": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/lecturn-aged-book-closed": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/lecturn-aged-book-open-tall": [
 115,
 100,
 88
@@ -700,7 +1400,22 @@
 100,
 88
 ],
+"game:clutter|bookshelves/lecturn-ruined": [
+115,
+100,
+88
+],
 "game:clutter|bookshelves/scrollrack-full1": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/scrollrack-full2": [
+115,
+100,
+88
+],
+"game:clutter|bookshelves/scrollrack-full3": [
 115,
 100,
 88
@@ -720,6 +1435,11 @@
 100,
 88
 ],
+"game:clutter|bookshelves/scrollrack-ruined2": [
+115,
+100,
+88
+],
 "game:clutter|bookshelves/scrollrack-ruined3": [
 115,
 100,
@@ -731,6 +1451,11 @@
 88
 ],
 "game:clutter|brazier4": [
+115,
+100,
+88
+],
+"game:clutter|bucket1": [
 115,
 100,
 88
@@ -770,6 +1495,11 @@
 100,
 88
 ],
+"game:clutter|carcass-large": [
+115,
+100,
+88
+],
 "game:clutter|carcass-medium": [
 115,
 100,
@@ -796,6 +1526,11 @@
 90
 ],
 "game:clutter|chains/chain-ceiling-hook": [
+104,
+96,
+90
+],
+"game:clutter|chains/chain-double-ceiling-manacles": [
 104,
 96,
 90
@@ -860,6 +1595,11 @@
 100,
 88
 ],
+"game:clutter|chair-back": [
+115,
+100,
+88
+],
 "game:clutter|chair-long": [
 115,
 100,
@@ -890,6 +1630,31 @@
 100,
 88
 ],
+"game:clutter|chandelier-ruined3": [
+115,
+100,
+88
+],
+"game:clutter|clothing1": [
+115,
+100,
+88
+],
+"game:clutter|clothing2": [
+115,
+100,
+88
+],
+"game:clutter|clothing3": [
+115,
+100,
+88
+],
+"game:clutter|clothing4": [
+115,
+100,
+88
+],
 "game:clutter|coatrack-full1": [
 115,
 100,
@@ -911,6 +1676,11 @@
 88
 ],
 "game:clutter|coatrack-ruined1": [
+115,
+100,
+88
+],
+"game:clutter|coatrack-ruined2": [
 115,
 100,
 88
@@ -940,6 +1710,11 @@
 100,
 88
 ],
+"game:clutter|commodities2": [
+115,
+100,
+88
+],
 "game:clutter|crate/crate-large-cobweb": [
 115,
 100,
@@ -955,6 +1730,11 @@
 100,
 88
 ],
+"game:clutter|crate/crate-large-ore2": [
+115,
+100,
+88
+],
 "game:clutter|crate/crate-large-pottery": [
 115,
 100,
@@ -965,12 +1745,27 @@
 100,
 88
 ],
+"game:clutter|crate/crate-large-ruined1": [
+115,
+100,
+88
+],
 "game:clutter|crate/crate-medium-books": [
 115,
 100,
 88
 ],
+"game:clutter|crate/crate-medium-empty": [
+115,
+100,
+88
+],
 "game:clutter|crate/crate-medium-junk": [
+115,
+100,
+88
+],
+"game:clutter|crate/crate-medium-pottery": [
 115,
 100,
 88
@@ -1020,7 +1815,52 @@
 100,
 88
 ],
+"game:clutter|crate/large-tools1": [
+115,
+100,
+88
+],
+"game:clutter|diptych-dial": [
+115,
+100,
+88
+],
+"game:clutter|drafting-table-stuff": [
+115,
+100,
+88
+],
 "game:clutter|dryingrack1": [
+115,
+100,
+88
+],
+"game:clutter|dryingrack2": [
+115,
+100,
+88
+],
+"game:clutter|dryingrack4": [
+115,
+100,
+88
+],
+"game:clutter|equi-dial": [
+115,
+100,
+88
+],
+"game:clutter|fancy-bed-green": [
+115,
+100,
+88
+],
+"game:clutter|fancy-bed-green-drapes-closed": [
+115,
+100,
+88
+],
+"game:clutter|fancy-bed-green-drapes-opened": [
 115,
 100,
 88
@@ -1100,12 +1940,107 @@
 100,
 88
 ],
+"game:clutter|furniture1": [
+115,
+100,
+88
+],
+"game:clutter|furniture2": [
+115,
+100,
+88
+],
+"game:clutter|furniture3": [
+115,
+100,
+88
+],
+"game:clutter|globe1": [
+115,
+100,
+88
+],
+"game:clutter|globe2": [
+115,
+100,
+88
+],
+"game:clutter|globe3": [
+115,
+100,
+88
+],
 "game:clutter|globe4": [
 115,
 100,
 88
 ],
+"game:clutter|globe5": [
+115,
+100,
+88
+],
+"game:clutter|golem-hand2": [
+115,
+100,
+88
+],
+"game:clutter|golem-head": [
+115,
+100,
+88
+],
+"game:clutter|golem-skull": [
+115,
+100,
+88
+],
+"game:clutter|gravestone-5": [
+115,
+100,
+88
+],
 "game:clutter|grinding-stone": [
+115,
+100,
+88
+],
+"game:clutter|hazmat-rack-empty": [
+115,
+100,
+88
+],
+"game:clutter|hazmat-rack-ruined3": [
+115,
+100,
+88
+],
+"game:clutter|hazmat-rack-ruined4": [
+115,
+100,
+88
+],
+"game:clutter|hazmat-rack-ruined5": [
+115,
+100,
+88
+],
+"game:clutter|hazmat-ruined2": [
+115,
+100,
+88
+],
+"game:clutter|inactivelocustnest": [
+115,
+100,
+88
+],
+"game:clutter|jars1": [
+115,
+100,
+88
+],
+"game:clutter|jonas-lamp/floor6": [
 115,
 100,
 88
@@ -1140,6 +2075,11 @@
 100,
 88
 ],
+"game:clutter|lantern/ground2": [
+115,
+100,
+88
+],
 "game:clutter|lantern/ground3": [
 115,
 100,
@@ -1160,12 +2100,32 @@
 100,
 88
 ],
+"game:clutter|lecturn-empty": [
+115,
+100,
+88
+],
 "game:clutter|lecturn-ruined": [
 115,
 100,
 88
 ],
+"game:clutter|locust-body": [
+115,
+100,
+88
+],
 "game:clutter|locust-full": [
+115,
+100,
+88
+],
+"game:clutter|locust-lamp": [
+115,
+100,
+88
+],
+"game:clutter|locust-limbs2": [
 115,
 100,
 88
@@ -1185,7 +2145,52 @@
 90,
 80
 ],
+"game:clutter|machine2-evaporating": [
+98,
+90,
+80
+],
+"game:clutter|machine4": [
+98,
+90,
+80
+],
+"game:clutter|machine5": [
+98,
+90,
+80
+],
+"game:clutter|machine6": [
+98,
+90,
+80
+],
+"game:clutter|machine7": [
+98,
+90,
+80
+],
 "game:clutter|machine8": [
+98,
+90,
+80
+],
+"game:clutter|mech-helper": [
+98,
+90,
+80
+],
+"game:clutter|mech-part1": [
+98,
+90,
+80
+],
+"game:clutter|mech-part2": [
+98,
+90,
+80
+],
+"game:clutter|mech-part3": [
 98,
 90,
 80
@@ -1200,6 +2205,16 @@
 90,
 80
 ],
+"game:clutter|mechanics-ruined2": [
+98,
+90,
+80
+],
+"game:clutter|mechanics-ruined3": [
+98,
+90,
+80
+],
 "game:clutter|mechanics-ruined4": [
 98,
 90,
@@ -1209,6 +2224,36 @@
 98,
 90,
 80
+],
+"game:clutter|mortar-stone": [
+115,
+100,
+88
+],
+"game:clutter|music-box1": [
+115,
+100,
+88
+],
+"game:clutter|overhang2x1-angled-clothfancy": [
+115,
+100,
+88
+],
+"game:clutter|overhang2x1-angled-clothplain": [
+115,
+100,
+88
+],
+"game:clutter|overhang2x1-angled-woodplain": [
+115,
+100,
+88
+],
+"game:clutter|pile-bones1": [
+115,
+100,
+88
 ],
 "game:clutter|pile-bones2": [
 115,
@@ -1236,6 +2281,11 @@
 88
 ],
 "game:clutter|pile-cloth5": [
+115,
+100,
+88
+],
+"game:clutter|pile-drafting-instrument": [
 115,
 100,
 88
@@ -1275,7 +2325,22 @@
 100,
 88
 ],
+"game:clutter|pile-pottery5": [
+115,
+100,
+88
+],
+"game:clutter|pile-pottery7": [
+115,
+100,
+88
+],
 "game:clutter|pile-precisiontools": [
+115,
+100,
+88
+],
+"game:clutter|pile-sewingkit": [
 115,
 100,
 88
@@ -1290,7 +2355,22 @@
 100,
 88
 ],
+"game:clutter|pile-tools3": [
+115,
+100,
+88
+],
 "game:clutter|pile-tools4": [
+115,
+100,
+88
+],
+"game:clutter|pile-trash-oldore": [
+115,
+100,
+88
+],
+"game:clutter|pile-trash-scrap": [
 115,
 100,
 88
@@ -1305,7 +2385,17 @@
 100,
 88
 ],
+"game:clutter|pile-weapon3": [
+115,
+100,
+88
+],
 "game:clutter|pile-weapon4": [
+115,
+100,
+88
+],
+"game:clutter|pile-weapon5": [
 115,
 100,
 88
@@ -1325,6 +2415,36 @@
 100,
 88
 ],
+"game:clutter|pile-woodworkingtools": [
+115,
+100,
+88
+],
+"game:clutter|pile-writing": [
+115,
+100,
+88
+],
+"game:clutter|pillory1": [
+115,
+100,
+88
+],
+"game:clutter|pillory3": [
+115,
+100,
+88
+],
+"game:clutter|pipe-veryrusted-h-EW": [
+122,
+74,
+52
+],
+"game:clutter|pipe-veryrusted-h-NSW": [
+122,
+74,
+52
+],
 "game:clutter|pipe-veryrusted-h-SW_45d": [
 122,
 74,
@@ -1335,7 +2455,17 @@
 74,
 52
 ],
+"game:clutter|pipe-veryrusted-v-NSW": [
+122,
+74,
+52
+],
 "game:clutter|pipe-veryrusted-v-W": [
+122,
+74,
+52
+],
+"game:clutter|pipe-veryrusted-v-empty": [
 122,
 74,
 52
@@ -1355,6 +2485,76 @@
 74,
 52
 ],
+"game:clutter|pottery/art25": [
+115,
+100,
+88
+],
+"game:clutter|pottery/art8": [
+115,
+100,
+88
+],
+"game:clutter|pottery/container2": [
+115,
+100,
+88
+],
+"game:clutter|pottery/container3": [
+115,
+100,
+88
+],
+"game:clutter|pottery/container4": [
+115,
+100,
+88
+],
+"game:clutter|pottery/pot-food": [
+115,
+100,
+88
+],
+"game:clutter|pottery/utensils1": [
+115,
+100,
+88
+],
+"game:clutter|pottery/utensils2": [
+115,
+100,
+88
+],
+"game:clutter|pottery/utensils3": [
+115,
+100,
+88
+],
+"game:clutter|pottery/utensils4": [
+115,
+100,
+88
+],
+"game:clutter|pottery/utensils6": [
+115,
+100,
+88
+],
+"game:clutter|pottery/utensils7": [
+115,
+100,
+88
+],
+"game:clutter|pulley": [
+115,
+100,
+88
+],
+"game:clutter|ropecoil1": [
+115,
+100,
+88
+],
 "game:clutter|rubble-cracked1": [
 115,
 100,
@@ -1365,7 +2565,32 @@
 100,
 88
 ],
+"game:clutter|rubble-cracked3": [
+115,
+100,
+88
+],
 "game:clutter|rubble-cracked4": [
+115,
+100,
+88
+],
+"game:clutter|rubble-stone1": [
+115,
+100,
+88
+],
+"game:clutter|rubble-stone2": [
+115,
+100,
+88
+],
+"game:clutter|rubble-stone3": [
+115,
+100,
+88
+],
+"game:clutter|rubble-stone4": [
 115,
 100,
 88
@@ -1386,6 +2611,31 @@
 88
 ],
 "game:clutter|rubble-wood4": [
+115,
+100,
+88
+],
+"game:clutter|sacks1": [
+115,
+100,
+88
+],
+"game:clutter|sacks2": [
+115,
+100,
+88
+],
+"game:clutter|sacks3": [
+115,
+100,
+88
+],
+"game:clutter|shelf-clothing1": [
+115,
+100,
+88
+],
+"game:clutter|shelf-clothing2": [
 115,
 100,
 88
@@ -1430,12 +2680,27 @@
 100,
 88
 ],
+"game:clutter|shelf-shoes1": [
+115,
+100,
+88
+],
 "game:clutter|shelf-tools": [
 115,
 100,
 88
 ],
 "game:clutter|shelf-woodworkingtools": [
+115,
+100,
+88
+],
+"game:clutter|shelf1x1-plain": [
+115,
+100,
+88
+],
+"game:clutter|shelf2x1-plain": [
 115,
 100,
 88
@@ -1460,7 +2725,42 @@
 100,
 88
 ],
+"game:clutter|skeleton-special": [
+115,
+100,
+88
+],
+"game:clutter|statue01": [
+115,
+100,
+88
+],
 "game:clutter|stove-ruined": [
+115,
+100,
+88
+],
+"game:clutter|survival1": [
+115,
+100,
+88
+],
+"game:clutter|survival2": [
+115,
+100,
+88
+],
+"game:clutter|survival3": [
+115,
+100,
+88
+],
+"game:clutter|survival4": [
+115,
+100,
+88
+],
+"game:clutter|swageblock1": [
 115,
 100,
 88
@@ -1476,6 +2776,31 @@
 88
 ],
 "game:clutter|table-long-with-accessories": [
+115,
+100,
+88
+],
+"game:clutter|table-long-with-cloth-blue": [
+115,
+100,
+88
+],
+"game:clutter|table-long-with-cloth-purple": [
+115,
+100,
+88
+],
+"game:clutter|table-long-with-cloth-red": [
+115,
+100,
+88
+],
+"game:clutter|table-noble-double": [
+115,
+100,
+88
+],
+"game:clutter|table-noble-single": [
 115,
 100,
 88
@@ -1510,7 +2835,52 @@
 100,
 88
 ],
+"game:clutter|table-tavern-double": [
+115,
+100,
+88
+],
+"game:clutter|table1x1-cloth": [
+115,
+100,
+88
+],
+"game:clutter|table1x1-plain": [
+115,
+100,
+88
+],
+"game:clutter|table2x1-plain": [
+115,
+100,
+88
+],
+"game:clutter|tablet-clay1": [
+115,
+100,
+88
+],
+"game:clutter|tank-glass1": [
+110,
+82,
+60
+],
+"game:clutter|tank-glass2": [
+110,
+82,
+60
+],
 "game:clutter|tank-glass3": [
+110,
+82,
+60
+],
+"game:clutter|tank-glass4": [
+110,
+82,
+60
+],
+"game:clutter|tank-glass5": [
 110,
 82,
 60
@@ -1521,6 +2891,21 @@
 60
 ],
 "game:clutter|tank-glass7": [
+110,
+82,
+60
+],
+"game:clutter|tank-glass8": [
+110,
+82,
+60
+],
+"game:clutter|tank-glass9": [
+110,
+82,
+60
+],
+"game:clutter|tank-metal1": [
 110,
 82,
 60
@@ -1550,6 +2935,21 @@
 100,
 88
 ],
+"game:clutter|tool-saw": [
+115,
+100,
+88
+],
+"game:clutter|tool-spear": [
+115,
+100,
+88
+],
+"game:clutter|toolrack-bell": [
+115,
+100,
+88
+],
 "game:clutter|toolrack-empty": [
 115,
 100,
@@ -1570,7 +2970,57 @@
 100,
 88
 ],
+"game:clutter|toy1": [
+115,
+100,
+88
+],
+"game:clutter|toy10": [
+115,
+100,
+88
+],
 "game:clutter|toy5": [
+115,
+100,
+88
+],
+"game:clutter|toy7": [
+115,
+100,
+88
+],
+"game:clutter|toy9": [
+115,
+100,
+88
+],
+"game:clutter|treasurehunter1": [
+115,
+100,
+88
+],
+"game:clutter|treasurehunter3": [
+115,
+100,
+88
+],
+"game:clutter|trough/large1": [
+115,
+100,
+88
+],
+"game:clutter|trough/large2": [
+115,
+100,
+88
+],
+"game:clutter|trough/large3": [
+115,
+100,
+88
+],
+"game:clutter|wallhook-empty": [
 115,
 100,
 88
@@ -1585,7 +3035,17 @@
 100,
 88
 ],
+"game:clutter|wallhook-single-empty": [
+115,
+100,
+88
+],
 "game:clutter|wallhook-single-suit": [
+115,
+100,
+88
+],
+"game:clutter|wardrobe-small": [
 115,
 100,
 88
@@ -1610,6 +3070,16 @@
 38,
 36
 ],
+"game:cobbleskull-chert": [
+92,
+64,
+45
+],
+"game:cobbleskull-limestone": [
+125,
+113,
+84
+],
 "game:cobblestone-andesite": [
 104,
 113,
@@ -1624,6 +3094,11 @@
 159,
 158,
 151
+],
+"game:cobblestone-chert": [
+98,
+70,
+51
 ],
 "game:cobblestone-claystone": [
 130,
@@ -1695,6 +3170,26 @@
 55,
 55
 ],
+"game:cobblestoneslab-chert-down-free": [
+96,
+68,
+49
+],
+"game:cobblestoneslab-chert-east-free": [
+96,
+68,
+49
+],
+"game:cobblestoneslab-chert-up-free": [
+96,
+68,
+49
+],
+"game:cobblestoneslab-chert-west-free": [
+96,
+68,
+49
+],
 "game:cobblestoneslab-conglomerate-down-free": [
 116,
 103,
@@ -1719,6 +3214,66 @@
 116,
 103,
 78
+],
+"game:cobblestoneslab-granite-down-free": [
+112,
+106,
+93
+],
+"game:cobblestoneslab-granite-east-free": [
+112,
+106,
+93
+],
+"game:cobblestoneslab-granite-north-free": [
+112,
+106,
+93
+],
+"game:cobblestoneslab-granite-south-free": [
+112,
+106,
+93
+],
+"game:cobblestoneslab-granite-up-free": [
+112,
+106,
+93
+],
+"game:cobblestoneslab-granite-west-free": [
+112,
+106,
+93
+],
+"game:cobblestoneslab-limestone-down-free": [
+143,
+132,
+102
+],
+"game:cobblestoneslab-limestone-east-free": [
+143,
+132,
+102
+],
+"game:cobblestoneslab-limestone-north-free": [
+143,
+132,
+102
+],
+"game:cobblestoneslab-limestone-south-free": [
+143,
+132,
+102
+],
+"game:cobblestoneslab-limestone-up-free": [
+143,
+132,
+102
+],
+"game:cobblestoneslab-limestone-west-free": [
+143,
+132,
+102
 ],
 "game:cobblestoneslab-shale-west-free": [
 74,
@@ -1800,6 +3355,41 @@
 155,
 148
 ],
+"game:cobblestonestairs-chert-down-east-free": [
+96,
+68,
+49
+],
+"game:cobblestonestairs-chert-down-south-free": [
+96,
+68,
+49
+],
+"game:cobblestonestairs-chert-down-west-free": [
+96,
+68,
+49
+],
+"game:cobblestonestairs-chert-up-east-free": [
+96,
+68,
+49
+],
+"game:cobblestonestairs-chert-up-north-free": [
+96,
+68,
+49
+],
+"game:cobblestonestairs-chert-up-south-free": [
+96,
+68,
+49
+],
+"game:cobblestonestairs-chert-up-west-free": [
+96,
+68,
+49
+],
 "game:cobblestonestairs-claystone-up-east-free": [
 128,
 100,
@@ -1860,6 +3450,26 @@
 103,
 78
 ],
+"game:cobblestonestairs-granite-down-east-free": [
+112,
+106,
+93
+],
+"game:cobblestonestairs-granite-down-north-free": [
+112,
+106,
+93
+],
+"game:cobblestonestairs-granite-down-south-free": [
+112,
+106,
+93
+],
+"game:cobblestonestairs-granite-down-west-free": [
+112,
+106,
+93
+],
 "game:cobblestonestairs-granite-up-east-free": [
 112,
 106,
@@ -1879,6 +3489,46 @@
 112,
 106,
 93
+],
+"game:cobblestonestairs-limestone-down-east-free": [
+143,
+132,
+102
+],
+"game:cobblestonestairs-limestone-down-north-free": [
+143,
+132,
+102
+],
+"game:cobblestonestairs-limestone-down-south-free": [
+143,
+132,
+102
+],
+"game:cobblestonestairs-limestone-down-west-free": [
+143,
+132,
+102
+],
+"game:cobblestonestairs-limestone-up-east-free": [
+143,
+132,
+102
+],
+"game:cobblestonestairs-limestone-up-north-free": [
+143,
+132,
+102
+],
+"game:cobblestonestairs-limestone-up-south-free": [
+143,
+132,
+102
+],
+"game:cobblestonestairs-limestone-up-west-free": [
+143,
+132,
+102
 ],
 "game:cobblestonestairs-peridotite-up-east-free": [
 93,
@@ -1935,6 +3585,16 @@
 52,
 46
 ],
+"game:commandblock-normal": [
+164,
+102,
+118
+],
+"game:conditionalblock-east": [
+153,
+116,
+112
+],
 "game:crackedrock-andesite": [
 132,
 141,
@@ -1950,6 +3610,11 @@
 200,
 194
 ],
+"game:crackedrock-chert": [
+121,
+92,
+73
+],
 "game:crackedrock-claystone": [
 0,
 0,
@@ -1964,6 +3629,11 @@
 154,
 148,
 135
+],
+"game:crackedrock-limestone": [
+0,
+0,
+0
 ],
 "game:crackedrock-peridotite": [
 0,
@@ -2005,6 +3675,11 @@
 148,
 135
 ],
+"game:crackedstonebricks-limestone": [
+200,
+188,
+159
+],
 "game:crackedstonebricks-sandstone": [
 207,
 168,
@@ -2036,6 +3711,11 @@
 3
 ],
 "game:crop-cabbage-10": [
+48,
+105,
+56
+],
+"game:crop-cabbage-6": [
 48,
 105,
 56
@@ -2165,6 +3845,21 @@
 79,
 84
 ],
+"game:crop-pumpkin-4": [
+131,
+123,
+48
+],
+"game:crop-pumpkin-5": [
+131,
+123,
+48
+],
+"game:crop-pumpkin-6": [
+131,
+123,
+48
+],
 "game:crop-pumpkin-7": [
 131,
 123,
@@ -2181,6 +3876,11 @@
 4
 ],
 "game:crop-rice-7": [
+111,
+158,
+4
+],
+"game:crop-rice-9": [
 111,
 158,
 4
@@ -2211,6 +3911,11 @@
 0
 ],
 "game:crop-soybean-8": [
+104,
+143,
+0
+],
+"game:crop-soybean-9": [
 104,
 143,
 0
@@ -3225,6 +4930,26 @@
 168,
 120
 ],
+"game:debarkedlog-veryaged-ns": [
+60,
+55,
+37
+],
+"game:debarkedlog-veryaged-ud": [
+60,
+55,
+37
+],
+"game:debarkedlog-veryaged-we": [
+60,
+55,
+37
+],
+"game:debarkedlog-veryrotten-ud": [
+46,
+41,
+27
+],
 "game:devastatedsoil-0": [
 78,
 60,
@@ -3264,6 +4989,26 @@
 78,
 60,
 74
+],
+"game:devastatedsoil-7": [
+78,
+60,
+74
+],
+"game:devastatedsoil-8": [
+78,
+60,
+74
+],
+"game:devastatedsoil-9": [
+78,
+60,
+74
+],
+"game:devastationgrowth-normal": [
+153,
+179,
+94
 ],
 "game:devgrowth-bush": [
 96,
@@ -3320,10 +5065,40 @@
 36,
 19
 ],
+"game:dirtygravel-wetdark-plain": [
+49,
+40,
+26
+],
+"game:dirtygravel-wetdark-stoney": [
+41,
+32,
+20
+],
 "game:displaycase-aged1": [
 109,
 95,
 82
+],
+"game:displaycase-aged4": [
+109,
+95,
+82
+],
+"game:door-1x3gate-aged": [
+91,
+73,
+57
+],
+"game:door-1x3heavy-aged": [
+91,
+73,
+57
+],
+"game:door-2x4gate-aged": [
+91,
+73,
+57
 ],
 "game:door-ruined-rough1": [
 115,
@@ -3360,6 +5135,16 @@
 77,
 65
 ],
+"game:door-sleek-windowed-aged": [
+91,
+73,
+57
+],
+"game:door-solid-aged": [
+91,
+73,
+57
+],
 "game:drock": [
 60,
 59,
@@ -3390,6 +5175,11 @@
 127,
 119
 ],
+"game:drystone-chert": [
+86,
+62,
+46
+],
 "game:drystone-claystone": [
 112,
 88,
@@ -3405,6 +5195,11 @@
 95,
 81
 ],
+"game:drystone-limestone": [
+136,
+123,
+90
+],
 "game:drystone-peridotite": [
 85,
 82,
@@ -3419,6 +5214,116 @@
 65,
 65,
 65
+],
+"game:drystonefence-basalt-e-free": [
+43,
+43,
+43
+],
+"game:drystonefence-basalt-ew-free": [
+43,
+43,
+43
+],
+"game:drystonefence-basalt-w-free": [
+43,
+43,
+43
+],
+"game:drystonefence-granite-es-free": [
+117,
+112,
+102
+],
+"game:drystonefence-granite-ne-free": [
+117,
+112,
+102
+],
+"game:drystonefence-granite-nw-free": [
+117,
+112,
+102
+],
+"game:drystonefence-granite-sw-free": [
+117,
+112,
+102
+],
+"game:farmland-dry-verylow": [
+88,
+76,
+63
+],
+"game:fencebamboo-brown-e-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-empty-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-es-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-ew-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-n-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-ne-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-nes-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-new-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-ns-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-nsw-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-nw-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-s-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-sw-free": [
+116,
+60,
+6
+],
+"game:fencebamboo-brown-w-free": [
+116,
+60,
+6
 ],
 "game:fern-cinnamonfern": [
 141,
@@ -3500,6 +5405,11 @@
 160,
 90
 ],
+"game:flower-lupine-purple-free": [
+170,
+160,
+90
+],
 "game:flower-mugwort-free": [
 170,
 160,
@@ -3515,6 +5425,11 @@
 160,
 90
 ],
+"game:flower-redtopgrass-free": [
+170,
+160,
+90
+],
 "game:flower-westerngorse-free": [
 170,
 160,
@@ -3524,6 +5439,21 @@
 170,
 160,
 90
+],
+"game:flower-woad-free": [
+170,
+160,
+90
+],
+"game:flowerpot-blue-fired": [
+7,
+45,
+153
+],
+"game:flowerpot-copper": [
+126,
+91,
+74
 ],
 "game:flowerpot-ochre": [
 144,
@@ -3692,6 +5622,11 @@
 167,
 161
 ],
+"game:gravel-chert": [
+108,
+79,
+60
+],
 "game:gravel-claystone": [
 144,
 120,
@@ -3706,6 +5641,11 @@
 131,
 123,
 109
+],
+"game:gravel-limestone": [
+161,
+150,
+122
 ],
 "game:gravel-peridotite": [
 131,
@@ -3743,6 +5683,21 @@
 142,
 119
 ],
+"game:hanginglichen-oldmans-bottom": [
+143,
+128,
+72
+],
+"game:hanginglichen-oldmans-segment": [
+102,
+95,
+89
+],
+"game:hanginglichen-oldmans-top": [
+123,
+111,
+91
+],
 "game:hay-aged-ns": [
 123,
 111,
@@ -3763,7 +5718,22 @@
 120,
 54
 ],
+"game:ironfence-base-es": [
+70,
+68,
+66
+],
 "game:ironfence-base-ew": [
+70,
+68,
+66
+],
+"game:ironfence-base-n": [
+70,
+68,
+66
+],
+"game:ironfence-base-ne": [
 70,
 68,
 66
@@ -3773,12 +5743,167 @@
 68,
 66
 ],
-"game:jonas-lamp": [
-255,
-236,
+"game:ironfence-base-s": [
+70,
+68,
+66
+],
+"game:jonas-gasifiertank-west": [
+124,
+127,
+169
+],
+"game:jonas-hydraulicsystem-genvalve2-north": [
+115,
+113,
+111
+],
+"game:jonas-hydraulicsystem-pumpdoor2-north": [
+155,
+92,
 140
 ],
+"game:jonas-hydraulicsystem-pumpdoor2-west": [
+95,
+161,
+136
+],
+"game:jonas-lamp": [
+172,
+122,
+120
+],
+"game:ladder-wood-aged-north": [
+114,
+85,
+59
+],
+"game:ladder-wood-aged-south": [
+114,
+85,
+59
+],
+"game:lava-d-6": [
+255,
+120,
+20
+],
+"game:lava-e-3": [
+255,
+120,
+20
+],
+"game:lava-e-4": [
+255,
+120,
+20
+],
+"game:lava-e-5": [
+255,
+120,
+20
+],
+"game:lava-e-6": [
+255,
+120,
+20
+],
+"game:lava-e-7": [
+255,
+120,
+20
+],
+"game:lava-n-1": [
+255,
+120,
+20
+],
+"game:lava-n-2": [
+255,
+120,
+20
+],
+"game:lava-n-3": [
+255,
+120,
+20
+],
+"game:lava-n-4": [
+255,
+120,
+20
+],
+"game:lava-n-5": [
+255,
+120,
+20
+],
+"game:lava-n-6": [
+255,
+120,
+20
+],
+"game:lava-n-7": [
+255,
+120,
+20
+],
+"game:lava-ne-1": [
+255,
+120,
+20
+],
+"game:lava-ne-2": [
+255,
+120,
+20
+],
+"game:lava-ne-3": [
+255,
+120,
+20
+],
+"game:lava-ne-4": [
+255,
+120,
+20
+],
+"game:lava-ne-5": [
+255,
+120,
+20
+],
+"game:lava-ne-6": [
+255,
+120,
+20
+],
+"game:lava-nw-1": [
+255,
+120,
+20
+],
+"game:lava-s-2": [
+255,
+120,
+20
+],
+"game:lava-se-1": [
+255,
+120,
+20
+],
+"game:lava-se-3": [
+255,
+120,
+20
+],
 "game:lava-still-7": [
+255,
+120,
+20
+],
+"game:lava-w-4": [
 255,
 120,
 20
@@ -3828,6 +5953,11 @@
 140,
 140
 ],
+"game:leaves-grown1-walnut": [
+140,
+140,
+140
+],
 "game:leaves-grown2-acacia": [
 129,
 129,
@@ -3873,6 +6003,11 @@
 140,
 140
 ],
+"game:leaves-grown2-walnut": [
+140,
+140,
+140
+],
 "game:leaves-grown3-acacia": [
 129,
 129,
@@ -3913,6 +6048,11 @@
 140,
 140
 ],
+"game:leaves-grown3-walnut": [
+140,
+140,
+140
+],
 "game:leaves-grown4-acacia": [
 129,
 129,
@@ -3949,6 +6089,11 @@
 131
 ],
 "game:leaves-grown4-purpleheart": [
+140,
+140,
+140
+],
+"game:leaves-grown4-walnut": [
 140,
 140,
 140
@@ -3998,6 +6143,11 @@
 140,
 140
 ],
+"game:leaves-grown5-walnut": [
+140,
+140,
+140
+],
 "game:leaves-grown6-acacia": [
 129,
 129,
@@ -4034,6 +6184,11 @@
 131
 ],
 "game:leaves-grown6-purpleheart": [
+140,
+140,
+140
+],
+"game:leaves-grown6-walnut": [
 140,
 140,
 140
@@ -4079,6 +6234,11 @@
 131
 ],
 "game:leaves-grown7-purpleheart": [
+140,
+140,
+140
+],
+"game:leaves-grown7-walnut": [
 140,
 140,
 140
@@ -4133,6 +6293,11 @@
 84,
 64
 ],
+"game:leavesbranchy-grown1-walnut": [
+92,
+81,
+77
+],
 "game:leavesbranchy-grown2-acacia": [
 111,
 89,
@@ -4178,6 +6343,11 @@
 84,
 64
 ],
+"game:leavesbranchy-grown2-walnut": [
+92,
+81,
+77
+],
 "game:leavesbranchy-grown3-acacia": [
 111,
 89,
@@ -4218,6 +6388,11 @@
 84,
 64
 ],
+"game:leavesbranchy-grown3-walnut": [
+92,
+81,
+77
+],
 "game:leavesbranchy-grown4-acacia": [
 111,
 89,
@@ -4257,6 +6432,11 @@
 105,
 84,
 64
+],
+"game:leavesbranchy-grown4-walnut": [
+92,
+81,
+77
 ],
 "game:leavesbranchy-grown5-acacia": [
 111,
@@ -4303,6 +6483,11 @@
 84,
 64
 ],
+"game:leavesbranchy-grown5-walnut": [
+92,
+81,
+77
+],
 "game:leavesbranchy-grown6-acacia": [
 111,
 89,
@@ -4342,6 +6527,11 @@
 105,
 84,
 64
+],
+"game:leavesbranchy-grown6-walnut": [
+92,
+81,
+77
 ],
 "game:leavesbranchy-grown7-acacia": [
 111,
@@ -4387,6 +6577,11 @@
 105,
 84,
 64
+],
+"game:leavesbranchy-grown7-walnut": [
+92,
+81,
+77
 ],
 "game:leavesbranchy-placed-birch": [
 143,
@@ -4483,6 +6678,11 @@
 41,
 32
 ],
+"game:log-grown-walnut-ud": [
+92,
+81,
+77
+],
 "game:log-placed-aged-ns": [
 76,
 66,
@@ -4497,6 +6697,21 @@
 76,
 66,
 58
+],
+"game:log-placed-ebony-ns": [
+81,
+63,
+48
+],
+"game:log-placed-ebony-ud": [
+81,
+63,
+48
+],
+"game:log-placed-ebony-we": [
+81,
+63,
+48
 ],
 "game:log-resin-acacia-ud": [
 197,
@@ -4523,6 +6738,11 @@
 200,
 194
 ],
+"game:looseboulders-chert-free": [
+121,
+92,
+73
+],
 "game:looseboulders-claystone-free": [
 157,
 129,
@@ -4537,6 +6757,11 @@
 154,
 148,
 135
+],
+"game:looseboulders-limestone-free": [
+200,
+188,
+159
 ],
 "game:looseboulders-peridotite-free": [
 126,
@@ -4563,6 +6788,16 @@
 64,
 58
 ],
+"game:looseflints-basalt-free": [
+58,
+58,
+58
+],
+"game:looseflints-chalk-free": [
+200,
+200,
+194
+],
 "game:looseflints-claystone-free": [
 157,
 129,
@@ -4572,6 +6807,11 @@
 154,
 148,
 135
+],
+"game:looseflints-limestone-free": [
+200,
+188,
+159
 ],
 "game:loosegears-1": [
 130,
@@ -4603,10 +6843,30 @@
 58,
 58
 ],
+"game:looseores-cassiterite-granite-free": [
+154,
+148,
+135
+],
+"game:looseores-galena-chalk-free": [
+200,
+200,
+194
+],
+"game:looseores-galena-limestone-free": [
+62,
+78,
+84
+],
 "game:looseores-malachite-limestone-free": [
 24,
 121,
 81
+],
+"game:looseores-nativecopper-chalk-free": [
+200,
+200,
+194
 ],
 "game:looseores-nativecopper-claystone-free": [
 157,
@@ -4633,6 +6893,21 @@
 64,
 58
 ],
+"game:looseores-quartz-granite-free": [
+191,
+181,
+176
+],
+"game:looseores-quartz-limestone-free": [
+191,
+181,
+176
+],
+"game:looseores-quartz_nativegold-chalk-free": [
+196,
+156,
+62
+],
 "game:loosestick-free": [
 112,
 88,
@@ -4652,6 +6927,11 @@
 200,
 200,
 194
+],
+"game:loosestones-chert-free": [
+121,
+92,
+73
 ],
 "game:loosestones-claystone-free": [
 157,
@@ -4703,6 +6983,11 @@
 200,
 200
 ],
+"game:lootvessel-arcticsupplies": [
+130,
+90,
+60
+],
 "game:lootvessel-farming": [
 130,
 90,
@@ -4733,6 +7018,11 @@
 90,
 60
 ],
+"game:meta-spawner": [
+164,
+155,
+124
+],
 "game:metal-parts": [
 133,
 127,
@@ -4742,11 +7032,6 @@
 83,
 53,
 39
-],
-"game:metalblock-corroded-plain-copper": [
-80,
-150,
-120
 ],
 "game:metalblock-corroded-plain-rusty-iron": [
 96,
@@ -4758,45 +7043,25 @@
 78,
 62
 ],
+"game:metalblock-new-plain-blackbronze": [
+152,
+156,
+162
+],
 "game:metalblock-new-plain-copper": [
-184,
-110,
-70
+152,
+156,
+162
 ],
 "game:metalblock-new-plain-gold": [
-235,
-200,
-70
-],
-"game:metalblock-new-plain-iron": [
-120,
-124,
-132
+152,
+156,
+162
 ],
 "game:metalblock-new-plain-steel": [
 152,
 156,
 162
-],
-"game:metalblock-new-plain-tinbronze": [
-190,
-130,
-70
-],
-"game:metalblock-new-riveted-brass": [
-200,
-170,
-80
-],
-"game:metalblock-new-riveted-copper": [
-176,
-104,
-66
-],
-"game:metalblock-new-riveted-iron": [
-112,
-116,
-124
 ],
 "game:metalblock-new-riveted-steel": [
 152,
@@ -4849,6 +7114,21 @@
 120,
 60
 ],
+"game:mosslayertinted-full": [
+97,
+95,
+89
+],
+"game:mossystonebricks-granite": [
+154,
+148,
+135
+],
+"game:mossystonebricks-limestone": [
+200,
+188,
+159
+],
 "game:muddygravel": [
 92,
 83,
@@ -4872,7 +7152,85 @@
 120,
 60
 ],
+"game:multiblock-monolithic-0-p1-p1": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-0-p2-0": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-0-p2-p1": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-0-p3-0": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-0-p3-p1": [
+120,
+120,
+120,
+60
+],
 "game:multiblock-monolithic-n1-0-0": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-n1-0-p1": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-n1-p1-0": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-n1-p1-p1": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-n1-p2-0": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-n1-p2-p1": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-n1-p3-0": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-n1-p3-p1": [
+120,
+120,
+120,
+60
+],
+"game:multiblock-monolithic-p1-0-0": [
 120,
 120,
 120,
@@ -4993,6 +7351,16 @@
 122,
 78
 ],
+"game:mushroom-golddropmilkcap-normal": [
+183,
+139,
+90
+],
+"game:mushroom-greencrackedrussula-normal": [
+128,
+151,
+104
+],
 "game:mushroom-indigomilkcap-normal": [
 126,
 164,
@@ -5007,6 +7375,11 @@
 133,
 112,
 70
+],
+"game:mushroom-lobster-normal": [
+228,
+144,
+74
 ],
 "game:mushroom-pinkbonnet-normal-east": [
 203,
@@ -5028,6 +7401,26 @@
 93,
 97
 ],
+"game:mushroom-pinkoyster-normal-east": [
+196,
+165,
+165
+],
+"game:mushroom-pinkoyster-normal-north": [
+196,
+165,
+165
+],
+"game:mushroom-pinkoyster-normal-south": [
+196,
+165,
+165
+],
+"game:mushroom-pinkoyster-normal-west": [
+196,
+165,
+165
+],
 "game:mushroom-puffball-normal": [
 200,
 192,
@@ -5037,6 +7430,26 @@
 169,
 151,
 142
+],
+"game:mushroom-reishi-normal-east": [
+120,
+123,
+108
+],
+"game:mushroom-reishi-normal-north": [
+120,
+123,
+108
+],
+"game:mushroom-reishi-normal-south": [
+120,
+123,
+108
+],
+"game:mushroom-reishi-normal-west": [
+120,
+123,
+108
 ],
 "game:mushroom-saffronmilkcap-normal": [
 169,
@@ -5108,6 +7521,11 @@
 124,
 54
 ],
+"game:omoktabletop": [
+89,
+68,
+47
+],
 "game:ore-anthracite-chalk": [
 70,
 69,
@@ -5123,6 +7541,11 @@
 69,
 72
 ],
+"game:ore-anthracite-limestone": [
+70,
+69,
+72
+],
 "game:ore-anthracite-sandstone": [
 70,
 69,
@@ -5133,12 +7556,22 @@
 23,
 23
 ],
+"game:ore-bituminouscoal-chert": [
+22,
+23,
+23
+],
 "game:ore-bituminouscoal-claystone": [
 22,
 23,
 23
 ],
 "game:ore-bituminouscoal-conglomerate": [
+22,
+23,
+23
+],
+"game:ore-bituminouscoal-limestone": [
 22,
 23,
 23
@@ -5168,6 +7601,11 @@
 148,
 144
 ],
+"game:ore-borax-limestone": [
+150,
+148,
+144
+],
 "game:ore-borax-shale": [
 150,
 148,
@@ -5182,6 +7620,11 @@
 72,
 52,
 25
+],
+"game:ore-bountiful-galena-chert": [
+62,
+78,
+84
 ],
 "game:ore-bountiful-galena-shale": [
 62,
@@ -5202,6 +7645,11 @@
 60,
 22,
 0
+],
+"game:ore-bountiful-malachite-limestone": [
+29,
+122,
+92
 ],
 "game:ore-bountiful-nativecopper-basalt": [
 147,
@@ -5243,6 +7691,11 @@
 156,
 62
 ],
+"game:ore-bountiful-quartz_nativegold-limestone": [
+196,
+156,
+62
+],
 "game:ore-bountiful-quartz_nativegold-peridotite": [
 196,
 156,
@@ -5273,12 +7726,22 @@
 163,
 163
 ],
+"game:ore-bountiful-quartz_nativesilver-chert": [
+162,
+163,
+163
+],
 "game:ore-bountiful-quartz_nativesilver-claystone": [
 162,
 163,
 163
 ],
 "game:ore-bountiful-quartz_nativesilver-granite": [
+162,
+163,
+163
+],
+"game:ore-bountiful-quartz_nativesilver-limestone": [
 162,
 163,
 163
@@ -5368,6 +7831,11 @@
 86,
 64
 ],
+"game:ore-flint-limestone": [
+90,
+86,
+64
+],
 "game:ore-flint-sandstone": [
 90,
 86,
@@ -5379,6 +7847,11 @@
 64
 ],
 "game:ore-fluorite-chalk": [
+128,
+136,
+75
+],
+"game:ore-fluorite-chert": [
 128,
 136,
 75
@@ -5428,6 +7901,11 @@
 31,
 30
 ],
+"game:ore-high-emerald-limestone": [
+52,
+137,
+79
+],
 "game:ore-high-emerald-shale": [
 52,
 137,
@@ -5443,12 +7921,22 @@
 147,
 126
 ],
+"game:ore-kernite-chert": [
+172,
+147,
+126
+],
 "game:ore-kernite-claystone": [
 172,
 147,
 126
 ],
 "game:ore-kernite-conglomerate": [
+172,
+147,
+126
+],
+"game:ore-kernite-limestone": [
 172,
 147,
 126
@@ -5483,12 +7971,22 @@
 18,
 8
 ],
+"game:ore-lignite-chert": [
+30,
+18,
+8
+],
 "game:ore-lignite-claystone": [
 30,
 18,
 8
 ],
 "game:ore-lignite-conglomerate": [
+30,
+18,
+8
+],
+"game:ore-lignite-limestone": [
 30,
 18,
 8
@@ -5504,6 +8002,11 @@
 8
 ],
 "game:ore-low-emerald-basalt": [
+52,
+137,
+79
+],
+"game:ore-low-emerald-limestone": [
 52,
 137,
 79
@@ -5588,6 +8091,11 @@
 52,
 25
 ],
+"game:ore-medium-chromite-andesite": [
+61,
+56,
+58
+],
 "game:ore-medium-chromite-basalt": [
 61,
 56,
@@ -5643,12 +8151,22 @@
 78,
 84
 ],
+"game:ore-medium-galena-chert": [
+62,
+78,
+84
+],
 "game:ore-medium-galena-claystone": [
 62,
 78,
 84
 ],
 "game:ore-medium-galena-conglomerate": [
+62,
+78,
+84
+],
+"game:ore-medium-galena-limestone": [
 62,
 78,
 84
@@ -5688,6 +8206,11 @@
 33,
 28
 ],
+"game:ore-medium-hematite-limestone": [
+64,
+33,
+28
+],
 "game:ore-medium-hematite-phyllite": [
 64,
 33,
@@ -5709,6 +8232,11 @@
 30
 ],
 "game:ore-medium-limonite-basalt": [
+60,
+22,
+0
+],
+"game:ore-medium-limonite-chert": [
 60,
 22,
 0
@@ -5759,6 +8287,11 @@
 59
 ],
 "game:ore-medium-nativecopper-chalk": [
+147,
+91,
+59
+],
+"game:ore-medium-nativecopper-chert": [
 147,
 91,
 59
@@ -5853,6 +8386,11 @@
 156,
 62
 ],
+"game:ore-medium-quartz_nativegold-limestone": [
+196,
+156,
+62
+],
 "game:ore-medium-quartz_nativegold-peridotite": [
 196,
 156,
@@ -5898,6 +8436,11 @@
 163,
 163
 ],
+"game:ore-medium-quartz_nativesilver-limestone": [
+162,
+163,
+163
+],
 "game:ore-medium-quartz_nativesilver-sandstone": [
 162,
 163,
@@ -5914,6 +8457,11 @@
 163
 ],
 "game:ore-medium-rhodochrosite-chalk": [
+87,
+55,
+50
+],
+"game:ore-medium-rhodochrosite-chert": [
 87,
 55,
 50
@@ -5964,6 +8512,11 @@
 115
 ],
 "game:ore-medium-sphalerite-chalk": [
+131,
+126,
+115
+],
+"game:ore-medium-sphalerite-chert": [
 131,
 126,
 115
@@ -6028,12 +8581,22 @@
 104,
 84
 ],
+"game:ore-phosphorite-chert": [
+128,
+104,
+84
+],
 "game:ore-phosphorite-claystone": [
 128,
 104,
 84
 ],
 "game:ore-phosphorite-conglomerate": [
+128,
+104,
+84
+],
+"game:ore-phosphorite-limestone": [
 128,
 104,
 84
@@ -6047,6 +8610,11 @@
 128,
 104,
 84
+],
+"game:ore-poor-bismuthinite-andesite": [
+147,
+155,
+119
 ],
 "game:ore-poor-bismuthinite-granite": [
 147,
@@ -6073,6 +8641,11 @@
 52,
 25
 ],
+"game:ore-poor-cassiterite-peridotite": [
+72,
+52,
+25
+],
 "game:ore-poor-cassiterite-phyllite": [
 72,
 52,
@@ -6083,10 +8656,30 @@
 52,
 25
 ],
+"game:ore-poor-chromite-andesite": [
+61,
+56,
+58
+],
 "game:ore-poor-chromite-basalt": [
 61,
 56,
 58
+],
+"game:ore-poor-galena-chert": [
+62,
+78,
+84
+],
+"game:ore-poor-galena-conglomerate": [
+62,
+78,
+84
+],
+"game:ore-poor-galena-limestone": [
+62,
+78,
+84
 ],
 "game:ore-poor-galena-shale": [
 62,
@@ -6098,12 +8691,22 @@
 71,
 74
 ],
+"game:ore-poor-galena_nativesilver-limestone": [
+62,
+71,
+74
+],
 "game:ore-poor-galena_nativesilver-shale": [
 62,
 71,
 74
 ],
 "game:ore-poor-hematite-granite": [
+64,
+33,
+28
+],
+"game:ore-poor-hematite-limestone": [
 64,
 33,
 28
@@ -6122,6 +8725,11 @@
 60,
 22,
 0
+],
+"game:ore-poor-magnetite-chalk": [
+45,
+46,
+46
 ],
 "game:ore-poor-magnetite-claystone": [
 45,
@@ -6149,6 +8757,11 @@
 59
 ],
 "game:ore-poor-nativecopper-chalk": [
+147,
+91,
+59
+],
+"game:ore-poor-nativecopper-chert": [
 147,
 91,
 59
@@ -6233,6 +8846,11 @@
 156,
 62
 ],
+"game:ore-poor-quartz_nativegold-limestone": [
+196,
+156,
+62
+],
 "game:ore-poor-quartz_nativegold-peridotite": [
 196,
 156,
@@ -6258,6 +8876,11 @@
 163,
 163
 ],
+"game:ore-poor-quartz_nativesilver-chert": [
+162,
+163,
+163
+],
 "game:ore-poor-quartz_nativesilver-claystone": [
 162,
 163,
@@ -6269,6 +8892,11 @@
 163
 ],
 "game:ore-poor-quartz_nativesilver-granite": [
+162,
+163,
+163
+],
+"game:ore-poor-quartz_nativesilver-limestone": [
 162,
 163,
 163
@@ -6303,6 +8931,11 @@
 55,
 50
 ],
+"game:ore-poor-rhodochrosite-limestone": [
+87,
+55,
+50
+],
 "game:ore-poor-rhodochrosite-phyllite": [
 87,
 55,
@@ -6333,6 +8966,11 @@
 126,
 115
 ],
+"game:ore-poor-sphalerite-granite": [
+131,
+126,
+115
+],
 "game:ore-poor-sphalerite-slate": [
 131,
 126,
@@ -6353,6 +8991,11 @@
 187,
 188
 ],
+"game:ore-quartz-chert": [
+185,
+187,
+188
+],
 "game:ore-quartz-claystone": [
 185,
 187,
@@ -6364,6 +9007,11 @@
 188
 ],
 "game:ore-quartz-granite": [
+185,
+187,
+188
+],
+"game:ore-quartz-limestone": [
 185,
 187,
 188
@@ -6428,6 +9076,11 @@
 56,
 58
 ],
+"game:ore-rich-galena-chert": [
+62,
+78,
+84
+],
 "game:ore-rich-galena-claystone": [
 62,
 78,
@@ -6448,6 +9101,11 @@
 33,
 28
 ],
+"game:ore-rich-hematite-limestone": [
+64,
+33,
+28
+],
 "game:ore-rich-ilmenite-basalt": [
 51,
 35,
@@ -6457,6 +9115,11 @@
 60,
 22,
 0
+],
+"game:ore-rich-malachite-limestone": [
+29,
+122,
+92
 ],
 "game:ore-rich-malachite-redmarble": [
 29,
@@ -6523,6 +9186,11 @@
 156,
 62
 ],
+"game:ore-rich-quartz_nativegold-limestone": [
+196,
+156,
+62
+],
 "game:ore-rich-quartz_nativegold-peridotite": [
 196,
 156,
@@ -6553,6 +9221,11 @@
 163,
 163
 ],
+"game:ore-rich-quartz_nativesilver-chert": [
+162,
+163,
+163
+],
 "game:ore-rich-quartz_nativesilver-claystone": [
 162,
 163,
@@ -6564,6 +9237,11 @@
 163
 ],
 "game:ore-rich-quartz_nativesilver-granite": [
+162,
+163,
+163
+],
+"game:ore-rich-quartz_nativesilver-limestone": [
 162,
 163,
 163
@@ -6628,6 +9306,11 @@
 126,
 115
 ],
+"game:ore-rich-sphalerite-limestone": [
+131,
+126,
+115
+],
 "game:ore-rich-sphalerite-phyllite": [
 131,
 126,
@@ -6658,12 +9341,22 @@
 155,
 65
 ],
+"game:ore-sulfur-chert": [
+182,
+155,
+65
+],
 "game:ore-sulfur-claystone": [
 182,
 155,
 65
 ],
 "game:ore-sulfur-conglomerate": [
+182,
+155,
+65
+],
+"game:ore-sulfur-limestone": [
 182,
 155,
 65
@@ -6683,10 +9376,50 @@
 33,
 14
 ],
+"game:painting-elk-north": [
+95,
+78,
+41
+],
 "game:painting-forestdawn-north": [
 98,
 94,
 45
+],
+"game:painting-forestdawn-south": [
+98,
+94,
+45
+],
+"game:painting-forestdawn-west": [
+98,
+94,
+45
+],
+"game:painting-lastday-west": [
+57,
+41,
+35
+],
+"game:painting-seraph-north": [
+71,
+58,
+45
+],
+"game:painting-traveler-east": [
+51,
+72,
+49
+],
+"game:painting-traveler-south": [
+51,
+72,
+49
+],
+"game:paperlantern-on": [
+174,
+166,
+87
 ],
 "game:peat-none": [
 71,
@@ -6713,10 +9446,30 @@
 78,
 62
 ],
-"game:planks-agedebony-we": [
-60,
-45,
-35
+"game:planks-ebony-ud": [
+79,
+59,
+47
+],
+"game:planks-larch-ud": [
+195,
+164,
+133
+],
+"game:planks-rottenebony-ns": [
+56,
+50,
+47
+],
+"game:planks-rottenebony-ud": [
+56,
+50,
+47
+],
+"game:planks-rottenebony-we": [
+56,
+50,
+47
 ],
 "game:planks-veryaged-ns": [
 56,
@@ -6733,7 +9486,22 @@
 51,
 35
 ],
+"game:planks-walnut-ud": [
+114,
+96,
+88
+],
 "game:plankslab-aged-down-free": [
+123,
+111,
+91
+],
+"game:plankslab-aged-east-free": [
+123,
+111,
+91
+],
+"game:plankslab-aged-south-free": [
 123,
 111,
 91
@@ -6742,6 +9510,81 @@
 123,
 111,
 91
+],
+"game:plankslab-aged-west-free": [
+123,
+111,
+91
+],
+"game:plankslab-larch-down-free": [
+120,
+114,
+107
+],
+"game:plankslab-walnut-down-free": [
+92,
+81,
+77
+],
+"game:plankstairs-aged-down-east-free": [
+123,
+111,
+91
+],
+"game:plankstairs-aged-down-north-free": [
+123,
+111,
+91
+],
+"game:plankstairs-aged-down-south-free": [
+123,
+111,
+91
+],
+"game:plankstairs-aged-down-west-free": [
+123,
+111,
+91
+],
+"game:plankstairs-aged-up-east-free": [
+123,
+111,
+91
+],
+"game:plankstairs-aged-up-south-free": [
+123,
+111,
+91
+],
+"game:plankstairs-aged-up-west-free": [
+123,
+111,
+91
+],
+"game:plaque-fancy-tinbronze-wall-east": [
+148,
+111,
+43
+],
+"game:plaque-fancy-tinbronze-wall-north": [
+148,
+111,
+43
+],
+"game:plaque-fancy-tinbronze-wall-south": [
+148,
+111,
+43
+],
+"game:plaque-fancy-tinbronze-wall-west": [
+148,
+111,
+43
+],
+"game:plaster-plain": [
+193,
+192,
+185
 ],
 "game:polishedrockold-cobbled-andesite": [
 95,
@@ -6758,6 +9601,11 @@
 98,
 94
 ],
+"game:polishedrockold-cobbled-chert": [
+55,
+39,
+30
+],
 "game:polishedrockold-cobbled-claystone": [
 100,
 80,
@@ -6772,6 +9620,11 @@
 104,
 98,
 85
+],
+"game:polishedrockold-cobbled-limestone": [
+107,
+97,
+72
 ],
 "game:polishedrockold-cobbled-peridotite": [
 101,
@@ -6808,6 +9661,11 @@
 105,
 99
 ],
+"game:polishedrockold-full-chert": [
+59,
+42,
+32
+],
 "game:polishedrockold-full-conglomerate": [
 113,
 102,
@@ -6817,6 +9675,11 @@
 110,
 103,
 90
+],
+"game:polishedrockold-full-limestone": [
+113,
+102,
+76
 ],
 "game:polishedrockold-full-peridotite": [
 107,
@@ -6833,12 +9696,42 @@
 38,
 32
 ],
+"game:polishedrockslab-granite-down-free": [
+117,
+110,
+94
+],
+"game:polishedrockslab-granite-east-free": [
+117,
+110,
+94
+],
+"game:polishedrockslab-granite-north-free": [
+117,
+110,
+94
+],
+"game:polishedrockslab-granite-south-free": [
+117,
+110,
+94
+],
+"game:polishedrockslab-granite-west-free": [
+117,
+110,
+94
+],
 "game:pumpkin-fruit-1": [
 91,
 111,
 17
 ],
 "game:pumpkin-fruit-2": [
+91,
+111,
+17
+],
+"game:pumpkin-fruit-3": [
 91,
 111,
 17
@@ -6893,25 +9786,15 @@
 132,
 89
 ],
-"game:refractorybricks-damaged-tier3": [
-150,
-82,
-56
-],
 "game:refractorybricks-good-tier1": [
 170,
 132,
 89
 ],
-"game:refractorybricks-good-tier2": [
-176,
-96,
-64
-],
-"game:refractorybricks-good-tier3": [
-176,
-96,
-64
+"game:resonator-north": [
+133,
+97,
+108
 ],
 "game:rock-andesite": [
 114,
@@ -6973,6 +9856,11 @@
 171,
 142
 ],
+"game:rock-obsidian": [
+17,
+10,
+25
+],
 "game:rock-peridotite": [
 112,
 107,
@@ -7003,10 +9891,20 @@
 57,
 51
 ],
+"game:rock-travertine": [
+205,
+183,
+152
+],
 "game:rock-whitemarble": [
 197,
 200,
 200
+],
+"game:rockpolished-granite": [
+154,
+148,
+135
 ],
 "game:rocktyped-rubble-free": [
 35,
@@ -7044,6 +9942,11 @@
 161
 ],
 "game:saltpeter-esud": [
+193,
+183,
+161
+],
+"game:saltpeter-esw": [
 193,
 183,
 161
@@ -7128,6 +10031,11 @@
 183,
 161
 ],
+"game:saltpeter-neswd": [
+193,
+183,
+161
+],
 "game:saltpeter-neswu": [
 193,
 183,
@@ -7203,6 +10111,11 @@
 183,
 161
 ],
+"game:saltpeter-nud": [
+193,
+183,
+161
+],
 "game:saltpeter-nw": [
 193,
 183,
@@ -7234,6 +10147,11 @@
 161
 ],
 "game:saltpeter-su": [
+193,
+183,
+161
+],
+"game:saltpeter-sud": [
 193,
 183,
 161
@@ -7662,6 +10580,11 @@
 200,
 194
 ],
+"game:sand-chert": [
+121,
+92,
+73
+],
 "game:sand-claystone": [
 157,
 129,
@@ -7711,6 +10634,11 @@
 157,
 129,
 94
+],
+"game:sandwavy-limestone": [
+200,
+188,
+159
 ],
 "game:sandwavy-sandstone": [
 207,
@@ -7937,6 +10865,71 @@
 110,
 70
 ],
+"game:slantedroofing-grayclay-east-free": [
+139,
+164,
+140
+],
+"game:slantedroofing-grayclay-north-free": [
+159,
+106,
+116
+],
+"game:slantedroofing-grayclay-south-free": [
+163,
+174,
+177
+],
+"game:slantedroofing-grayclay-west-free": [
+101,
+119,
+147
+],
+"game:slantedroofing-slate-east-free": [
+76,
+64,
+58
+],
+"game:slantedroofing-slate-north-free": [
+76,
+64,
+58
+],
+"game:slantedroofing-slate-south-free": [
+76,
+64,
+58
+],
+"game:slantedroofing-slate-west-free": [
+76,
+64,
+58
+],
+"game:slantedroofing-thatch-south-free": [
+108,
+97,
+84
+],
+"game:slantedroofing-thatch-west-free": [
+108,
+97,
+84
+],
+"game:slantedroofingcornerinner-grayclay-east-free": [
+152,
+103,
+135
+],
+"game:slantedroofingcornerinner-grayclay-south-free": [
+156,
+179,
+177
+],
+"game:slantedroofingcornerouter-thatch-south-free": [
+108,
+97,
+84
+],
 "game:soil-compost-none": [
 96,
 72,
@@ -8143,6 +11136,36 @@
 200,
 194
 ],
+"game:stalagsection-chert-04": [
+121,
+92,
+73
+],
+"game:stalagsection-chert-06": [
+121,
+92,
+73
+],
+"game:stalagsection-chert-08": [
+121,
+92,
+73
+],
+"game:stalagsection-chert-10": [
+121,
+92,
+73
+],
+"game:stalagsection-chert-12": [
+121,
+92,
+73
+],
+"game:stalagsection-chert-14": [
+121,
+92,
+73
+],
 "game:stalagsection-claystone-04": [
 157,
 129,
@@ -8232,6 +11255,46 @@
 154,
 148,
 135
+],
+"game:stalagsection-halite-06": [
+215,
+189,
+178
+],
+"game:stalagsection-halite-08": [
+215,
+189,
+178
+],
+"game:stalagsection-limestone-04": [
+200,
+188,
+159
+],
+"game:stalagsection-limestone-06": [
+200,
+188,
+159
+],
+"game:stalagsection-limestone-08": [
+200,
+188,
+159
+],
+"game:stalagsection-limestone-10": [
+200,
+188,
+159
+],
+"game:stalagsection-limestone-12": [
+200,
+188,
+159
+],
+"game:stalagsection-limestone-14": [
+200,
+188,
+159
 ],
 "game:stalagsection-peridotite-04": [
 126,
@@ -8368,6 +11431,21 @@
 64,
 58
 ],
+"game:stalagsection-travertine-04": [
+205,
+183,
+152
+],
+"game:stalagsection-travertine-06": [
+205,
+183,
+152
+],
+"game:stalagsection-travertine-08": [
+205,
+183,
+152
+],
 "game:statictranslocator-broken-east": [
 132,
 126,
@@ -8384,6 +11462,21 @@
 124
 ],
 "game:statictranslocator-broken-west": [
+132,
+126,
+124
+],
+"game:statictranslocator-normal-north": [
+132,
+126,
+124
+],
+"game:statictranslocator-normal-west": [
+132,
+126,
+124
+],
+"game:statictranslocator-unrepairable-north": [
 132,
 126,
 124
@@ -8417,6 +11510,11 @@
 58,
 58,
 58
+],
+"game:stonebricks-chalk": [
+200,
+200,
+194
 ],
 "game:stonebricks-claystone": [
 157,
@@ -8453,6 +11551,11 @@
 64,
 58
 ],
+"game:stonebrickslab-andesite-down-free": [
+132,
+141,
+148
+],
 "game:stonebrickslab-conglomerate-south-free": [
 135,
 123,
@@ -8464,14 +11567,64 @@
 96
 ],
 "game:stonebrickslab-granite-down-free": [
-150,
-146,
-140
+154,
+148,
+135
+],
+"game:stonebrickslab-granite-east-free": [
+154,
+148,
+135
+],
+"game:stonebrickslab-granite-south-free": [
+154,
+148,
+135
+],
+"game:stonebrickslab-granite-up-free": [
+154,
+148,
+135
+],
+"game:stonebrickslab-granite-west-free": [
+154,
+148,
+135
+],
+"game:stonebrickstairs-granite-down-east-free": [
+154,
+148,
+135
+],
+"game:stonebrickstairs-granite-down-west-free": [
+154,
+148,
+135
+],
+"game:stonebrickstairs-granite-up-east-free": [
+154,
+148,
+135
+],
+"game:stonebrickstairs-granite-up-south-free": [
+154,
+148,
+135
+],
+"game:stonebrickstairs-granite-up-west-free": [
+154,
+148,
+135
 ],
 "game:stonepath-free": [
 128,
 124,
 118
+],
+"game:storagevessel-beehive": [
+137,
+113,
+69
 ],
 "game:storagevessel-blue-fired": [
 7,
@@ -8498,6 +11651,11 @@
 176,
 141
 ],
+"game:storagevessel-rutile": [
+124,
+124,
+115
+],
 "game:storagevessel-undergrowth": [
 94,
 93,
@@ -8508,12 +11666,57 @@
 67,
 72
 ],
+"game:storagevessel-wintersea": [
+194,
+181,
+172
+],
+"game:supportbeam-tarnishedmetal-rusty-iron": [
+66,
+46,
+32
+],
+"game:supportbeam-veryaged": [
+60,
+55,
+37
+],
+"game:supportbeam-veryrotten": [
+46,
+41,
+27
+],
+"game:supportchain-two": [
+165,
+174,
+121
+],
 "game:table-aged": [
 95,
 84,
 71
 ],
+"game:talldisplaycase-aged1": [
+123,
+111,
+91
+],
 "game:talldisplaycase-aged2": [
+123,
+111,
+91
+],
+"game:talldisplaycase-aged3": [
+123,
+111,
+91
+],
+"game:talldisplaycase-aged4": [
+123,
+111,
+91
+],
+"game:talldisplaycase-aged5": [
 123,
 111,
 91
@@ -8544,9 +11747,9 @@
 143
 ],
 "game:tallplant-coopersreed-land-normal-free": [
-111,
-111,
-111
+112,
+112,
+112
 ],
 "game:tallplant-coopersreed-water-normal-free": [
 137,
@@ -8554,6 +11757,11 @@
 137
 ],
 "game:tapestry-east": [
+97,
+86,
+65
+],
+"game:tapestry-north": [
 97,
 86,
 65
@@ -8567,6 +11775,26 @@
 97,
 86,
 65
+],
+"game:tickerblock-normal": [
+105,
+176,
+98
+],
+"game:tile-2x2-plain-red": [
+133,
+79,
+57
+],
+"game:toolrack-north": [
+153,
+114,
+105
+],
+"game:toolrack-south": [
+131,
+162,
+175
 ],
 "game:torch-basic-burnedout-east": [
 141,
@@ -8618,6 +11846,11 @@
 86,
 68
 ],
+"game:trapdoor-window-aged-1": [
+123,
+111,
+91
+],
 "game:trough-genericwood-small-ns": [
 47,
 54,
@@ -8629,6 +11862,11 @@
 54
 ],
 "game:trunk-east": [
+135,
+102,
+73
+],
+"game:trunk-north": [
 135,
 102,
 73
@@ -8895,7 +12133,19 @@
 140,
 110
 ],
+"game:water-se-6": [
+30,
+80,
+140,
+110
+],
 "game:water-se-7": [
+30,
+80,
+140,
+110
+],
+"game:water-still-6": [
 30,
 80,
 140,
@@ -9007,6 +12257,16 @@
 207,
 184
 ],
+"game:wildvine-end-south": [
+101,
+207,
+184
+],
+"game:wildvine-end-west": [
+101,
+207,
+184
+],
 "game:wildvine-section-east": [
 113,
 113,
@@ -9016,6 +12276,21 @@
 113,
 113,
 115
+],
+"game:wildvine-section-south": [
+113,
+113,
+115
+],
+"game:wildvine-section-west": [
+113,
+113,
+115
+],
+"game:woodbucket": [
+141,
+166,
+147
 ],
 "game:woodenfence-aged-e-free": [
 123,
@@ -9082,6 +12357,11 @@
 111,
 91
 ],
+"game:woodenpath-aged-ns": [
+123,
+111,
+91
+],
 "landmassgenerator:ghostlight-blue": [
 90,
 170,
@@ -9107,15 +12387,115 @@
 118,
 120
 ],
+"game:burnedplanks-narrow-charred-ns": [
+40,
+33,
+30
+],
+"game:burnedplanks-narrow-charred-ud": [
+40,
+33,
+30
+],
+"game:burnedplanks-narrow-charred-we": [
+40,
+33,
+30
+],
+"game:burnedplanks-narrow-scorched-ud": [
+70,
+52,
+40
+],
+"game:burnedplanks-normal-blackened-ud": [
+30,
+26,
+24
+],
+"game:burnedplanks-normal-charred-ns": [
+44,
+36,
+32
+],
+"game:burnedplanks-normal-charred-ud": [
+44,
+36,
+32
+],
+"game:burnedplanks-normal-charred-we": [
+44,
+36,
+32
+],
+"game:carvedlog-acacia-aged-middle-fancy-ud": [
+120,
+82,
+50
+],
+"game:carvedlog-acacia-aged-top-fancy-ud": [
+120,
+82,
+50
+],
+"game:claybricks-damaged-fire": [
+110,
+55,
+42
+],
+"game:metalblock-corroded-plain-copper": [
+80,
+150,
+120
+],
+"game:metalblock-new-plain-iron": [
+120,
+124,
+132
+],
+"game:metalblock-new-plain-tinbronze": [
+190,
+130,
+70
+],
+"game:metalblock-new-riveted-brass": [
+200,
+170,
+80
+],
+"game:metalblock-new-riveted-copper": [
+176,
+104,
+66
+],
+"game:metalblock-new-riveted-iron": [
+112,
+116,
+124
+],
+"game:planks-agedebony-we": [
+60,
+45,
+35
+],
+"game:refractorybricks-damaged-tier3": [
+150,
+82,
+56
+],
+"game:refractorybricks-good-tier2": [
+176,
+96,
+64
+],
+"game:refractorybricks-good-tier3": [
+176,
+96,
+64
+],
 "game:mossystonebricks-andesite": [
 104,
 118,
 98
-],
-"game:rock-obsidian": [
-36,
-32,
-42
 ],
 "game:rockpolished-obsidian": [
 28,
@@ -9136,20 +12516,5 @@
 168,
 170,
 172
-],
-"game:stonebrickslab-andesite-down-free": [
-140,
-146,
-150
-],
-"game:cobblestoneslab-granite-down-free": [
-150,
-144,
-132
-],
-"game:bonyremains-ribcage": [
-226,
-218,
-196
 ]
 }

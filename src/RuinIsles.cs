@@ -327,7 +327,20 @@ public partial class LandmassGeneratorModSystem
         string JobOpt(string key) => job.Opt != null && job.Opt.TryGetValue(key, out var v) ? v : null;
         string code = k.Opt("structure", null) ?? JobOpt("ruin");
         if (code == null) { sapi.Logger.Warning("[landmassgenerator] ruin: no structure= on the struct line and no ruin= on the island"); return; }
-        var entry = RuinCatalog().FirstOrDefault(e => string.Equals(e.Code, code, StringComparison.OrdinalIgnoreCase));
+        // A story structure's schematic, named outright (0.68.0, the Mansion):
+        // path=<domain>:worldgen/schematics/....json, and storyoffset= its
+        // schematicYOffsets entry, so it sits as the game's SurfaceRuin
+        // placement would put it (bottom at ground - height + offset).
+        string direct = k.Opt("path", null);
+        int storyOffset = k.OptI("storyoffset", int.MinValue);
+        RuinEntry entry;
+        if (direct != null)
+        {
+            var dl = new AssetLocation(direct);
+            entry = new RuinEntry { Code = code, Domain = dl.Domain, Family = code };
+            entry.Schematics.Add(dl.Path);
+        }
+        else entry = RuinCatalog().FirstOrDefault(e => string.Equals(e.Code, code, StringComparison.OrdinalIgnoreCase));
         if (entry == null) { sapi.Logger.Warning("[landmassgenerator] ruin: no megastructure called {0} (is Better Ruins installed?)", code); return; }
         int pick = k.OptI("schematic", int.TryParse(JobOpt("ruinschem"), out int js) ? js : (int)(k.R() * entry.Schematics.Count));
         int rot = k.OptI("rot", int.TryParse(JobOpt("ruinrot"), out int jr) ? jr : (int)(k.R() * 4) * 90);
@@ -355,17 +368,9 @@ public partial class LandmassGeneratorModSystem
         int stone = job.StoneId;
         int blend = k.OptI("blend", 8);
 
-        // Fell the trees over the footing and round it, then cut and fill.
-        var wa = sapi.World.BlockAccessor;
-        var tp = new BlockPos(0, 0, 0, job.Dim);
-        for (int x = x0 - blend - 6; x < x0 + sx + blend + 6; x++)
-            for (int z = z0 - blend - 6; z < z0 + sz + blend + 6; z++)
-                for (int y = g0 - 4; y <= g0 + 40; y++)
-                {
-                    tp.Set(x, y, z);
-                    var b = wa.GetBlock(tp);
-                    if (b != null && (b.BlockMaterial == EnumBlockMaterial.Wood || b.BlockMaterial == EnumBlockMaterial.Leaves)) k.Set(x, y, z, 0);
-                }
+        // Fell the trees over the footing and round it, whole (TreeFelling.cs),
+        // then cut and fill.
+        FellTrees(k.Set, job.Dim, x0 - blend - 2, z0 - blend - 2, x0 + sx + blend + 1, z0 + sz + blend + 1, g0 - 4, g0 + 40);
         for (int x = x0 - blend; x < x0 + sx + blend; x++)
             for (int z = z0 - blend; z < z0 + sz + blend; z++)
             {
@@ -378,7 +383,7 @@ public partial class LandmassGeneratorModSystem
                 for (int y = target + 1; y <= Math.Max(gy, target) + 4; y++) k.Set(x, y, z, 0);
             }
 
-        int fy = g0 + 1 + entry.OffsetY;
+        int fy = storyOffset != int.MinValue ? g0 - sy + storyOffset : g0 + 1 + entry.OffsetY;
         string name = path.Substring(path.LastIndexOf('/') + 1);
         k.AfterCommit.Add(() =>
         {

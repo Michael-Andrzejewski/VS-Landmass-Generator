@@ -1,0 +1,18 @@
+[
+	{
+		"_comment": "Rustfall worlds: the Landmass Generator puts the Better Ruins mansion on its own island (the mansion_island shape's ruin structure places the mansion's schematic, 0.68.0). Better Ruins keeps its story location, pinned to that island by the plan, but places an empty schematic and forces no land of its own. The mansion is the eighth story structure (index 7) in Better Ruins 0.6.0's storystructures.json.",
+		"op": "replace",
+		"file": "betterruins:worldgen/storystructures.json",
+		"path": "/structures/7/schematics",
+		"value": ["story/brmansion-rustfall"],
+		"condition": { "when": "rustfallWorld", "isValue": "true" },
+		"dependsOn": [{ "modid": "betterruins" }]
+	},
+	{
+		"op": "remove",
+		"file": "betterruins:worldgen/storystructures.json",
+		"path": "/structures/7/requireLandform",
+		"condition": { "when": "rustfallWorld", "isValue": "true" },
+		"dependsOn": [{ "modid": "betterruins" }]
+	}
+]

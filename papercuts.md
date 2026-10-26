@@ -987,3 +987,52 @@ worlds the adoption folders are `LandmassGenerator/rustfall-world/` (the plan
 his Rustfall world was built with in rfworld18 plus the rain line, and the old
 600-wide great_machine shape) and `LandmassGenerator/gm-preview/` (starter,
 Great Machine, Eerie Island, rain line).
+
+## Diagonal passages came out as a checkerboard (fixed in 0.68.0)
+
+Michael found the Hanging Gardens' spires "not walkable, most of the
+entryways blocked by natural rock". The rock was the spires' own. A passage
+stepped out from the shaft one cell at a time along its sector direction and
+opened three cells across it at each step. Along a diagonal both the step and
+"across" are diagonal, so the cells it opened touched only at their corners:
+a dump of Rustfall 0.67 showed air and rock alternating down every diagonal
+door, bridge entrance and ledge window, 40 to 66 such joints per spire. A
+player cannot pass a corner. The passage now opens every cell within 1.5 of
+its centre line, sampled every half block, and carries on through the
+island's own ground until it comes out (a ledge doorway that would only
+tunnel into the mountain is left out). The same half-block sampling went
+into the bridge decks, whose diagonal ones were full of one-block holes.
+Check with a dump: `checker.py`-style, count 2-high air cells walled on their
+four sides with 2-high air on a diagonal (0.67: about 50 a spire; 0.68: none
+inside the spires).
+
+## Straight-cut treelines (fixed in 0.68.0)
+
+Structures cleared ground by emptying every log and leaf in a box, so a tree
+half in the box kept only its outer half and the forest edge became a sheer
+wall along a grid line (the gardens' furniture market on Rustfall 0.67).
+`FellTrees` (TreeFelling.cs) takes whole trees: the logs joined to any log in
+the box, and the leaves nearest those logs through the canopy (a wave from
+every log in reach labels each leaf with its tree). Trees outside keep every
+leaf.
+
+## Dynamic Villages founded on the lore islands (fixed in 0.68.0)
+
+The Dynamic Villages mod founds a village anywhere a player's surroundings
+offer a level 64-block square of soil. In a Rustfall world almost all land is
+a lore island or a story location, so on Rustfall 0.67, in the first half
+hour, villages went up on the Hanging Gardens' lowland, the Ideal Home Island
+beside the pond, the Forge Volcano, the Better Ruins mine and the vanilla
+Nadiya village's own site. Their levelling, paths and cleared headroom read
+as damage to the islands. A Harmony postfix on its `VillageSpawner.SiteIsGood`
+now refuses those sites (VillageGuard.cs); the plan's `village` line founds a
+village on purpose.
+
+## A lush island was also a rainy one (0.68.0)
+
+The climate map's rainfall byte does two jobs: plant tint and how often it
+rains. `climate=lush` (rainfall 0.90) gave Eerie Island its deep green and
+rain 66% of the time. Rewriting the rainfall (the 0.63.3 `rain` zones) changes
+the tint too. The weather now reads a capped copy (`/genrain cap`), the tint
+the real value. `/genrain survey` counts the rain share at every island with
+the game's own noise; read it before and after any change.

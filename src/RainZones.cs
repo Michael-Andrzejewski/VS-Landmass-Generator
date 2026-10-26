@@ -98,7 +98,7 @@ public partial class LandmassGeneratorModSystem
         var p = api.ChatCommands.Parsers;
         RegisterCmd(api, "genrain", name =>
             api.ChatCommands.Create(name)
-                .WithDescription("How often it rains. /genrain reads the rainfall where you stand (the character screen's label). /genrain <0..1> [radius] [fade] sets the rainfall around you, e.g. /genrain 0.4 for 'uncommon' (rain ~10% of the time); temperature is untouched, but grass tint follows rainfall a little. /genrain plan applies the world plan's rain lines to land that already exists.")
+                .WithDescription("How often it rains. /genrain reads the rainfall where you stand (the character screen's label). /genrain <0..1> [radius] [fade] sets the rainfall around you, e.g. /genrain 0.4 for 'uncommon' (rain ~10% of the time); temperature is untouched, but grass tint follows rainfall a little. /genrain plan applies the world plan's rain lines to land that already exists. /genrain cap [percent] shows or sets the most rainfall the weather sees anywhere (Rustfall default 40; 100 = no cap), tint untouched. /genrain survey logs the rainfall and the share of the time it rains at every island.")
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(p.OptionalWord("rainfall"), p.OptionalInt("radius", 400), p.OptionalInt("fade", 150))
                 .HandleWith(OnGenRain));
@@ -126,6 +126,22 @@ public partial class LandmassGeneratorModSystem
             return TextCommandResult.Success($"Rainfall at {px - midX}, {bp.Y}, {pz - midZ}: {c.WorldgenRainfall:0.00} ({RainLabel(c.WorldgenRainfall)}). Near sea level the game adds up to 0.16.");
         }
 
+        if (arg == "survey") return RainSurvey();
+
+        if (arg == "cap")
+        {
+            var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
+            if (!args.Parsers[1].IsMissing)
+            {
+                int pct = Math.Clamp((int)args[1], 0, 100);
+                wc.SetString("lgRainCap", pct >= 100 ? "off" : (pct / 100f).ToString("0.##", CultureInfo.InvariantCulture));
+                _rainCap = ReadRainCap(wc);
+            }
+            return TextCommandResult.Success(_rainCap < 0
+                ? "The weather sees the climate's own rainfall (no cap)."
+                : $"The weather sees at most rainfall {_rainCap:0.00} ({RainLabel(_rainCap)}): unchanged up to {Math.Max(0f, _rainCap - RainKneeGap):0.00}, squeezed above it. Grass and leaf tint keep the real rainfall. /genrain survey shows what it does at each island.");
+        }
+
         if (arg == "plan")
         {
             if (_planRainZones.Count == 0) return TextCommandResult.Error("The world plan has no rain lines (rain x z rainfall [radius] [fade]).");
@@ -142,6 +158,122 @@ public partial class LandmassGeneratorModSystem
         sapi.WorldManager.SaveGame.StoreData(RainZonesKey, saved.Select(z => z.ToString()).ToList());
         StampRainZoneNow(zone);
         return TextCommandResult.Success($"Rainfall {rain:0.00} ({RainLabel(rain)}) within {zone.Radius} blocks of {px - midX}, {pz - midZ}, fading over {zone.Fade}. Land generated later gets it too.");
+    }
+
+    // ── The weather's rainfall, capped (0.68.0) ──
+    // The climate map's rainfall does two jobs: it tints grass and leaves,
+    // and it sets how often it rains (GetRainCloudness offsets its noise by
+    // (rainfall - 0.6) * 2). Rustfall's lush islands want the green but not
+    // the weather: on Rustfall 0.67 /genrain survey found it raining 66% of
+    // the time on Eerie Island, 64% on Blackfen and 44% on the Ideal Home
+    // Island. A prefix on GetRainCloudness hands the weather a softened
+    // rainfall, unchanged up to a knee 0.15 below the cap and squeezed above
+    // it so that 1.0 becomes the cap; a postfix puts the real value back for
+    // the tint. With the default 0.40 the 0.67 survey's wettest islands come
+    // down to about a fifth of the time and most of them to a tenth.
+    // World config lgRainCap ("0.55", or "off"); a Rustfall world without
+    // one gets DefaultRainCap. Both sides read it (in single player they
+    // share the one patched method), so the rain the client draws and the
+    // rain the server counts for farmland agree.
+    private const float RainKneeGap = 0.15f, DefaultRainCap = 0.40f;
+    private static float _rainCap = -1f;   // below 0: no cap
+    private static bool _rainCapPatched;
+
+    private static float CapRain(float r, float cap)
+    {
+        if (cap < 0 || cap >= 1) return r;
+        float knee = Math.Max(0f, cap - RainKneeGap);
+        return r <= knee ? r : knee + (r - knee) * (cap - knee) / (1 - knee);
+    }
+
+    private static float ReadRainCap(Vintagestory.API.Datastructures.ITreeAttribute wc)
+    {
+        if (wc == null) return -1f;
+        string s = wc.GetAsString("lgRainCap", null);
+        if (string.IsNullOrEmpty(s)) return wc.GetBool("rustfallWorld", false) ? DefaultRainCap : -1f;
+        if (s.Equals("off", StringComparison.OrdinalIgnoreCase)) return -1f;
+        return float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out float v) ? Math.Clamp(v, 0f, 1f) : -1f;
+    }
+
+    // Both sides call this once the world config is known.
+    private static void InstallRainCap(ICoreAPI api)
+    {
+        _rainCap = ReadRainCap(api.World?.Config);
+        if (_rainCap >= 0) api.Logger.Notification("[landmassgenerator] rain cap: the weather sees at most rainfall {0:0.00} here ({1} side)", _rainCap, api.Side);
+        if (_rainCapPatched) return;
+        try
+        {
+            var target = HarmonyLib.AccessTools.Method(typeof(Vintagestory.GameContent.WeatherSystemBase), "GetRainCloudness");
+            if (target == null) { api.Logger.Warning("[landmassgenerator] rain cap: WeatherSystemBase.GetRainCloudness not found (game update?); rain follows the climate map as before."); return; }
+            new HarmonyLib.Harmony("landmassgenerator.raincap").Patch(target,
+                prefix: new HarmonyLib.HarmonyMethod(typeof(LandmassGeneratorModSystem), nameof(RainCapPrefix)),
+                postfix: new HarmonyLib.HarmonyMethod(typeof(LandmassGeneratorModSystem), nameof(RainCapPostfix)));
+            _rainCapPatched = true;
+        }
+        catch (Exception e) { api.Logger.Warning("[landmassgenerator] rain cap not installed: {0}", e.Message); }
+    }
+
+    private static void RainCapPrefix(ClimateCondition conds, out float __state)
+    {
+        __state = float.NaN;
+        float cap = _rainCap;
+        if (cap < 0 || conds == null) return;
+        __state = conds.Rainfall;
+        conds.Rainfall = CapRain(conds.Rainfall, cap);
+    }
+
+    private static void RainCapPostfix(ClimateCondition conds, float __state)
+    {
+        if (!float.IsNaN(__state) && conds != null) conds.Rainfall = __state;
+    }
+
+    // /genrain survey: the rainfall at the middle of every plan island and
+    // story location, read at its ground, and how much of the time it
+    // rains there. The share is counted with the game's own weather noise
+    // (WeatherSystemBase.GetRainCloudness) every two hours over 120 days, so
+    // it is what a player standing there would see. Loads each spot's chunk
+    // column first; the table goes to the log when the last one is in.
+    private TextCommandResult RainSurvey()
+    {
+        int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
+        var spots = new List<(string Name, int X, int Z)>();
+        foreach (var j in _wgIslandJobs ?? new List<IslandJob>()) spots.Add((j.ShapeName ?? "island", j.Cx, j.Cz));
+        var genStory = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
+        if (genStory?.Structures != null)
+            foreach (var pair in genStory.Structures) spots.Add(("story " + pair.Key, pair.Value.CenterPos.X, pair.Value.CenterPos.Z));
+        if (spots.Count == 0) return TextCommandResult.Error("No plan islands or story locations in this world.");
+        var weather = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.WeatherSystemServer>();
+        var rows = new string[spots.Count];
+        int left = spots.Count;
+        for (int i = 0; i < spots.Count; i++)
+        {
+            int idx = i;
+            var s = spots[i];
+            sapi.WorldManager.LoadChunkColumnPriority(s.X / GlobalConstants.ChunkSize, s.Z / GlobalConstants.ChunkSize, new ChunkLoadOptions
+            {
+                OnLoaded = () =>
+                {
+                    var bp = new BlockPos(s.X, 0, s.Z, 0);
+                    bp.Y = Math.Max(sapi.World.SeaLevel, sapi.World.BlockAccessor.GetTerrainMapheightAt(bp)) + 1;
+                    var c = sapi.World.BlockAccessor.GetClimateAt(bp, EnumGetClimateMode.WorldGenValues);
+                    string row;
+                    if (c == null) row = $"{s.Name,-28} {s.X - mx,7} {s.Z - mz,7}  no climate";
+                    else
+                    {
+                        int wet = 0, n = 0;
+                        if (weather != null)
+                            for (double day = 0; day < 120; day += 1 / 12.0, n++)
+                                if (weather.GetRainCloudness(c, s.X + 0.5, s.Z + 0.5, day) - 0.5f > 0.02f) wet++;
+                        string share = n > 0 ? $"{wet * 100.0 / n,5:0.0}%" : "   ?";
+                        row = $"{s.Name,-28} {s.X - mx,7} {s.Z - mz,7} y{bp.Y,4}  rainfall {c.Rainfall:0.00} ({RainLabel(c.Rainfall)}), weather sees {CapRain(c.Rainfall, _rainCap):0.00}, raining {share}";
+                    }
+                    rows[idx] = row;
+                    if (--left == 0)
+                        sapi.Logger.Notification("[landmassgenerator] rain survey (name, HUD x, z, ground, rainfall, share of the time it rains):\n" + string.Join("\n", rows));
+                }
+            });
+        }
+        return TextCommandResult.Success($"Surveying the rain at {spots.Count} spots; the table goes to the log.");
     }
 
     // New regions: every plan and saved zone that reaches them.

@@ -1238,3 +1238,71 @@ Spoils sit on the old cold-granary and flatcave spots.
   its own chunks, each byte-identical to the export's piece. Pilot's
   `/mapshot?x=&z=&zoom=` photographs the open map without touching the
   window.
+
+## The Alchemist Lair, the Mansion, and the 0.68.0 fixes
+
+Michael's brief: an Alchemist Lair ("lots of fine machinery, but all
+overgrown with devastation... an observatory, a portal gateway, and just tons
+of university-style buildings") and an island for the Better Ruins mansion,
+on the map's Alchemist Lair and Mansion circles (1970, -6670 and 660, -3550,
+where two granary ruins stood). Also: the starter turned so its beach faces
+the Great Machine, the gardens' spires walkable, their crops on watered soil,
+16+ traders on the gardens island, Dynamic Villages off the lore islands
+(one on the Ideal Home Island where he marked it), no straight-cut treelines,
+and less rain.
+
+- **Slanted roofing's direction is uphill.** `slantedroofing-<mat>-north-free`
+  rises toward the north (read off the Better Ruins mansion's roofs: every
+  north block has another north block one up and one north). On a gable's
+  north slope, which climbs south to the ridge, use `south`.
+- **A story structure's schematic sits at ground - height + offset.** The
+  game's SurfaceRuin story placement puts the bottom at the worldgen terrain
+  height minus the schematic's SizeY plus its `schematicYOffsets` entry. The
+  mansion is 89 x 52 x 56 with offset 32: 20 layers of cellar under the lawn.
+  Its gate (`door-2x4gate-aged`) is on its north side as drawn, so the island
+  turns it 180 to face the drive from the south landing.
+- **Farmland only counts water on its own level,** within 3 blocks
+  (Chebyshev; `BlockEntityFarmland.GetNearbyWaterDistance` searches y = its
+  own y only). Beds three wide between one-wide channels at the beds' level,
+  closed by a kerb at both ends, keep every block moist.
+- **Traders wander 4 blocks from where they spawn** (`maxDistanceToSpawn: 4`).
+  A trader on a ledge or a pavilion can walk off it. The gardens' stalls are
+  walled on three sides with a counter in front, and the six other traders
+  stand in rooms or booths.
+- **Clutter names:** the plain types are the `code`s in
+  `blocktypes/clutter.json`'s types list (970 of them, e.g. `trader/` props are
+  `survival1`, `agriculture2`, `commodities3`, without the folder);
+  devastation machinery is `blocktypes/devastation/clutter-devastation.json`
+  (`gear24`, `boilerbody`, `lever2-aged`...); a cluttered bookshelf takes the
+  `bookshelves/...` codes of `wood/bookshelf-clutter-agedacacia.json`. Check a
+  new list against them before building (a wrong name renders as nothing).
+- **Book colours** for lore files: aged-orangebrown, aged-orange,
+  aged-darkgreen, aged-darkgray, aged-cherryred, aged-brickred, aged-darkolive,
+  aged-darkbeige, aged-olive, aged-purpleorange, aged-gray, rotten-gray,
+  rotten-brown, rotten-rust, rotten-purple, rotten-green
+  (`itemtypes/lore/book.json`). Anything else falls back to orangebrown.
+- **Rain before and after the cap** (`/genrain survey`, share of the time it
+  rains, Rustfall 0.67 uncapped against Rustfall 0.68 at the default 0.40):
+  Eerie Island 66% to 21%, Blackfen 64% to 16%, Volcano Ring 58% to 11%,
+  Forge Volcano 53% to 12%, Ideal Home Island 44% to 16%, Hanging Gardens 26%
+  to 7.5%, starter 17% to 11%, the Alchemist Lair 10%. The location's own noise
+  matters as much as its rainfall: two islands at the same rainfall can rain
+  8% and 17% of the time.
+- **Where Dynamic Villages went on Rustfall 0.67** (his game's log, first
+  half hour): Bielawa on the gardens' south lowland (1107, -2324), Sloneczna
+  Polana on the Ideal Home Island beside the pond (3316, -2132), Klonow on the
+  Forge Volcano (-1412, -3742), Wierzba and Grabina at the Better Ruins mine
+  (-8333, -4001; -9040, -4313), Zimna Rzeka on the vanilla village's site
+  (-6151, -5579). `/genvillages check` refuses all six now. The village he
+  marked on the Ideal Home Island is at 3280, -2381 (his map, matched on the
+  pond and the island's edges at about 1.47 pixels a block).
+- **The starter's beach is its west lobe** (bearing 168 in the shape's own
+  east-0, south-90 angles). Facing it north took `rotate=102`, not 45; the
+  cattail isles turn with it so they stay off the reedy tip of the beach.
+- **Pilot `/shot` angles, checked again on the starter (0.68.0):** pitch 180 is
+  level and pitch above 180 looks down (205 is 25 degrees down); a pitch near
+  0 points the camera straight up, which is why the first shots were all sky.
+  With pitch near 180, yaw 0 looks south (+z), 90 east, 180 north, 270 west:
+  `yaw = atan2(dx, dz)` in degrees. The two notes above disagree with this
+  because they were taken at other pitches. Set `/weather seti clearsky` and
+  `/time set day` first: a fresh world can sit in fog.

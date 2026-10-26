@@ -183,6 +183,15 @@ public partial class LandmassGeneratorModSystem
             ("game:seeds-cabbage", 4, 10, 0.6), ("game:grain-rice", 6, 16, 1.2), ("game:mushroom-fieldmushroom-normal", 4, 10, 0.6),
             ("game:ingot-silver", 1, 2, 0.4), ("game:gem-emerald-rough", 1, 1, 0.2), ("game:clearquartz", 1, 4, 0.5), ("game:bamboostakes", 4, 12, 0.6),
         },
+        // The Alchemist Lair: the Collegium's stores (AlchemistLair.cs)
+        ["alchemist"] = new (string, int, int, double)[]
+        {
+            ("game:gear-temporal", 1, 2, 1), ("game:glass-quartz", 4, 12, 1), ("game:clearquartz", 2, 6, 0.8), ("game:ingot-silver", 1, 3, 0.7),
+            ("game:ingot-gold", 1, 2, 0.5), ("game:ingot-brass", 1, 4, 0.6), ("game:gem-emerald-rough", 1, 2, 0.4), ("game:gem-diamond-rough", 1, 1, 0.25),
+            ("game:candle", 2, 6, 0.8), ("game:paper-parchment", 2, 8, 0.8), ("game:jonasparts-tank01", 1, 1, 0.5), ("game:jonasframes-oscillator01", 1, 1, 0.4),
+            ("game:nightvisionupgrades-nightvisionlens1", 1, 1, 0.3), ("game:metal-scraps", 2, 6, 0.8), ("game:gear-rusty", 1, 4, 0.8),
+            ("game:powdered-sulfur", 2, 8, 0.5), ("game:saltpeter", 2, 8, 0.4), ("game:flask-normal", 1, 2, 0.4),
+        },
         ["ruin"] = new (string, int, int, double)[]
         {
             ("game:arrow-copper", 6, 16, 1.2), ("game:spear-generic-copper", 1, 1, 0.8), ("game:ingot-copper", 1, 3, 1), ("game:ingot-silver", 1, 2, 0.5),
