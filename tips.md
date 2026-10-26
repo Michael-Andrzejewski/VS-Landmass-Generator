@@ -1198,3 +1198,9 @@ Spoils sit on the old cold-granary and flatcave spots.
 - **A beach shelf drops fast.** Off the gardens' landing the sea floor is 22
   down 34 blocks out; the sea torii stands 30 out with pillars allowed to 40
   deep, each down to its own sea floor.
+- **0.67.1: the Ideal Home Island moved to where the map draws it** (3380,
+  -2220, east of the gardens, ~2,300 blocks off as on the map; it stood on
+  the village coast at -5140, -3910). Michael placed the gardens "somewhat
+  near the Ideal Island", which only holds with both where he drew them. The
+  island map in the Resonance Archives' chest finds it by shape, so it
+  follows; the dream book names no place.

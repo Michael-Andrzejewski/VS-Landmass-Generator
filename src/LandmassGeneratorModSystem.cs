@@ -878,9 +878,8 @@ island -5100 -700 shape=saltteeth_island diameter=300 height=26
 island -3280 -3210 shape=volcano_ring diameter=700 height=46 water=60 climate=lush
 island -1530 -3680 shape=forge_volcano diameter=400 height=80 water=40 stone=rock-basalt sand=sand-basalt
 
-# Village coast: Iron Mine, Ideal Home, Lighthouse, Ruined Fortress
+# Village coast: Iron Mine, Lighthouse, Ruined Fortress
 island -5290 -2550 shape=ironmine_island diameter=560 height=30 water=45
-island -5140 -3910 shape=ideal_house_island diameter=600 height=18
 island -4500 -5100 shape=lighthouse diameter=120 height=6 water=40
 island -3230 -5210 shape=lone_bastion_1 diameter=100 height=27 water=40
 
@@ -908,6 +907,10 @@ island 4300 -1300 shape=eerie_island diameter=420 height=22 water=36 climate=lus
 # The Hanging Gardens Temple: the stranded monks' island of spires, hanging
 # gardens and rope bridges, with its temple, pagoda and three markets.
 island 1080 -2480 shape=hanging_gardens diameter=520 height=80 water=34 climate=temperate stone=rock-limestone sand=sand-limestone
+# The Ideal Home Island, where the map of 2026-10-25 draws it: east of the
+# gardens, between them and the Eerie Island (it stood on the village coast
+# at -5140, -3910 before 0.67.1).
+island 3380 -2220 shape=ideal_house_island diameter=600 height=18
 
 # Around the Great Machine: The Spoils, its dumping ground (a heap of pieces
 # cut out of everywhere, caverns, the red fog), and Cardinals, the Better
