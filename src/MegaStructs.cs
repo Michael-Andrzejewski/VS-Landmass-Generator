@@ -17,7 +17,7 @@ namespace LandmassGenerator;
 // over), so the build, the dump and the real world are the same code.
 public partial class LandmassGeneratorModSystem
 {
-    internal static readonly HashSet<string> MegaKinds = new() { "pylons", "refinery", "graveyard", "powerplant", "greatmachine" };
+    internal static readonly HashSet<string> MegaKinds = new() { "pylons", "refinery", "graveyard", "powerplant", "greatmachine", "ruin", "spoils", "gardens" };
 
     private sealed class MegaKit
     {
@@ -190,6 +190,9 @@ public partial class LandmassGeneratorModSystem
             case "refinery": MegaRefinery(k, cx, cz); break;
             case "powerplant": MegaPowerPlant(k, cx, cz); break;
             case "greatmachine": MegaGreatMachine(k, cx, cz); break;
+            case "ruin": MegaRuin(k, cx, cz); break;
+            case "spoils": MegaSpoils(k, cx, cz); break;
+            case "gardens": MegaGardens(k, cx, cz); break;
         }
     }
 

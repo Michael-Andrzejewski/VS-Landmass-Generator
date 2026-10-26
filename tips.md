@@ -1126,3 +1126,75 @@ firing) over each, a red ochre cross meaning sealed.
   reaches down are the Warden's Gate, the wells, the chapel's fallen roof,
   the mausoleum crypts and the robbers' holes (with the pits their tunnels
   reach).
+
+## Three new islands, the ruin isles and the natural-island keep-out (0.67.0)
+
+Michael's brief: the Hanging Gardens Temple (a mountainous island like the
+Salt Teeth, hanging gardens on tall spires joined by wooden bridges, a large
+temple in the middle, a Japanese feel, furniture, agriculture and clothing
+traders each with a small market, slightly overgrown but not in ruin; monks
+stranded by the Devastation made it as beautiful as they could and it now
+trades), Cardinals (the Better Ruins cathedral on a large, flat island), The
+Spoils (the Great Machine's dumping ground: an immense random heap of
+reality cut out and thrown in the sea, ore in it, caverns, Devastation, the
+red fog), Better Ruins megastructures around the world but never within 500
+blocks of a lore island's edge, and no natural island within 100 blocks of
+any island's edge. Positions came from his map of 2026-10-25, measured at
+about 10.1 blocks per image pixel against the story pins: Cardinals and The
+Spoils sit on the old cold-granary and flatcave spots.
+
+- **Better Ruins megastructures cannot land on a Rustfall island by
+  themselves.** The game's surface placer keeps a structure only where the
+  terrain height under its centre and four corners is exactly equal and dry,
+  and it runs in the TerrainFeatures pass, before the plan islands are drawn
+  (Vegetation pass). So the `ruins` plan line places them itself, each on its
+  own `ruin_isle`, and switches the group's own rolls off. To place a
+  schematic the game's way by hand: `Init`, `TransformWhilePacked` for the
+  turn, `Place` into a bulk accessor with its `Entities` emptied, `Commit`,
+  then `PlaceEntitiesAndBlockEntities` and `PlaceDecors` through the live
+  accessor (the bulk accessor has no block entities before it commits, and
+  `Place` would spawn the creatures twice). Start y is ground + 1 + offsety.
+- **A plan rule a played world can see must be gated.** Michael's
+  `Rustfall.vcdbs` still reads the live plan file, so the ruin isles and the
+  natural-island keep-out only apply to worlds whose first load is under
+  0.67.0 (flag `lgNaturalKeepOut`, and the ruins expand only when the plan is
+  kept in the save or the world is new). New plan islands still reach an
+  un-adopted world: `/genplan adopt rustfall-world` fixes it.
+- **Struct `size=` stops at 160.** The Spoils' heap and the gardens' spread
+  take `radius=` instead.
+- **Megastructure lights are set into walls.** The emitter pass moves every
+  megastructure light flush into the full block it touches (right for Jonas
+  lamps and ghostlights). Paper lanterns hang and stand; the `gardens` kind
+  is exempt, or 88 of 310 were dropped and the rest pushed into plaster.
+- **A vine faces away from its wall.** `wildvine-section-north` hangs on the
+  block to its SOUTH (`pos + VineFacing.Opposite`), or on a vine above it.
+  1067 vines all facing north came out as none at all. Find the last rock
+  along a compass direction and put the vine one beyond it, facing on.
+- **Grass on every step of a cliff reads as spots.** A spire of rock with a
+  grass block on every little outward step looked polka-dotted: soil and
+  grass only on its crown and real ledges; vines and old man's beard
+  (`hanginglichen-oldmans-top/segment/bottom`, hanging from the block above)
+  do the green on the faces.
+- **Pilot `/shot` yaw, recalibrated on the gardens' terrace:** yaw 0 looks
+  north (-z), 90 west, 180 south, 270 east, so `yaw = atan2(-dx, -dz)` in
+  degrees. The HUD's compass word in the screenshot is a quarter turn off;
+  check against landmarks, not the label.
+- **Redwood planks render salmon pink.** The bridges use walnut.
+- **An island's edge is where its land ends, not half its diameter.** A drawn
+  shape's grid is a square the diameter wide, and five Rustfall shapes put
+  land past the inscribed circle (Iron Mine 325 against 280, The Spoils 307
+  against 280, Salt Teeth, Forge Volcano, the Great Machine). The keep-out
+  and the ruin margin measure the shape's farthest land cell (`LandRadius`,
+  `PlanIslandEdge`). A world built before that keeps half the diameter
+  (flag `lgKeepOutLand`), so regions generated later agree with the earlier
+  ones and no natural island is cut along a region border.
+- **Checking the keep-out:** dump a spot where the old scan of the same seed
+  had a natural island close to a lore island and count land one above the
+  sea outside every island's edge. On the 0.67 build the natural islands
+  that had stood 186 to 418 blocks from the Hanging Gardens, The Spoils, the
+  Lone Bastion and the Sunken Colossus were gone or 236+ from the edge; the
+  land "8 from Salt Teeth's edge" was its own chalk teeth in the shape's
+  corner.
+- **A beach shelf drops fast.** Off the gardens' landing the sea floor is 22
+  down 34 blocks out; the sea torii stands 30 out with pillars allowed to 40
+  deep, each down to its own sea floor.

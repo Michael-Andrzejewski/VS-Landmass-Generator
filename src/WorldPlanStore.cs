@@ -53,6 +53,13 @@ public partial class LandmassGeneratorModSystem
         foreach (string raw in planText.Replace("\r", "").Split('\n'))
         {
             string[] parts = raw.Trim().Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            // a ruins line builds its islands from the three ruin_isle shapes
+            if (parts.Length >= 1 && parts[0].Equals("ruins", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (string n in new[] { "ruin_isle", "ruin_isle_cold", "ruin_isle_arid" })
+                    if (!names.Contains(n)) names.Add(n);
+                continue;
+            }
             if (parts.Length < 4 || !parts[0].Equals("island", StringComparison.OrdinalIgnoreCase)) continue;
             foreach (string tok in parts.Skip(3))
                 if (tok.StartsWith("shape=", StringComparison.OrdinalIgnoreCase))

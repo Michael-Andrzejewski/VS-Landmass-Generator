@@ -164,6 +164,25 @@ public partial class LandmassGeneratorModSystem
             ("game:ingot-gold", 1, 3, 0.6), ("game:nightvisionupgrades-nightvisionlens2", 1, 1, 0.3), ("game:candle", 2, 6, 0.8),
             ("game:nightvisionupgrades-nightvisionpower", 1, 1, 0.25),
         },
+        // The Spoils: whatever the Great Machine threw out (TheSpoils.cs)
+        ["spoils"] = new (string, int, int, double)[]
+        {
+            ("game:ingot-copper", 2, 6, 1.2), ("game:ingot-tinbronze", 1, 4, 1), ("game:ingot-iron", 1, 4, 1), ("game:ingot-steel", 1, 2, 0.5),
+            ("game:ingot-gold", 1, 3, 0.6), ("game:ingot-silver", 1, 3, 0.6), ("game:nugget-nativecopper", 6, 18, 1), ("game:nugget-cassiterite", 4, 14, 0.8),
+            ("game:nugget-hematite", 6, 16, 0.8), ("game:nugget-nativegold", 3, 10, 0.5), ("game:gem-emerald-rough", 1, 2, 0.4), ("game:gem-diamond-rough", 1, 1, 0.25),
+            ("game:gear-rusty", 2, 6, 1.4), ("game:gear-temporal", 1, 1, 0.35), ("game:metal-scraps", 2, 6, 1.2), ("game:metalplate-iron", 1, 3, 0.6),
+            ("game:jonasparts-connector01", 1, 2, 0.6), ("game:jonasparts-valve01", 1, 2, 0.6), ("game:jonasparts-cylinder01", 1, 1, 0.5),
+            ("game:jonasframes-gears01", 1, 1, 0.35), ("game:glass-quartz", 4, 12, 0.5), ("game:rope", 2, 6, 0.6), ("game:candle", 2, 6, 0.6),
+            ("game:clearquartz", 2, 6, 0.5), ("game:crystalizedore-rich-nativesilver", 1, 2, 0.2),
+        },
+        // The Hanging Gardens Temple: the monks' stores (HangingGardens.cs)
+        ["temple"] = new (string, int, int, double)[]
+        {
+            ("game:candle", 4, 12, 1.6), ("game:beeswax", 2, 8, 1), ("game:flaxtwine", 4, 12, 1), ("game:linen-normal-down", 2, 6, 0.8),
+            ("game:paper-parchment", 2, 8, 0.8), ("game:honeycomb", 2, 6, 0.8), ("game:seeds-rice", 4, 12, 1), ("game:seeds-flax", 4, 12, 0.8),
+            ("game:seeds-cabbage", 4, 10, 0.6), ("game:grain-rice", 6, 16, 1.2), ("game:mushroom-fieldmushroom-normal", 4, 10, 0.6),
+            ("game:ingot-silver", 1, 2, 0.4), ("game:gem-emerald-rough", 1, 1, 0.2), ("game:clearquartz", 1, 4, 0.5), ("game:bamboostakes", 4, 12, 0.6),
+        },
         ["ruin"] = new (string, int, int, double)[]
         {
             ("game:arrow-copper", 6, 16, 1.2), ("game:spear-generic-copper", 1, 1, 0.8), ("game:ingot-copper", 1, 3, 1), ("game:ingot-silver", 1, 2, 0.5),

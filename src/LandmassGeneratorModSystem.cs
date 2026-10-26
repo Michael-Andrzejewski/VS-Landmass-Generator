@@ -342,13 +342,45 @@ public partial class LandmassGeneratorModSystem : ModSystem
         int spawnMidX = sapi.WorldManager.MapSizeX / 2;
         int spawnMidZ = sapi.WorldManager.MapSizeZ / 2;
         const long SpawnClearRadiusSq = 640L * 640L;
-        if (naturalIslands)
+        // With natural islands on, none may breach within 100 blocks of
+        // any island's edge either (0.67.0): plan islands (their edge is
+        // half the drawn diameter, the shape's outer bound) and story
+        // locations. The landform map blends across cells and wobbles, so
+        // the flattened ring reaches another 128 blocks out.
+        var keepOut = new List<(int X, int Z, long RadSq)>();
+        // (only in worlds set up since 0.67.0: a world being played keeps its
+        // natural islands as they were, with no new cut seams beside old ones)
+        if (naturalIslands && sapi.WorldManager.SaveGame.GetData<bool>("lgNaturalKeepOut", false))
         {
-            // Skip regions entirely outside the spawn clear zone.
+            const int Rule = 100, Blend = 128;
+            // the edge: where the shape's land really ends (a world set up
+            // before that was measured keeps half the diameter, so its
+            // regions all agree)
+            bool landEdge = sapi.WorldManager.SaveGame.GetData<bool>("lgKeepOutLand", false);
+            if (_wgIslandJobs != null)
+                foreach (var job in _wgIslandJobs)
+                {
+                    long r = (long)Math.Ceiling(landEdge ? Math.Max(job.Diameter / 2.0, job.LandRadius) : job.Diameter / 2.0) + Rule + Blend;
+                    keepOut.Add((job.Cx, job.Cz, r * r));
+                }
+            var gsKeep = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
+            if (gsKeep?.Structures != null)
+                foreach (var pair in gsKeep.Structures)
+                {
+                    long r = StoryEdge(pair.Value.LandformRadius) + Rule + Blend;
+                    keepOut.Add((pair.Value.CenterPos.X, pair.Value.CenterPos.Z, r * r));
+                }
+            // Skip regions entirely outside the spawn clear zone and every
+            // island's keep-out ring.
             int regionSizeBlocks = sapi.WorldManager.RegionSize;
-            long rdx = Math.Max(0, Math.Abs((regionX * regionSizeBlocks) + regionSizeBlocks / 2 - spawnMidX) - regionSizeBlocks / 2);
-            long rdz = Math.Max(0, Math.Abs((regionZ * regionSizeBlocks) + regionSizeBlocks / 2 - spawnMidZ) - regionSizeBlocks / 2);
-            if (rdx * rdx + rdz * rdz > SpawnClearRadiusSq) return;
+            int rcx = regionX * regionSizeBlocks + regionSizeBlocks / 2, rcz = regionZ * regionSizeBlocks + regionSizeBlocks / 2;
+            bool RegionTouches(int x, int z, long radSq)
+            {
+                long rdx = Math.Max(0, Math.Abs(rcx - x) - regionSizeBlocks / 2);
+                long rdz = Math.Max(0, Math.Abs(rcz - z) - regionSizeBlocks / 2);
+                return rdx * rdx + rdz * rdz <= radSq;
+            }
+            if (!RegionTouches(spawnMidX, spawnMidZ, SpawnClearRadiusSq) && !keepOut.Exists(c => RegionTouches(c.X, c.Z, c.RadSq))) return;
         }
         var lfMap = mapRegion.LandformMap;
         if (lfMap?.Data == null || lfMap.Data.Length == 0) return;
@@ -397,7 +429,13 @@ public partial class LandmassGeneratorModSystem : ModSystem
                 if (naturalIslands)
                 {
                     long sdx = wx - spawnMidX, sdz = wz - spawnMidZ;
-                    if (sdx * sdx + sdz * sdz > SpawnClearRadiusSq) continue;
+                    bool flatten = sdx * sdx + sdz * sdz <= SpawnClearRadiusSq;
+                    for (int k = 0; k < keepOut.Count && !flatten; k++)
+                    {
+                        long dx = wx - keepOut[k].X, dz = wz - keepOut[k].Z;
+                        flatten = dx * dx + dz * dz < keepOut[k].RadSq;
+                    }
+                    if (!flatten) continue;
                 }
                 bool keep = false;
                 for (int k = 0; k < keeps.Count; k++)
@@ -804,6 +842,9 @@ public partial class LandmassGeneratorModSystem : ModSystem
 #   rain <mapX> <mapZ> <rainfall 0..1> [radius] [fade]   how often it rains
 #       there (0.4 'uncommon', 1.0 almost always), temperature untouched;
 #       applied as the land generates (/genrain plan for an older world)
+#   ruins [margin=500] [skip=<family>,...]   give every Better Ruins
+#       megastructure its own small island at sea, seeded by the world, at
+#       least `margin` blocks from the edge of every lore island (0.67.0)
 # Codes: resonancearchive, lazaret, village, devastationarea, tobiascave,
 # treasurehunter, greatmachine (Spreading Devastation)
 #
@@ -811,8 +852,9 @@ public partial class LandmassGeneratorModSystem : ModSystem
 # 2026-07-14) at 6.33 blocks per drawing unit with the Starter Island at 0,0;
 # that scale reproduces the six story pins already approved to within ~40
 # blocks. Island sizes are each shape's designed diameter, not the drawn
-# circle. The five unnamed circles around the Great Machine are the
-# Scattered Ruins: four granary ruins and the flatcave ruin.
+# circle. Around the Great Machine: the Scattered Ruins (granary ruins), The
+# Spoils and Cardinals. The map of 2026-10-25 also places the Hanging Gardens
+# Temple near the Ideal Home Island.
 pureocean
 clearspawn 16
 devastation off
@@ -863,12 +905,24 @@ island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basa
 island -650 -4850 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=352
 island 4300 -1300 shape=eerie_island diameter=420 height=22 water=36 climate=lush
 
-# Scattered Ruins around the Great Machine
-island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40
-island -2070 -6510 shape=granary_cold diameter=150 height=26 stone=rock-slate sand=sand-slate
+# The Hanging Gardens Temple: the stranded monks' island of spires, hanging
+# gardens and rope bridges, with its temple, pagoda and three markets.
+island 1080 -2480 shape=hanging_gardens diameter=520 height=80 water=34 climate=temperate stone=rock-limestone sand=sand-limestone
+
+# Around the Great Machine: The Spoils, its dumping ground (a heap of pieces
+# cut out of everywhere, caverns, the red fog), and Cardinals, the Better
+# Ruins cathedral on a flat cold island, on the spots of the old flatcave and
+# cold granary ruins; then the Scattered Ruins, three granary ruins (the
+# map's Alchemist Lair, Power Plant and Mansion circles).
+island -270 -7240 shape=the_spoils diameter=560 height=20 water=36 climate=arid stone=rock-basalt sand=sand-basalt
+island -2070 -6510 shape=cardinals_island diameter=460 height=22 water=34 climate=cold stone=rock-andesite sand=sand-andesite
 island 1970 -6670 shape=granary_temperate diameter=150 height=26 stone=rock-granite sand=sand-granite
 island 2010 -4880 shape=granary_lush diameter=150 height=26 stone=rock-claystone sand=sand-limestone
 island 660 -3550 shape=granary_arid diameter=150 height=26 stone=rock-sandstone sand=sand-sandstone
+
+# The other Better Ruins megastructures, each on its own small island at
+# sea, 500+ blocks clear of every lore island (the cathedral is Cardinals).
+ruins margin=500 skip=megastructure-10
 
 # Story locations (the game builds these islands itself around each site)
 storyloc treasurehunter 2400 -250
@@ -976,8 +1030,11 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                         _planRainZones = new List<RainZone>(_planRainZones) { rainZone };
                     StampRainZoneNow(rainZone, loadMissing: false);
                     break;
+                case "ruins":
+                    // expanded into islands below (RuinIsles.cs)
+                    break;
                 default:
-                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, devastation, storychest, storyloc, island, rain.");
+                    return TextCommandResult.Error($"Plan line {lineNo} has unknown directive '{parts[0]}'. Known: pureocean, clearspawn, pregenstory, devastation, storychest, storyloc, island, rain, ruins.");
             }
         }
         if (!pureOcean && clearSpawnRange == 0 && sites.Count == 0 && islands.Count == 0)
@@ -985,6 +1042,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             return TextCommandResult.Error($"Plan file {planPath} contains no directives.");
         }
         islands = ApplyWorldConfigToPlanIslands(islands);
+        islands.AddRange(PlanRuinIslands(planText.Replace("\r", "").Split('\n'), islands));
 
         var notes = new List<string>();
         if (freshPlan) notes.Add($"no plan file existed, wrote and applied the default at {planPath}");
@@ -1837,6 +1895,12 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         public double OceanRing;
         public long Seed;
         public int Diameter;
+        // How far its land reaches from its centre: half the diameter for a
+        // round shape, more where a drawn shape has land in its corners.
+        public double LandRadius;
+        // The island's own options, for structures that take theirs from the
+        // island line (a ruins site's ruin= / ruinschem= / ruinrot=).
+        public Dictionary<string, string> Opt;
         // The worldgen renderer already placed this island's terrain during
         // chunk generation; the live pass only decorates.
         public bool SkipTerrain;
@@ -2126,6 +2190,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             Rand = new LCGRandom(seed)
         };
         job.Diameter = diameter;
+        job.Opt = opt;
         // skipterrain=1 (used by the auto world setup): the worldgen pass
         // already rendered this island's terrain during chunk generation,
         // so the live pass skips straight to decoration.
@@ -2181,6 +2246,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             job.ShapeName = shapeName;
             job.NaturalDeposits = shape.NaturalDeposits;
             job.WorldPerCell = diameter / (double)Math.Max(shape.W, shape.H);
+            job.LandRadius = ShapeLandRadius(shape.Cells, shape.W, shape.H) * job.WorldPerCell;
             job.OceanRing = Math.Max(24.0, diameter * 0.22);
             // Half the grid's diagonal, plus the offshore ring we reshape.
             double half = 0.5 * Math.Sqrt(Math.Pow(shape.W * job.WorldPerCell, 2) + Math.Pow(shape.H * job.WorldPerCell, 2));
@@ -2192,6 +2258,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             job.R = R;
             job.OceanRing = Math.Max(24.0, R * 0.6);
             job.Rmax = R * 1.12 + job.OceanRing;
+            job.LandRadius = R * 1.12;
             job.BumpAmp = Math.Min(4.0, height * 0.15);
             reach = (int)Math.Ceiling(job.Rmax) + 2;
 
@@ -3817,6 +3884,19 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             if (planRain.Count > 0)
                 sapi.Logger.Notification("[landmassgenerator] {0} plan rain zone(s) apply as map regions generate.", planRain.Count);
             planIslands = ApplyWorldConfigToPlanIslands(planIslands);
+            // 0.67.0's ruin islands and natural-island keep-out are for worlds
+            // set up from now on (first load) or keeping their plan in the
+            // save. A world from before 0.64.0 that still reads the live plan
+            // file gets neither, so a plan edit cannot drop bare ruin isles or
+            // cut natural islands into a world someone is playing.
+            bool freshWorld = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) == null;
+            if (freshWorld) { sapi.WorldManager.SaveGame.StoreData("lgNaturalKeepOut", true); sapi.WorldManager.SaveGame.StoreData("lgKeepOutLand", true); }
+            if (freshWorld || planLines != null)
+            {
+                string[] lines = planLines ?? File.ReadAllLines(planPath);
+                planIslands.AddRange(PlanRuinIslands(lines, planIslands));
+                SwitchOffVanillaMegastructures(lines);
+            }
             foreach (var pi in planIslands)
             {
                 int mapX = pi.MapX, mapZ = pi.MapZ;
@@ -6539,7 +6619,7 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
         switch (def.Kind)
         {
             // The megastructures (MegaStructs.cs) get the same tools.
-            case "pylons": case "refinery": case "graveyard": case "powerplant": case "greatmachine":
+            case "pylons": case "refinery": case "graveyard": case "powerplant": case "greatmachine": case "ruin": case "spoils": case "gardens":
                 BuildMega(new MegaKit
                 {
                     Job = job, Def = def, Rand = rand, Sea = sea, Set = Set, SetFluid = SetFluid, Ground = Ground,
@@ -8748,8 +8828,10 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
             // always"). A light already in a full block stays. Otherwise
             // its host is the touching full block, walls first, then the
             // floor, then the ceiling. Chests, slabs, stairs and other
-            // part blocks are never hosts.
-            if (MegaKinds.Contains(def.Kind))
+            // part blocks are never hosts. The gardens' paper lanterns are
+            // the exception: they hang under eaves and sit in stone lanterns,
+            // where they were put.
+            if (MegaKinds.Contains(def.Kind) && def.Kind != "gardens")
             {
                 bool Host(int x, int y, int z)
                 {

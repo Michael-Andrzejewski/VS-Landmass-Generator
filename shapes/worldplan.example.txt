@@ -14,6 +14,9 @@
 #   rain <mapX> <mapZ> <rainfall 0..1> [radius] [fade]   how often it rains
 #       there (0.4 'uncommon', 1.0 almost always), temperature untouched;
 #       applied as the land generates (/genrain plan for an older world)
+#   ruins [margin=500] [skip=<family>,...]   give every Better Ruins
+#       megastructure its own small island at sea, seeded by the world, at
+#       least `margin` blocks from the edge of every lore island (0.67.0)
 # Codes: resonancearchive, lazaret, village, devastationarea, tobiascave,
 # treasurehunter, greatmachine (Spreading Devastation)
 #
@@ -21,8 +24,9 @@
 # 2026-07-14) at 6.33 blocks per drawing unit with the Starter Island at 0,0;
 # that scale reproduces the six story pins already approved to within ~40
 # blocks. Island sizes are each shape's designed diameter, not the drawn
-# circle. The five unnamed circles around the Great Machine are the
-# Scattered Ruins: four granary ruins and the flatcave ruin.
+# circle. Around the Great Machine: the Scattered Ruins (granary ruins), The
+# Spoils and Cardinals. The map of 2026-10-25 also places the Hanging Gardens
+# Temple near the Ideal Home Island.
 pureocean
 clearspawn 16
 devastation off
@@ -73,12 +77,24 @@ island 750 -4800 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basa
 island -650 -4850 shape=pylon_line diameter=280 height=6 water=30 stone=rock-basalt sand=sand-basalt rotate=352
 island 4300 -1300 shape=eerie_island diameter=420 height=22 water=36 climate=lush
 
-# Scattered Ruins around the Great Machine
-island -270 -7240 shape=flatcave_ruin_base diameter=340 height=27 water=40
-island -2070 -6510 shape=granary_cold diameter=150 height=26 stone=rock-slate sand=sand-slate
+# The Hanging Gardens Temple: the stranded monks' island of spires, hanging
+# gardens and rope bridges, with its temple, pagoda and three markets.
+island 1080 -2480 shape=hanging_gardens diameter=520 height=80 water=34 climate=temperate stone=rock-limestone sand=sand-limestone
+
+# Around the Great Machine: The Spoils, its dumping ground (a heap of pieces
+# cut out of everywhere, caverns, the red fog), and Cardinals, the Better
+# Ruins cathedral on a flat cold island, on the spots of the old flatcave and
+# cold granary ruins; then the Scattered Ruins, three granary ruins (the
+# map's Alchemist Lair, Power Plant and Mansion circles).
+island -270 -7240 shape=the_spoils diameter=560 height=20 water=36 climate=arid stone=rock-basalt sand=sand-basalt
+island -2070 -6510 shape=cardinals_island diameter=460 height=22 water=34 climate=cold stone=rock-andesite sand=sand-andesite
 island 1970 -6670 shape=granary_temperate diameter=150 height=26 stone=rock-granite sand=sand-granite
 island 2010 -4880 shape=granary_lush diameter=150 height=26 stone=rock-claystone sand=sand-limestone
 island 660 -3550 shape=granary_arid diameter=150 height=26 stone=rock-sandstone sand=sand-sandstone
+
+# The other Better Ruins megastructures, each on its own small island at
+# sea, 500+ blocks clear of every lore island (the cathedral is Cardinals).
+ruins margin=500 skip=megastructure-10
 
 # Story locations (the game builds these islands itself around each site)
 storyloc treasurehunter 2400 -250
