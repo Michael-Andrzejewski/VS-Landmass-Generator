@@ -19,7 +19,9 @@ namespace LandmassGenerator;
 // <type> is a vanilla chest type: normal-aged, collapsed1..4, golden-aged,
 // owl-aged, normal-generic. <contents> is a comma-separated list:
 //   lore:<id>                a written, read-only book from lore/<id>.txt
-//   randomlore:<category>    a vanilla lore book revealing a random unread page of that category
+//   randomlore:<category>    a vanilla lore book revealing a random unread page of that category,
+//                            or of a Rustfall pool of categories (randomlore:rfpool-sea, LorePools.cs)
+//   journal:<code>:<page>    a lore book holding that one page of a journal (journal:falx:5 is The Bells)
 //   <domain:code>[*count]    any item or block, e.g. game:jonasparts-tank01*2
 // Placement: the <char> drawn on the map, OR at=gx,gz (a grid cell), OR
 // near=<char> (beside the first cell of that marker, e.g. a landmark tree),
@@ -33,7 +35,7 @@ namespace LandmassGenerator;
 // Lore files live in <LandmassGenerator folder>/lore/<id>.txt:
 //   title: Letter to Seraph
 //   by: Jonas Falx
-//   book: aged-orangebrown
+//   book: aged-orangebrown      (or paper / scroll for a loose page or a scroll)
 //   ---
 //   the text; the game splits it into pages itself
 public partial class LandmassGeneratorModSystem
@@ -338,6 +340,7 @@ public partial class LandmassGeneratorModSystem
     private ItemStack MakeChestStack(string spec, List<string> notes)
     {
         if (spec.StartsWith("lore:", StringComparison.OrdinalIgnoreCase)) return MakeLoreBook(spec.Substring(5), notes);
+        if (spec.StartsWith("journal:", StringComparison.OrdinalIgnoreCase)) return MakeJournalPage(spec, notes);
         if (spec.StartsWith("randomlore:", StringComparison.OrdinalIgnoreCase))
         {
             // A vanilla lore item: reading it reveals the next unread page of
@@ -390,9 +393,10 @@ public partial class LandmassGeneratorModSystem
         // that entry (discoveryCode + chapterIds, the same attributes a found
         // lore page carries), so reading it files the text under Lore in the
         // journal (J). Without the mod it stays a plain written book.
+        // book: paper or book: scroll is a loose page or a scroll, not a book.
         if (sapi.Assets.Exists(new AssetLocation("rustfalllore", $"config/lore/rf-{id}.json")))
         {
-            Item lore = sapi.World.GetItem(new AssetLocation("game", "lore-book-" + color))
+            Item lore = sapi.World.GetItem(new AssetLocation("game", color is "paper" or "scroll" ? "lore-" + color : "lore-book-" + color))
                 ?? sapi.World.GetItem(new AssetLocation("game", "lore-book-aged-orangebrown"));
             if (lore != null)
             {

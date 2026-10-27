@@ -486,14 +486,18 @@ public partial class LandmassGeneratorModSystem
 
     // ── story chests ───────────────────────────────────────────────────
 
-    // Plan line: storychest <storycode> <contents>. Once the game has built
-    // that story structure (it does so when a player first comes near), the
-    // items go into its top entrance chest: the highest chest within the
-    // structure's footprint that has a heavy door within 16 blocks (the
-    // Resonance Archives' surface entrance). Done once per world.
-    private List<(string Code, string Contents)> _storyChests;
+    // Plan line: storychest <storycode> <contents> [near=<block>]. Once the
+    // game has built that story structure (it does so when a player first
+    // comes near), the items go into its top entrance chest: the highest
+    // chest within the structure's footprint that has a heavy door within 16
+    // blocks (the Resonance Archives' surface entrance). With near=, the
+    // chest nearest a block whose code starts with that (near=anvil: the
+    // smithy in Nadiya's village), among the chests outside the structure's
+    // locked land claims. Done once per world.
+    private List<(string Code, string Contents, string Near)> _storyChests;
     private long _storyChestListener;
-    private bool _storyChestForce;   // /genstorychests: skip the player-nearby test
+    private bool _storyChestForce;   // /genstorychests: skip the player-nearby test, load the area
+    private readonly HashSet<string> _storyChestLoading = new();
 
     private void StartStoryChestWatcher()
     {
@@ -506,7 +510,7 @@ public partial class LandmassGeneratorModSystem
         if (_storyChests == null)
         {
             var saved = sapi.WorldManager.SaveGame.GetData<List<string>>("lgStoryChests", null) ?? new List<string>();
-            _storyChests = saved.Select(s => { int bar = s.IndexOf('|'); return (s.Substring(0, bar), s.Substring(bar + 1)); }).ToList();
+            _storyChests = saved.Select(s => { var f = s.Split('|'); return (f[0], f.Length > 1 ? f[1] : "", f.Length > 2 ? f[2] : null); }).ToList();
         }
         if (_storyChests.Count == 0) return;
         var genStory = sapi.ModLoader.GetModSystem<GenStoryStructures>();
@@ -537,7 +541,23 @@ public partial class LandmassGeneratorModSystem
                         foreach (var be in chunk.BlockEntities.Values)
                             if (be is BlockEntityGenericTypedContainer ct && ct.Block?.Code?.Path?.StartsWith("chest") == true) candidates.Add(ct);
                     }
-            if (!allLoaded) { if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: its area is not loaded yet", sc.Code); continue; }
+            if (!allLoaded)
+            {
+                // /genstorychests on a headless server: load the area and look again
+                if (_storyChestForce && _storyChestLoading.Add(sc.Code))
+                {
+                    sapi.Logger.Notification("[landmassgenerator] story chest {0}: loading its area", sc.Code);
+                    string code = sc.Code;
+                    LoadChunkAreaBanded(cx1, cz1, cx2, cz2, false, () =>
+                    {
+                        _storyChestForce = true;
+                        try { StoryChestTick(0); }
+                        finally { _storyChestForce = false; _storyChestLoading.Remove(code); }
+                    });
+                }
+                else if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: its area is not loaded yet", sc.Code);
+                continue;
+            }
 
             var world = sapi.World.BlockAccessor;
             var q = new BlockPos(0, 0, 0, 0);
@@ -553,8 +573,42 @@ public partial class LandmassGeneratorModSystem
                         }
                 return false;
             }
-            var target = candidates.OrderByDescending(c => c.Pos.Y).FirstOrDefault(c => NearHeavyDoor(c.Pos));
-            if (target == null) { if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, none by a heavy door", sc.Code, candidates.Count); continue; }
+            // near=: distance from the chest to the nearest such block within 12
+            double NearBlock(BlockPos at)
+            {
+                double best = double.MaxValue;
+                for (int dx = -12; dx <= 12; dx++)
+                    for (int dy = -6; dy <= 6; dy++)
+                        for (int dz = -12; dz <= 12; dz++)
+                        {
+                            q.Set(at.X + dx, at.Y + dy, at.Z + dz);
+                            string path = world.GetBlock(q)?.Code?.Path;
+                            if (path != null && path.StartsWith(sc.Near)) best = Math.Min(best, dx * dx + dy * dy + dz * dz);
+                        }
+                return best;
+            }
+            BlockEntityGenericTypedContainer target;
+            if (sc.Near != null)
+            {
+                bool Open(BlockPos at) => sapi.World.Claims.Get(at)?.All(cl => cl.AllowUseEveryone) ?? true;
+                var byBlock = candidates.Select(c => (Chest: c, D: NearBlock(c.Pos))).Where(t => t.D < double.MaxValue).OrderBy(t => t.D).Select(t => t.Chest).ToList();
+                // a chest a player may open: none in a claim that keeps everyone out
+                target = byBlock.FirstOrDefault(c => Open(c.Pos));
+                // Every one is locked (the game claims Nadiya's village whole): a
+                // chest of our own just outside the claim, on the side nearest it
+                if (target == null && byBlock.Count > 0) target = StoryChestOutsideClaim(byBlock[0].Pos, Open);
+                if (target == null)
+                {
+                    if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, {2} near a {3}, and no open ground outside its claim",
+                        sc.Code, candidates.Count, byBlock.Count, sc.Near);
+                    continue;
+                }
+            }
+            else
+            {
+                target = candidates.OrderByDescending(c => c.Pos.Y).FirstOrDefault(c => NearHeavyDoor(c.Pos));
+                if (target == null) { if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, none by a heavy door", sc.Code, candidates.Count); continue; }
+            }
 
             var notes = new List<string>();
             int put = FillChest(target, sc.Contents.Split(',', StringSplitOptions.RemoveEmptyEntries), notes);
@@ -564,6 +618,42 @@ public partial class LandmassGeneratorModSystem
                 target.Pos.X - sapi.WorldManager.MapSizeX / 2, target.Pos.Y, target.Pos.Z - sapi.WorldManager.MapSizeZ / 2,
                 notes.Count > 0 ? " (" + string.Join("; ", notes) + ")" : "");
         }
+    }
+
+    // From `from` straight out past the nearest edge of the locked claim over
+    // it, to the first dry ground a player may use, and a new chest there.
+    private BlockEntityGenericTypedContainer StoryChestOutsideClaim(BlockPos from, System.Func<BlockPos, bool> open)
+    {
+        var area = (sapi.World.Claims.Get(from) ?? new LandClaim[0]).Where(cl => !cl.AllowUseEveryone)
+            .SelectMany(cl => cl.Areas).FirstOrDefault(a => a.Contains(from));
+        if (area == null) return null;
+        var world = sapi.World.BlockAccessor;
+        Block chest = sapi.World.GetBlock(new AssetLocation("game", "chest-east"));
+        if (chest == null) return null;
+        var p = new BlockPos(0, 0, 0, from.dimension);
+        var sides = new[] { (D: from.X - area.X1, Sx: -1, Sz: 0), (D: area.X2 - from.X, Sx: 1, Sz: 0), (D: from.Z - area.Z1, Sx: 0, Sz: -1), (D: area.Z2 - from.Z, Sx: 0, Sz: 1) };
+        foreach (var (d, sx, sz) in sides.OrderBy(s => s.D))
+            for (int k = d + 3; k <= d + 14; k++)
+            {
+                int x = from.X + sx * k, z = from.Z + sz * k;
+                for (int y = Math.Min(sapi.WorldManager.MapSizeY - 3, area.Y2 + 20); y >= sapi.World.SeaLevel - 1; y--)
+                {
+                    p.Set(x, y, z);
+                    Block b = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
+                    if (b == null || b.Id == 0 || b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves or EnumBlockMaterial.Wood) continue;
+                    p.Set(x, y + 1, z);
+                    if (!b.SideSolid[BlockFacing.UP.Index] || (world.GetBlock(p, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) break;
+                    var at = new BlockPos(x, y + 1, z, from.dimension);
+                    if (!open(at) || HasChestNear(world, at)) break;
+                    world.SetBlock(chest.BlockId, at);
+                    if (world.GetBlockEntity(at) is not BlockEntityGenericTypedContainer be) return null;
+                    var ts = new ItemStack(chest);
+                    ts.Attributes.SetString("type", "normal-aged");
+                    be.OnBlockPlaced(ts);
+                    return be;
+                }
+            }
+        return null;
     }
 }
 

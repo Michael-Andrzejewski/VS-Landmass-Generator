@@ -1306,3 +1306,49 @@ and less rain.
   `yaw = atan2(dx, dz)` in degrees. The two notes above disagree with this
   because they were taken at other pitches. Set `/weather seti clearsky` and
   `/time set day` first: a fresh world can sit in fog.
+
+## The lore pass (0.69.0)
+
+Every lore spot holds its own record, two or three random lore books, and loot
+that fits the place. Michael's texts went in word for word (two doubled words
+fixed: "the the northwest", "world world").
+
+| Spot | Its own lore | Random books | Loot added |
+|---|---|---|---|
+| Starter, great tree | Jonas' letter | 1 Jonas pool | |
+| Starter cave | Tobias' letter, tin mine map | 1 Tobias pool | candles, rope, twine |
+| Tin lab | withdrawal notice, chart, forest map | 1 lab pool | tin, cassiterite |
+| Tin mine depths | the scrawl, Jonas parts, rift ward | 1 Jonas pool | |
+| Forest mine | the ticking (deepest); the old trader's musings | 1 Jonas, 2 trade | coal; a temporal gear and 8 rusty gears (his collection) |
+| Forge volcano | joy, shipments, chart, map to the Iron Mine | 1 village pool | an iron falx |
+| Iron mine | John Vintage, lens, rift ward schematic | 1 war, 1 Jonas | |
+| The pine | John Vintage alive | 1 sea pool | |
+| Lighthouse | the keeper's log, Nadiya letter, fortress map | 2 sea, 1 Jonas | |
+| Ruined Fortress | | 3 war (Forlorn Hope) | |
+| Chainfield | the sealed container | 1 sea | chains |
+| Sunken Colossus | the Great Eidolons | 1 Jonas | chains |
+| Serpent skeleton | | 1 sea | 3 nest chests heavy on gold and silver, a rare starter kit |
+| Gardens pier | the serpent captain, map to the nest | 1 sea | rope, sails |
+| Gardens temple | the assistant's vow, the chronicle | 1 village | |
+| Diving Bell Mine | The Bells, The Mines | 1 sea | |
+| Ideal Home Island | Jonas' island, the dream | 1 village | seeds, a hoe |
+| Alchemist Lair | the folded scroll and The Flux (observatory), the gatekeeper's log | 1 lab | |
+| The Spoils | the scavenger, the scribe's record | 1 Jonas | |
+| Great Machine | The Lens, The Charge, The Golem (first lab, machinist, Jonas chest) | 1 Jonas in every fifth chest | |
+| Nadiya's village | the old blacksmith | 2 village | an iron hammer, 2 iron ingots |
+| Burying Isle | its six | Tobias pool (was Jonas) | |
+
+- **Nadiya's village is claimed whole.** The game's claim `custommessage-nadiya`
+  (use locked) covers every one of its 32 chests, the smithy's too, though the
+  village's story entry only lists two small claim boxes. A `storychest ... near=`
+  that finds every candidate locked places its own chest 3 blocks outside the
+  claim, on the side nearest the block (Rustfall 0.69 test: HUD -6350, -5524,
+  in the meadow west of the palisade).
+- **`/genstorychests` loads the area itself** since 0.69.0. Before, a headless
+  build never filled a story chest: nothing stays loaded there.
+- **Testing a lore book** needs a player: `/genlorebook randomlore:rfpool-jonas read`
+  as a joined player gives the book and reads it, the way a right click does.
+  On the test world ten Jonas-pool books gave falx pages 0 to 5 in order,
+  vanilla's confession and breakdown, then the research pages.
+- **The log joins chest contents with ", "**: a check that greps for
+  `a,b` finds nothing. Grep each spec on its own.

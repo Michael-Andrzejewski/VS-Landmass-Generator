@@ -427,7 +427,7 @@ public partial class LandmassGeneratorModSystem
                 k.Clutter(mid + 3, fy + 1, z0 + 1, "clutter|pottery/art" + k.RI(1, 27), 0);
                 for (int x = x0 + 2; x <= x1 - 2; x += 4) { GardensLantern(g, x, floorY + wallH - 1, z0 + 2); GardensLantern(g, x, floorY + wallH - 1, z1 - 2); }
                 k.Job.StructChests.Add((new BlockPos(mid + 4, fy, z0 + 1, k.Job.Dim), "normal-aged",
-                    new List<string> { "lore:hanging_gardens_chronicle", "game:candle*6", "game:beeswax*4" }, "the temple's chronicle"));
+                    new List<string> { "lore:gardens_assistant", "lore:hanging_gardens_chronicle", "randomlore:rfpool-village", "game:candle*6", "game:beeswax*4" }, "the temple's chronicle"));
                 break;
             }
             case "quarters":
@@ -1367,6 +1367,14 @@ public partial class LandmassGeneratorModSystem
         GardensLantern(g, lx, y + 3, lz);
         var (tx, tz) = W(0, 0);
         g.Traders.Add((tx, y + 1, tz, GardensTraderCode(g, trade)));
+        // beside the booth at the pier, under its eaves: a captain's account
+        // of the serpent and his chart of where it hunts (0.69.0)
+        if (trade == "commodities")
+        {
+            var (sx, sz) = W(-3, 1);
+            k.Job.StructChests.Add((new BlockPos(sx, y + 1, sz, k.Job.Dim), "normal-aged",
+                new List<string> { "lore:serpent_captain", "landmassgenerator:islandmap-serpent", "randomlore:rfpool-sea", "game:rope*4", "game:sail*2" }, "the pier booth"));
+        }
         var (q0, q1) = W(-4, -3);
         var (q2, q3) = W(4, 5);
         g.Taken.Add((Math.Min(q0, q2), Math.Min(q1, q3), Math.Max(q0, q2), Math.Max(q1, q3)));

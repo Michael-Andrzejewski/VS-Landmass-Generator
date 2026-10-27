@@ -4,8 +4,9 @@
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
 #       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
 #   devastation off           pause Spreading Devastation in this world
-#   storychest <code> <contents>   once the game builds that story structure,
-#       add these items (chest contents syntax) to its top entrance chest
+#   storychest <code> <contents> [near=<block>]   once the game builds that
+#       story structure, add these items (chest contents syntax) to its top
+#       entrance chest, or with near= to the open chest nearest that block
 #   pregenstory               also generate every story area during setup
 #       (off: they generate when a player first comes near, like vanilla)
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
@@ -130,3 +131,5 @@ storyloc mansion 660 -3550
 
 # Just inside the Resonance Archives' top entrance: the way to Jonas' dream.
 storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal
+# In the smithy of Nadiya's village: the old blacksmith's musings (0.69.0).
+storychest village lore:nadiya_blacksmith,randomlore:rfpool-village,randomlore:rfpool-village,game:hammer-iron,game:ingot-iron*2 near=anvil

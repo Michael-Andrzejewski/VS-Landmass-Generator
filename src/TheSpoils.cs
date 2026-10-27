@@ -283,9 +283,12 @@ public partial class LandmassGeneratorModSystem
 
         // ── what lies in the caverns ──────────────────────────────────────
         foreach (var c in s.Caverns) SpoilsFurnish(s, c);
-        // the scavenger's notes, in the first chest left in the heap
-        int firstChest = k.Job.StructChests.FindIndex(ch => ch.Label == "the spoils");
-        if (firstChest >= 0) k.Job.StructChests[firstChest].Contents.Insert(0, "lore:spoils_scavenger");
+        // the scavenger's notes in the first chest left in the heap; the
+        // scribe's record of the day Jonas came to look in the next one
+        var heapChests = k.Job.StructChests.Select((ch, i) => (ch, i)).Where(t => t.ch.Label == "the spoils").Select(t => t.i).ToList();
+        if (heapChests.Count > 0) k.Job.StructChests[heapChests[0]].Contents.Insert(0, "lore:spoils_scavenger");
+        if (heapChests.Count > 0) k.Job.StructChests[heapChests[Math.Min(1, heapChests.Count - 1)]].Contents.Insert(0, "lore:spoils_jonas");
+        if (heapChests.Count > 2) k.Job.StructChests[heapChests[2]].Contents.Insert(0, "randomlore:rfpool-jonas");
 
         k.AfterCommit.Add(() =>
         {

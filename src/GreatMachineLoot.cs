@@ -59,6 +59,7 @@ public partial class LandmassGeneratorModSystem
         var taken = new List<BlockPos>();
         int chests = 0, stands = 0, piles = 0, devices = 0, skipped = 0;
         var deviceCount = new Dictionary<string, int>();
+        var scenesPut = new HashSet<string>();
         bool Air(int x, int y, int z)
         {
             p.Set(x, y, z);
@@ -91,6 +92,13 @@ public partial class LandmassGeneratorModSystem
                     ts.Attributes.SetString("type", "normal-aged");
                     be.OnBlockPlaced(ts);
                     var contents = RollTable(table, rand, 5 + (int)(rand.NextDouble() * 3));
+                    // Michael's scenes of the Machine, each in the first chest of
+                    // its kind: The Lens among Jonas' instruments, The Charge with
+                    // the machinists, The Golem with the Jonas parts; a random
+                    // Jonas book in every fifth chest after that (0.69.0)
+                    string scene = table switch { "gmlab" => "journal:falx:0", "machinist" => "journal:falx:1", "jonas" => "journal:falx:2", _ => null };
+                    if (scene != null && scenesPut.Add(scene)) contents.Insert(0, scene);
+                    else if (chests % 5 == 4) contents.Insert(0, "randomlore:rfpool-jonas");
                     FillChest(be, contents, notes);
                     chests++;
                     sapi.Logger.Notification("[landmassgenerator] great machine chest {0} at HUD {1}: {2}", table, hud, string.Join(", ", contents));

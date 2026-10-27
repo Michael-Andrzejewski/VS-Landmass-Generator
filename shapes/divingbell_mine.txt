@@ -18,7 +18,7 @@ region b rock=limestone sand=sand-limestone surface=sand shells=0.02 bushes=birc
 ocean basin=150 depth=33 plunge=5
 struct D kind=divingbell size=130 seed=7
 
-chest R normal-aged randomlore:jonas:game:lore-book-aged-cherryred at=38,20
+chest R normal-aged journal:falx:5:game:lore-book-aged-cherryred,journal:falx:4:game:lore-book-aged-darkgray,randomlore:rfpool-sea at=38,20
 loot mine 3 near=D radius=70 where=inside
 loot sunken 1 near=D radius=70 where=underwater
 map

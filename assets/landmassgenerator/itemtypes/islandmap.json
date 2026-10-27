@@ -3,7 +3,7 @@
 	"class": "LandmassGenerator.ItemIslandMap",
 	"maxstacksize": 1,
 	"variantgroups": [
-		{ "code": "target", "states": ["tinmine", "forest", "ideal"] }
+		{ "code": "target", "states": ["tinmine", "forest", "ideal", "ironmine", "serpent", "fortress"] }
 	],
 	"behaviors": [
 		{ "name": "GroundStorable", "properties": { "layout": "Quadrants", "placeRemoveSound": "game:sounds/player/build", "collisionBox": { "x1": 0, "y1": 0, "z1": 0, "x2": 1, "y2": 0.25, "z2": 1 } } }
@@ -12,6 +12,12 @@
 		"*-tinmine": { "islandShape": "tin_island", "waypointText": "landmassgenerator:waypoint-tinmine",
 			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
 		"*-forest": { "islandShape": "forester_island", "waypointText": "landmassgenerator:waypoint-forest",
+			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
+		"*-ironmine": { "islandShape": "ironmine_island", "waypointText": "landmassgenerator:waypoint-ironmine",
+			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
+		"*-serpent": { "islandShape": "giant_serpent_skeleton", "waypointText": "landmassgenerator:waypoint-serpent",
+			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
+		"*-fortress": { "islandShape": "lone_bastion_1", "waypointText": "landmassgenerator:waypoint-fortress",
 			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
 		"*-ideal": { "islandShape": "ideal_house_island", "waypointText": "landmassgenerator:waypoint-ideal",
 			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } }

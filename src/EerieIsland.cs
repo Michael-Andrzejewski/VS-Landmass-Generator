@@ -1061,7 +1061,7 @@ public partial class LandmassGeneratorModSystem
                     var pp = P(-1, Hw - 1); e.Prop(pp.X, Y, pp.Z, "bookshelves/bookpile-aged" + k.RI(1, 5), 0);
                     var kp = P(2, Hw - 1); e.Candles(kp.X, Y, kp.Z);
                     FloorChest(Hl - 1, Hw - 1, "normal-aged",
-                        new List<string> { "lore:eerie_ledger", "randomlore:jonas" }.Concat(RollLoot(k.Rand, WardenLoot, 3)).ToList(), "wardens' room");
+                        new List<string> { "lore:eerie_ledger", "randomlore:rfpool-tobias" }.Concat(RollLoot(k.Rand, WardenLoot, 3)).ToList(), "wardens' room");
                     break;
                 }
                 case "cell":
@@ -1133,7 +1133,7 @@ public partial class LandmassGeneratorModSystem
                         if (Solid(p.X, Y + 3, p.Z)) e.Light(p.X, Y + 3, p.Z);
                     }
                     var dp = P(0, 0); if (k.R() < 0.5) e.DeadAt(dp.X, Y, dp.Z, along);
-                    if (k.R() < 0.5) FloorChest(Hl, -Hw + 1, "normal-aged", new List<string> { "randomlore:jonas" }.Concat(RollLoot(k.Rand, GraveLoot, 3)).ToList(), "chapel");
+                    if (k.R() < 0.5) FloorChest(Hl, -Hw + 1, "normal-aged", new List<string> { "randomlore:rfpool-tobias" }.Concat(RollLoot(k.Rand, GraveLoot, 3)).ToList(), "chapel");
                     break;
                 }
                 case "sarcophagi":
@@ -1469,7 +1469,7 @@ public partial class LandmassGeneratorModSystem
         for (int i = 0; i < 3; i++) { var p = P(k.RI(-hl + 3, hl - 2), k.R() < 0.5 ? -1 : 1); e.DeadAt(p.X, y0, p.Z, toAltar); }
         foreach (int side in new[] { -1, 1 }) { var p = P(hl - 1, side * (hw + 1)); e.Light(p.X, y0 + 3, p.Z); }
         var ch = P(hl, -2);
-        e.Chest(ch.X, y0, ch.Z, "normal-aged", new List<string> { "randomlore:jonas" }.Concat(RollLoot(k.Rand, VaultLoot, 3)).ToList(), "buried chapel");
+        e.Chest(ch.X, y0, ch.Z, "normal-aged", new List<string> { "randomlore:rfpool-tobias" }.Concat(RollLoot(k.Rand, VaultLoot, 3)).ToList(), "buried chapel");
         // the roof fell in at the west end: a slope of rubble climbs from the
         // middle of the nave, a step at a time, out through the hole and the
         // turf beyond the west wall

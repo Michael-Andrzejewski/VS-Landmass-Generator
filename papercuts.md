@@ -1036,3 +1036,20 @@ rain 66% of the time. Rewriting the rainfall (the 0.63.3 `rain` zones) changes
 the tint too. The weather now reads a capped copy (`/genrain cap`), the tint
 the real value. `/genrain survey` counts the rain share at every island with
 the game's own noise; read it before and after any change.
+
+## Dark chunks on a 16-chunk lattice after /genmapexport (0.68.0 build)
+
+Rustfall 0.68's sea, generated headless by `/genmapexport`, came out with whole
+chunks holding no sunlight: 265 of 1,681 surface chunks round the starter, 380
+of 1,815 in open sea west of it. They lie on a lattice that repeats every 16
+chunks, the export's tile size. The export loads a 16 by 16 tile plus a border
+of one, paints it, then unloads the whole box with `UnloadChunkColumn`.
+Guessed cause: columns let go part way through generating come back with their
+light pass skipped. Not tested further. Michael's game draws them dark in full
+daylight.
+
+The fix lives outside this repo: Dark Chunk Fix
+(`...\Vintage Story\dark-chunk-fix`, a server mod) relights a dark column as it
+loads, before it is sent, and marks it modified so the save keeps the repair.
+With it in a build server's Mods, check a build with `/darkfix scan x z r`
+(it reports dark chunks left and columns relit while loading).

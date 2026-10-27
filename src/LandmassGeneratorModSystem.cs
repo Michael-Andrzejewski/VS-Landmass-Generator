@@ -229,7 +229,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
 
         RegisterCmd(api, "genstorychests", name =>
             api.ChatCommands.Create(name)
-                .WithDescription("Fill the plan's story chests now if their story structures are generated and loaded, without waiting for a player to come near. 'redo' fills them again.")
+                .WithDescription("Fill the plan's story chests now if their story structures are generated, without waiting for a player to come near (an area not loaded is loaded first, then looked at again). 'redo' fills them again.")
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(p.OptionalWord("redo"))
                 .HandleWith(a =>
@@ -270,6 +270,8 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // Each world keeps the plan it was set up with (WorldPlanStore.cs).
         StartWorldPlanStore(api);
         StartMegaGuard();
+        // Random lore books that draw from a chain of categories (LorePools.cs).
+        StartLorePools(api);
         // Rain zones: how often it rains round spawn (RainZones.cs), and the
         // cap on the rainfall the weather sees.
         StartRainZones(api);
@@ -853,8 +855,9 @@ public partial class LandmassGeneratorModSystem : ModSystem
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
 #       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
 #   devastation off           pause Spreading Devastation in this world
-#   storychest <code> <contents>   once the game builds that story structure,
-#       add these items (chest contents syntax) to its top entrance chest
+#   storychest <code> <contents> [near=<block>]   once the game builds that
+#       story structure, add these items (chest contents syntax) to its top
+#       entrance chest, or with near= to the open chest nearest that block
 #   pregenstory               also generate every story area during setup
 #       (off: they generate when a player first comes near, like vanilla)
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
@@ -979,6 +982,8 @@ storyloc mansion 660 -3550
 
 # Just inside the Resonance Archives' top entrance: the way to Jonas' dream.
 storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal
+# In the smithy of Nadiya's village: the old blacksmith's musings (0.69.0).
+storychest village lore:nadiya_blacksmith,randomlore:rfpool-village,randomlore:rfpool-village,game:hammer-iron,game:ingot-iron*2 near=anvil
 ";
 
     private TextCommandResult OnGenWorldSetup(TextCommandCallingArgs args)
@@ -1041,9 +1046,18 @@ storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-
                     devastationOff = parts.Length > 1 && (parts[1].Equals("off", StringComparison.OrdinalIgnoreCase) || parts[1].Equals("stop", StringComparison.OrdinalIgnoreCase));
                     break;
                 case "storychest":
-                    if (parts.Length < 3) return TextCommandResult.Error($"Plan line {lineNo} is not 'storychest <storycode> <contents>': {line}");
-                    storyChests.Add(parts[1].ToLowerInvariant() + "|" + string.Join(",", parts, 2, parts.Length - 2));
+                {
+                    if (parts.Length < 3) return TextCommandResult.Error($"Plan line {lineNo} is not 'storychest <storycode> <contents> [near=<block>]': {line}");
+                    string scNear = null;
+                    var scItems = new List<string>();
+                    for (int i = 2; i < parts.Length; i++)
+                    {
+                        if (parts[i].StartsWith("near=", StringComparison.OrdinalIgnoreCase)) scNear = parts[i].Substring(5).ToLowerInvariant();
+                        else scItems.Add(parts[i]);
+                    }
+                    storyChests.Add(parts[1].ToLowerInvariant() + "|" + string.Join(",", scItems) + (scNear != null ? "|" + scNear : ""));
                     break;
+                }
                 case "storyloc":
                     if (parts.Length < 4 || !int.TryParse(parts[2], out int mx) || !int.TryParse(parts[3], out int mz))
                     {

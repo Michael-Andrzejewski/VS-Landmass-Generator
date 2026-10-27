@@ -989,7 +989,10 @@ public partial class LandmassGeneratorModSystem
             LairLamp(L, hx + 3, sy + 3, hz + 3, "gas-ceiling1");
             LairLamp(L, hx - 3, sy + 3, hz - 3, "gas-ceiling1");
         }
-        k.Job.StructChests.Add((new BlockPos(hx - 5, ht + FH + 1, hz + 2, k.Job.Dim), "normal-aged", RollTable("alchemist", k.Rand, 6), "the observatory's cabinet"));
+        // Jonas' quarrel with the young alchemist, folded away up here, and
+        // the Clockmakers' own try at a lens (The Flux)
+        k.Job.StructChests.Add((new BlockPos(hx - 5, ht + FH + 1, hz + 2, k.Job.Dim), "normal-aged",
+            new List<string> { "lore:alchemist_scroll", "journal:falx:3:game:lore-book-aged-purpleorange" }.Concat(RollTable("alchemist", k.Rand, 6)).ToList(), "the observatory's cabinet"));
         L.Chests++;
         L.Machines += 2;
         L.MaxY = Math.Max(L.MaxY, domeY + Ro + 2);
@@ -1116,7 +1119,7 @@ public partial class LandmassGeneratorModSystem
         LairClut(L, cx - 1, cg + 1, gz, "chair-aged", 0);
         LairClut(L, cx - 1, cg + 1, gz + 2, "pile-writing", 0);
         k.Job.StructChests.Add((new BlockPos(cx - 2, cg + 1, gz - 3, k.Job.Dim), "normal-aged",
-            new List<string>(RollTable("alchemist", k.Rand, 4)) { "lore:alchemist_last_entry" }, "the gatekeeper's chest"));
+            new List<string>(RollTable("alchemist", k.Rand, 4)) { "lore:alchemist_last_entry", "randomlore:rfpool-lab" }, "the gatekeeper's chest"));
         L.Chests++;
         // the road from the campus down to the bowl, and the pipe beside it
         int x0 = L.Cx + LairQuadStep + LairQuadHalf + 4;

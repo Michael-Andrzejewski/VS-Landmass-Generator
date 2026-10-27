@@ -578,6 +578,32 @@ Lore files (`lore/*.txt` in the repo, copied to the data folder):
     ---
     The text. The game splits it into pages.
 
+`book: paper` or `book: scroll` makes it a loose page or a scroll (0.69.0).
+
+Lore pass (0.69.0). Three more kinds of chest contents:
+
+- `randomlore:<category>[:<item code>]` is a vanilla lore book that reveals the
+  next unread page of a random journal in that category when read. Rustfall's
+  pools chain categories, so a book still finds something once one is used up:
+  `rfpool-jonas` (Jonas, then research, Tobias, any vanilla, anything),
+  `rfpool-tobias`, `rfpool-sea` (diaries first), `rfpool-village` (villager
+  stories), `rfpool-lab` (research), `rfpool-war` (Better Ruins' Forlorn Hope
+  and Last Wall records), `rfpool-trade`. "Anything" leaves out the Rustfall
+  records and the vanilla notes bound to their own sites (LorePools.cs).
+- `journal:<code>:<page>[:<item code>]` is a lore book holding that one page of
+  a journal: `journal:falx:5` is The Bells, the sixth of Michael's scenes
+  (0 The Lens, 1 The Charge, 2 The Golem, 3 The Flux, 4 The Mines, 5 The Bells).
+- `game:letter-faded` is vanilla's faded letter, which marks Nadiya's village.
+
+A `loot` line takes `with=<contents>`: those go into the first chest it places,
+ahead of the roll (the lighthouse keeper's log, the lore in a sunken hull). A
+`storychest` plan line takes `near=<block>`: the chest nearest a block whose code
+starts with that (`near=anvil` is the smithy in Nadiya's village), among the
+chests outside the structure's locked land claims. More island maps:
+`islandmap-ironmine`, `-serpent` (the giant serpent skeleton) and `-fortress`
+(the Ruined Fortress, `lone_bastion_1`). A new loot table, `serpentnest`, is
+heavy on gold and silver.
+
 Mine props: a cave line may add `timbers=N` (a log frame, two posts and a cap
 beam, every N steps where the tunnel is 3 to 7 wide and 3 to 6 tall) and
 `holders=N` (an empty aged torch holder on the wall at head height every N

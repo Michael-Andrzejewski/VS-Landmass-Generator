@@ -9,5 +9,21 @@
 	"itemdesc-islandmap-ideal": "A weathered sea chart, one island circled in red. Hold it and use it to mark the Ideal Island on your world map.",
 	"waypoint-tinmine": "Tin Mine",
 	"waypoint-forest": "Forest Island",
-	"waypoint-ideal": "Ideal Island"
+	"waypoint-ideal": "Ideal Island",
+	"item-islandmap-ironmine": "Map to the Iron Mine",
+	"item-islandmap-serpent": "Map to the Serpent's Nest",
+	"item-islandmap-fortress": "Map to the Ruined Fortress",
+	"itemdesc-islandmap-ironmine": "A shipping chart, the ore route inked over many times. Hold it and use it to mark the Iron Mine on your world map.",
+	"itemdesc-islandmap-serpent": "A captain's chart, one stretch of sea circled again and again. Hold it and use it to mark the Serpent's Nest on your world map.",
+	"itemdesc-islandmap-fortress": "A weathered sea chart from the lighthouse keeper, one island circled in red. Hold it and use it to mark the Ruined Fortress on your world map.",
+	"waypoint-ironmine": "Iron Mine",
+	"waypoint-serpent": "Serpent's Nest",
+	"waypoint-fortress": "Ruined Fortress",
+	"game:loretype-rfpool-jonas": "Lore about Jonas.",
+	"game:loretype-rfpool-tobias": "Lore about Tobias.",
+	"game:loretype-rfpool-sea": "Water-stained pages.",
+	"game:loretype-rfpool-village": "Villager Stories.",
+	"game:loretype-rfpool-lab": "These seem research related.",
+	"game:loretype-rfpool-war": "A soldier's papers.",
+	"game:loretype-rfpool-trade": "A trader's papers."
 }

@@ -10,8 +10,12 @@ namespace LandmassGenerator;
 
 // Loot that finds its own place. Two shape lines:
 //
-//   loot <table> <count> [near=<char>] [radius=N] [where=inside|surface|underwater|any] [cave=<char>] [type=<chest type>] [above=N] [below=N]
+//   loot <table> <count> [near=<char>] [radius=N] [where=inside|surface|underwater|any] [cave=<char>] [type=<chest type>] [above=N] [below=N] [with=<contents>]
 //   armorstand <set> <count> [near=<char>] [radius=N] [where=inside|surface|any]
+//
+// with= (chest contents syntax, comma-separated) goes into the first chest
+// the line places, ahead of its roll: the lore of a place whose chests find
+// their own spots (a lighthouse floor, a sunken hull).
 //
 // After every structure is built, the pass looks at the real blocks around
 // the marker (near=, any map char: a struct, bastion, tree...; default the
@@ -36,6 +40,7 @@ public partial class LandmassGeneratorModSystem
         public bool Stand;   // armorstand line: Table is the armor set
         public CaveDef CaveDef;   // cave=, resolved when the shape is read
         public int? Above, Below;  // above=N / below=N: only floors at least N over / under sea level
+        public List<string> With;  // with=: into the first chest, ahead of the roll
     }
 
     private static LootDef ParseLoot(string[] tok, bool stand, List<string> problems)
@@ -56,6 +61,7 @@ public partial class LandmassGeneratorModSystem
                 case "type": d.Type = v; break;
                 case "above": d.Above = (int)ParseD(v, 0); break;
                 case "below": d.Below = (int)ParseD(v, 0); break;
+                case "with": d.With = v.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(); break;
                 default: problems.Add($"{tok[0]}: unknown key '{k}'"); break;
             }
         }
@@ -130,6 +136,16 @@ public partial class LandmassGeneratorModSystem
             ("game:ingot-gold", 1, 3, 1.4), ("game:ingot-silver", 1, 3, 1.4), ("game:nugget-nativegold", 3, 10, 1), ("game:gem-emerald-rough", 1, 1, 0.5),
             ("game:gem-olivine_peridot-rough", 1, 2, 0.6), ("game:gear-rusty", 1, 3, 1), ("game:metal-scraps", 1, 3, 1), ("game:metalchain-iron", 1, 2, 0.8),
             ("game:jonasparts-tank01", 1, 1, 0.5), ("game:jonasparts-cylinder02", 1, 1, 0.5), ("game:arrow-blackbronze", 4, 10, 0.5),
+        },
+        // The serpent's nest: gold and silver from the ships it sank, and a
+        // start on the rare things (0.69.0)
+        ["serpentnest"] = new (string, int, int, double)[]
+        {
+            ("game:ingot-gold", 4, 8, 3), ("game:ingot-silver", 4, 10, 3), ("game:nugget-nativegold", 10, 24, 2), ("game:nugget-nativesilver", 10, 24, 2),
+            ("game:spear-generic-ornategold", 1, 1, 0.5), ("game:spear-generic-ornatesilver", 1, 1, 0.5), ("game:gem-emerald-rough", 1, 2, 0.6),
+            ("game:gem-diamond-rough", 1, 1, 0.4), ("game:gem-olivine_peridot-rough", 1, 3, 0.6), ("game:gear-temporal", 1, 1, 0.5),
+            ("game:jonasparts-tank01", 1, 1, 0.3), ("game:jonasparts-cylinder01", 1, 1, 0.3), ("game:ingot-meteoriciron", 1, 2, 0.3),
+            ("game:clearquartz", 2, 4, 0.4), ("game:metalchain-iron", 1, 2, 0.4),
         },
         ["granary"] = new (string, int, int, double)[]
         {
@@ -288,6 +304,7 @@ public partial class LandmassGeneratorModSystem
                 spots = FloorSpots(job, cx, cz, radius, d.Where, d.Count, rand, taken, d.Above, d.Below);
             }
             if (spots.Count < d.Count) notes.Add($"{(d.Stand ? "armorstand " : "loot ")}{d.Table}: {spots.Count} of {d.Count} placed");
+            bool withPut = false;
             foreach (var at in spots)
             {
                 taken.Add(at);
@@ -305,11 +322,18 @@ public partial class LandmassGeneratorModSystem
                 ts.Attributes.SetString("type", type);
                 be.OnBlockPlaced(ts);
                 var contents = RollTable(d.Table, rand, 4 + (int)(rand.NextDouble() * 3));
+                if (d.With != null && !withPut)
+                {
+                    // the line's lore first; the roll fills the room left
+                    contents = d.With.Concat(contents).Take(be.Inventory.Count).ToList();
+                    withPut = true;
+                }
                 FillChest(be, contents, notes);
                 chests++;
                 sapi.Logger.Notification("[landmassgenerator] loot chest {0} ({1}) at HUD {2}, {3}, {4}: {5}", d.Table, type,
                     at.X - sapi.WorldManager.MapSizeX / 2, at.Y, at.Z - sapi.WorldManager.MapSizeZ / 2, string.Join(", ", contents));
             }
+            if (d.With != null && !withPut) notes.Add($"loot {d.Table}: no chest placed, so its with= ({string.Join(",", d.With)}) is missing");
         }
         string r = chests + stands > 0 ? $" Loot: {chests} chest(s), {stands} armor stand(s)." : "";
         if (notes.Count > 0) r += " Loot notes: " + string.Join("; ", notes.Distinct()) + ".";
