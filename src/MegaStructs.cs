@@ -596,7 +596,7 @@ public partial class LandmassGeneratorModSystem
                         }
                         else k.Set(x, y, z, 0);
                     }
-            k.Job.StructChests.Add((new BlockPos(bx + 5, bg + 1, bz + 3, k.Job.Dim), "normal-aged", new List<string>(RollLoot(k.Rand, MachineLoot, 4 + k.RI(0, 2))) { "randomlore:rfpool-jonas" }, "refinery"));
+            k.Job.StructChests.Add((new BlockPos(bx + 5, bg + 1, bz + 3, k.Job.Dim), "normal-aged", new List<string>(RollLoot(k.Rand, MachineLoot, 4 + k.RI(0, 2))) { "randomlore:rfpool-jonas", "landmassgenerator:islandmap-random" }, "refinery"));
             k.Job.StructChests.Add((new BlockPos(bx - 5, bg + 1, bz + 3, k.Job.Dim), "normal-aged", RollLoot(k.Rand, HutLoot, 3 + k.RI(0, 2)), "refinery"));
         }
 
@@ -793,7 +793,7 @@ public partial class LandmassGeneratorModSystem
                 for (int f = -2; f <= 2; f += 2) k.Set(bx + 2, yg + 2, bz + f, steel != 0 ? steel : k.Rust());
                 k.Line(bx, yg + 5, bz, bx, yg + 8, bz, () => steel != 0 ? steel : k.Rust());
             }
-        k.Job.StructChests.Add((new BlockPos(hx - hw + 4, hg + 1, hz + hd - 3, k.Job.Dim), "normal-aged", new List<string>(RollLoot(k.Rand, MachineLoot, 4 + k.RI(0, 2))) { "randomlore:rfpool-jonas" }, "reactor hall"));
+        k.Job.StructChests.Add((new BlockPos(hx - hw + 4, hg + 1, hz + hd - 3, k.Job.Dim), "normal-aged", new List<string>(RollLoot(k.Rand, MachineLoot, 4 + k.RI(0, 2))) { "randomlore:rfpool-jonas", "landmassgenerator:islandmap-random" }, "reactor hall"));
     }
 
     // A hyperboloid cooling tower: base radius rb at the ground, waist rw at

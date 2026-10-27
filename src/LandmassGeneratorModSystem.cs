@@ -855,9 +855,11 @@ public partial class LandmassGeneratorModSystem : ModSystem
 #   clearspawn <chunkRange>   wipe the vanilla spawn land patch at map center
 #       (16 chunks = 512 blocks of guaranteed open ocean around spawn)
 #   devastation off           pause Spreading Devastation in this world
-#   storychest <code> <contents> [near=<block>]   once the game builds that
-#       story structure, add these items (chest contents syntax) to its top
-#       entrance chest, or with near= to the open chest nearest that block
+#   storychest <code> <contents> [near=<block>] [level=<n>]   once the game
+#       builds that story structure, add these items (chest contents syntax)
+#       to its top entrance chest; with near= to the open chest nearest that
+#       block, with level= to the one nearest n blocks above its floor (a
+#       chest of our own just outside the claim when the game locks them all)
 #   pregenstory               also generate every story area during setup
 #       (off: they generate when a player first comes near, like vanilla)
 #   storyloc <code> <mapX> <mapZ>   pin a story location (HUD coordinates)
@@ -980,10 +982,19 @@ storyloc crossroads 7600 -5600
 # places the house (0.68.0).
 storyloc mansion 660 -3550
 
-# Just inside the Resonance Archives' top entrance: the way to Jonas' dream.
-storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal
-# In the smithy of Nadiya's village: the old blacksmith's musings (0.69.0).
-storychest village lore:nadiya_blacksmith,randomlore:rfpool-village,randomlore:rfpool-village,game:hammer-iron,game:ingot-iron*2 near=anvil
+# Just inside the Resonance Archives' top entrance: the way to Jonas' dream,
+# and the next arrow, the Lazaret (0.70.0).
+storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal,landmassgenerator:islandmap-lazaret,randomlore:rfpool-lab
+# In the smithy of Nadiya's village: the old blacksmith's musings (0.69.0),
+# and the way on to the Iron Mine.
+storychest village lore:nadiya_blacksmith,landmassgenerator:islandmap-ironmine,randomlore:rfpool-village,randomlore:rfpool-village,game:hammer-iron,game:ingot-iron*2 near=anvil
+# The rest of the arrows on Michael's map of 2026-10-27 (0.70.0): the Lazaret
+# on to the Dangerous Swamplands; the Devastation tower's ground floor on to
+# Tobias' cave; Tobias' cave (the game locks its chests, so one just outside)
+# on to the Spoils.
+storychest lazaret landmassgenerator:islandmap-swamplands,randomlore:rfpool-village
+storychest devastationarea landmassgenerator:islandmap-tobiascave,randomlore:rfpool-jonas level=24
+storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobias
 ";
 
     private TextCommandResult OnGenWorldSetup(TextCommandCallingArgs args)
@@ -1047,15 +1058,16 @@ storychest village lore:nadiya_blacksmith,randomlore:rfpool-village,randomlore:r
                     break;
                 case "storychest":
                 {
-                    if (parts.Length < 3) return TextCommandResult.Error($"Plan line {lineNo} is not 'storychest <storycode> <contents> [near=<block>]': {line}");
-                    string scNear = null;
+                    if (parts.Length < 3) return TextCommandResult.Error($"Plan line {lineNo} is not 'storychest <storycode> <contents> [near=<block>] [level=<n>]': {line}");
+                    string scNear = "", scLevel = "";
                     var scItems = new List<string>();
                     for (int i = 2; i < parts.Length; i++)
                     {
                         if (parts[i].StartsWith("near=", StringComparison.OrdinalIgnoreCase)) scNear = parts[i].Substring(5).ToLowerInvariant();
+                        else if (parts[i].StartsWith("level=", StringComparison.OrdinalIgnoreCase)) scLevel = parts[i].Substring(6);
                         else scItems.Add(parts[i]);
                     }
-                    storyChests.Add(parts[1].ToLowerInvariant() + "|" + string.Join(",", scItems) + (scNear != null ? "|" + scNear : ""));
+                    storyChests.Add(parts[1].ToLowerInvariant() + "|" + string.Join(",", scItems) + "|" + scNear + "|" + scLevel);
                     break;
                 }
                 case "storyloc":

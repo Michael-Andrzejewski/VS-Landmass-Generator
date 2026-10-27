@@ -7,6 +7,7 @@ region f rock=andesite fertility=low surface=grass wildgrass=0.25 litter=0.5 for
 region h rock=andesite fertility=low surface=grass wildgrass=0.25 litter=0.5 forest=0.06 trees=fir,larch,scotspine bushes=cloudberry:0.004,cranberry:0.003 height=0.85 shore=30 rough=0.14
 region B rock=andesite surface=sand shells=0.01 height=0.12 shore=22 rough=0.03
 struct Q kind=ruin size=40
+loot ruin 1 near=Q radius=45 where=surface with=landmassgenerator:islandmap-random,randomlore:rfpool-war
 map
 ....................................................................................................
 ....................................................BBBBB...........................................

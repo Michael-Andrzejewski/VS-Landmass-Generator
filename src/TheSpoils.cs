@@ -289,6 +289,8 @@ public partial class LandmassGeneratorModSystem
         if (heapChests.Count > 0) k.Job.StructChests[heapChests[0]].Contents.Insert(0, "lore:spoils_scavenger");
         if (heapChests.Count > 0) k.Job.StructChests[heapChests[Math.Min(1, heapChests.Count - 1)]].Contents.Insert(0, "lore:spoils_jonas");
         if (heapChests.Count > 2) k.Job.StructChests[heapChests[2]].Contents.Insert(0, "randomlore:rfpool-jonas");
+        // the end of the arrows: a worn chart to somewhere not yet found (0.70.0)
+        if (heapChests.Count > 0) k.Job.StructChests[heapChests[^1]].Contents.Insert(0, "landmassgenerator:islandmap-random");
 
         k.AfterCommit.Add(() =>
         {

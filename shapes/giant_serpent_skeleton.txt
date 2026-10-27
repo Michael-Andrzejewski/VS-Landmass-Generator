@@ -9,7 +9,7 @@ region v rock=chalk fertility=verylow surface=barren climate=dry wildgrass=0 sto
 ocean plunge=8 basin=78 depth=38
 struct S kind=serpent size=62 seed=5
 
-loot sunken 3 near=S radius=120 where=underwater with=randomlore:rfpool-sea
+loot sunken 3 near=S radius=120 where=underwater with=randomlore:rfpool-sea,landmassgenerator:islandmap-random
 # The serpent's nest: gold and silver from the ships it sank, and a start
 # on the rare things (the captain's chart at the Hanging Gardens pier leads here)
 loot serpentnest 3 near=S radius=60 where=underwater with=game:gear-temporal,game:ingot-meteoriciron*2,game:gem-diamond-rough,game:jonasparts-tank01,game:clearquartz*4

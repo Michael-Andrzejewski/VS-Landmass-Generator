@@ -1352,3 +1352,47 @@ fixed: "the the northwest", "world world").
   vanilla's confession and breakdown, then the research pages.
 - **The log joins chest contents with ", "**: a check that greps for
   `a,b` finds nothing. Grep each spec on its own.
+
+## The map chain (0.70.0)
+
+Michael's map of 2026-10-27 draws arrows between the places. Each stop holds
+the map to the next one:
+
+| From | Chest | Map to |
+|---|---|---|
+| Starter Island | Tobias' cave chest (K) | Cattail Isles |
+| Cattail Isles | chest C | Forest Island |
+| Forest Island | the treasure hunter's chest (U) | Tin Mine |
+| Tin Lab | chest L | Forest Island |
+| Forest Island | the deepest mine chest (Z, the ticking) | Resonance Archives |
+| Resonance Archives | top entrance chest | Lazaret (and the Ideal Island, as before) |
+| Lazaret | its highest open chest | Dangerous Swamplands |
+| Dangerous Swamplands | first swamp chest in the mine | Blackfen Island |
+| Blackfen Island | first mine chest | Salt Teeth |
+| Salt Teeth | first mine chest | Crater Lake |
+| Crater Lake | first mine chest in caves a, h and i | the Village |
+| The Village | the smithy's chest, outside the claim | Iron Mine |
+| Iron Mine | the deepest chest (Z) and the pine (H) | Ruined Fortress |
+| Ruined Fortress | first upper and first lower fortress chest | Wreckage Field |
+| Wreckage Field | first wreck chest | Devastation Tower |
+| Devastation Tower | ground-floor chest (`level=24`) | Tobias' Cave |
+| Tobias' Cave | a chest of our own outside the locked claim | The Spoils |
+
+- **The places off the arrows** each hold a worn chart (`islandmap-random`):
+  Chainfield, Sunken Colossus, Cardinals, Alchemist Lair, the Great Machine
+  (every eighth chest), Power Plant, Diving Bell Mine, Ruined Refinery,
+  Volcano Forge, Mansion, Serpent's Skeleton, the gardens' temple, Ideal Home
+  Island, Eerie Island, the Spoils, the granaries, and every Better Ruins
+  island (a new chest of `ruin` loot by the ruin, with a soldier's papers).
+  The lighthouse keeps its own two (the faded letter, the fortress map).
+- **The starter island has no random lore** any more: Jonas' letter alone in
+  the tree, Tobias' letter, the Cattail map and supplies in the cave. Tobias'
+  letter still names the tin island and the trading hub.
+- **A worn chart picks when first used**, the way a random lore book picks
+  when read: a place its reader has not marked, 600+ blocks away. It keeps
+  that place (stack attributes `mapTarget`, `mapTargetName`), so it can be
+  handed on, and its tooltip names it.
+- **The story structures' chests** (schematic positions): the Lazaret has 3
+  chests, Tobias' cave 3 (all inside its use-locked claim), the Devastation
+  tower 12 from its cellar (y 6) to its top (y 91); its ground floor is y 23,
+  so `level=24`.

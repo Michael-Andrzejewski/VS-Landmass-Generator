@@ -88,6 +88,8 @@ def main():
     print("region B rock=granite surface=sand shells=0.02 height=0.12 shore=26 rough=0.03")
     print("region C rock=granite surface=rocksand boulders=0.01 height=0.3 shore=8 rough=0.12")
     print("struct Q kind=ruin size=60 structure=mansion path=betterruins:worldgen/schematics/story/brmansion.json storyoffset=32 rot=180 blend=10")
+    # a worn chart to somewhere else and villagers' papers (0.70.0)
+    print("loot ruin 2 near=Q radius=40 where=inside with=landmassgenerator:islandmap-random,randomlore:rfpool-village")
     print("map")
     for row in grid:
         print("".join(row))

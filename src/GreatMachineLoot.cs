@@ -99,6 +99,8 @@ public partial class LandmassGeneratorModSystem
                     string scene = table switch { "gmlab" => "journal:falx:0", "machinist" => "journal:falx:1", "jonas" => "journal:falx:2", _ => null };
                     if (scene != null && scenesPut.Add(scene)) contents.Insert(0, scene);
                     else if (chests % 5 == 4) contents.Insert(0, "randomlore:rfpool-jonas");
+                    // and a worn chart to somewhere else in every eighth (0.70.0)
+                    if (chests % 8 == 6) contents.Add("landmassgenerator:islandmap-random");
                     FillChest(be, contents, notes);
                     chests++;
                     sapi.Logger.Notification("[landmassgenerator] great machine chest {0} at HUD {1}: {2}", table, hud, string.Join(", ", contents));

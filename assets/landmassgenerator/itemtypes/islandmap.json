@@ -3,52 +3,233 @@
 	"class": "LandmassGenerator.ItemIslandMap",
 	"maxstacksize": 1,
 	"variantgroups": [
-		{ "code": "target", "states": ["tinmine", "forest", "ideal", "ironmine", "serpent", "fortress"] }
+		{
+			"code": "target",
+			"states": [
+				"tinmine",
+				"forest",
+				"ideal",
+				"ironmine",
+				"serpent",
+				"fortress",
+				"cattail",
+				"archives",
+				"lazaret",
+				"swamplands",
+				"blackfen",
+				"saltteeth",
+				"craterlake",
+				"village",
+				"wreckage",
+				"devastation",
+				"tobiascave",
+				"spoils",
+				"tradingpost",
+				"chainfield",
+				"colossus",
+				"cardinals",
+				"alchemist",
+				"greatmachine",
+				"powerplant",
+				"divingbell",
+				"lighthouse",
+				"refinery",
+				"forge",
+				"mansion",
+				"gardens",
+				"eerie",
+				"random"
+			]
+		}
 	],
 	"behaviors": [
-		{ "name": "GroundStorable", "properties": { "layout": "Quadrants", "placeRemoveSound": "game:sounds/player/build", "collisionBox": { "x1": 0, "y1": 0, "z1": 0, "x2": 1, "y2": 0.25, "z2": 1 } } }
+		{
+			"name": "GroundStorable",
+			"properties": {"layout": "Quadrants", "placeRemoveSound": "game:sounds/player/build", "collisionBox": {"x1": 0, "y1": 0, "z1": 0, "x2": 1, "y2": 0.25, "z2": 1}}
+		}
 	],
 	"attributesByType": {
-		"*-tinmine": { "islandShape": "tin_island", "waypointText": "landmassgenerator:waypoint-tinmine",
-			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
-		"*-forest": { "islandShape": "forester_island", "waypointText": "landmassgenerator:waypoint-forest",
-			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
-		"*-ironmine": { "islandShape": "ironmine_island", "waypointText": "landmassgenerator:waypoint-ironmine",
-			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
-		"*-serpent": { "islandShape": "giant_serpent_skeleton", "waypointText": "landmassgenerator:waypoint-serpent",
-			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
-		"*-fortress": { "islandShape": "lone_bastion_1", "waypointText": "landmassgenerator:waypoint-fortress",
-			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } },
-		"*-ideal": { "islandShape": "ideal_house_island", "waypointText": "landmassgenerator:waypoint-ideal",
-			"groundStorageTransform": { "translation": { "x": 0, "y": -0.02, "z": 0.255 }, "rotation": { "x": -67, "y": 0, "z": 0 }, "origin": { "x": 0.5, "y": 0, "z": 0.5 }, "scale": 0.48 } }
+		"*-tinmine": {
+			"islandShape": "tin_island",
+			"waypointText": "landmassgenerator:waypoint-tinmine",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-forest": {
+			"islandShape": "forester_island",
+			"waypointText": "landmassgenerator:waypoint-forest",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-ideal": {
+			"islandShape": "ideal_house_island",
+			"waypointText": "landmassgenerator:waypoint-ideal",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-ironmine": {
+			"islandShape": "ironmine_island",
+			"waypointText": "landmassgenerator:waypoint-ironmine",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-serpent": {
+			"islandShape": "giant_serpent_skeleton",
+			"waypointText": "landmassgenerator:waypoint-serpent",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-fortress": {
+			"islandShape": "lone_bastion_1",
+			"waypointText": "landmassgenerator:waypoint-fortress",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-cattail": {
+			"islandShape": "cattail_isles",
+			"waypointText": "landmassgenerator:waypoint-cattail",
+			"randomPool": false,
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-archives": {
+			"storyLocation": "resonancearchive",
+			"waypointText": "landmassgenerator:waypoint-archives",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-lazaret": {
+			"storyLocation": "lazaret",
+			"waypointText": "landmassgenerator:waypoint-lazaret",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-swamplands": {
+			"islandShape": "dangerous_swamplands",
+			"waypointText": "landmassgenerator:waypoint-swamplands",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-blackfen": {
+			"islandShape": "blackfen_island",
+			"waypointText": "landmassgenerator:waypoint-blackfen",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-saltteeth": {
+			"islandShape": "saltteeth_island",
+			"waypointText": "landmassgenerator:waypoint-saltteeth",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-craterlake": {
+			"islandShape": "volcano_ring",
+			"waypointText": "landmassgenerator:waypoint-craterlake",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-village": {
+			"storyLocation": "village",
+			"waypointText": "landmassgenerator:waypoint-village",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-wreckage": {
+			"islandShape": "wreckage_maelstrom",
+			"waypointText": "landmassgenerator:waypoint-wreckage",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-devastation": {
+			"storyLocation": "devastationarea",
+			"waypointText": "landmassgenerator:waypoint-devastation",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-tobiascave": {
+			"storyLocation": "tobiascave",
+			"waypointText": "landmassgenerator:waypoint-tobiascave",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-spoils": {
+			"islandShape": "the_spoils",
+			"waypointText": "landmassgenerator:waypoint-spoils",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-tradingpost": {
+			"storyLocation": "treasurehunter",
+			"waypointText": "landmassgenerator:waypoint-tradingpost",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-chainfield": {
+			"islandShape": "chainfield",
+			"waypointText": "landmassgenerator:waypoint-chainfield",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-colossus": {
+			"islandShape": "colossus_deep",
+			"waypointText": "landmassgenerator:waypoint-colossus",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-cardinals": {
+			"islandShape": "cardinals_island",
+			"waypointText": "landmassgenerator:waypoint-cardinals",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-alchemist": {
+			"islandShape": "alchemist_lair",
+			"waypointText": "landmassgenerator:waypoint-alchemist",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-greatmachine": {
+			"islandShape": "great_machine",
+			"waypointText": "landmassgenerator:waypoint-greatmachine",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-powerplant": {
+			"islandShape": "power_plant",
+			"waypointText": "landmassgenerator:waypoint-powerplant",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-divingbell": {
+			"islandShape": "divingbell_mine",
+			"waypointText": "landmassgenerator:waypoint-divingbell",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-lighthouse": {
+			"islandShape": "lighthouse",
+			"waypointText": "landmassgenerator:waypoint-lighthouse",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-refinery": {
+			"islandShape": "refinery_island",
+			"waypointText": "landmassgenerator:waypoint-refinery",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-forge": {
+			"islandShape": "forge_volcano",
+			"waypointText": "landmassgenerator:waypoint-forge",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-mansion": {
+			"islandShape": "mansion_island",
+			"waypointText": "landmassgenerator:waypoint-mansion",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-gardens": {
+			"islandShape": "hanging_gardens",
+			"waypointText": "landmassgenerator:waypoint-gardens",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-eerie": {
+			"islandShape": "eerie_island",
+			"waypointText": "landmassgenerator:waypoint-eerie",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-random": {
+			"randomTarget": true,
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		}
 	},
-	"shape": { "base": "game:item/lore/map-treasure" },
-	"textures": {
-		"map-treasures": { "base": "game:item/lore/map-treasures" }
-	},
-	"creativeinventory": { "general": ["*"], "items": ["*"] },
+	"shape": {"base": "game:item/lore/map-treasure"},
+	"textures": {"map-treasures": {"base": "game:item/lore/map-treasures"}},
+	"creativeinventory": {"general": ["*"], "items": ["*"]},
 	"guiTransform": {
-		"translation": { "x": 0, "y": 0, "z": 0 },
-		"rotation": { "x": 13, "y": -39, "z": -163 },
-		"origin": { "x": 0.43, "y": 0.57, "z": 0.46 },
-		"scaleXyz": { "x": -1.3, "y": 1.3, "z": 1.3 }
+		"translation": {"x": 0, "y": 0, "z": 0},
+		"rotation": {"x": 13, "y": -39, "z": -163},
+		"origin": {"x": 0.43, "y": 0.57, "z": 0.46},
+		"scaleXyz": {"x": -1.3, "y": 1.3, "z": 1.3}
 	},
-	"fpHandTransform": {
-		"translation": { "x": -0.1, "y": 0, "z": 0 },
-		"rotation": { "x": 3, "y": 3, "z": 8 },
-		"origin": { "x": 0.5, "y": 0.02, "z": 0.5 },
-		"scale": 1.36
-	},
-	"groundTransform": {
-		"translation": { "x": 0, "y": 0, "z": 0 },
-		"rotation": { "x": -65, "y": 0, "z": 0 },
-		"origin": { "x": 0.5, "y": 0, "z": 0.5 },
-		"scale": 2.4
-	},
+	"fpHandTransform": {"translation": {"x": -0.1, "y": 0, "z": 0}, "rotation": {"x": 3, "y": 3, "z": 8}, "origin": {"x": 0.5, "y": 0.02, "z": 0.5}, "scale": 1.36},
+	"groundTransform": {"translation": {"x": 0, "y": 0, "z": 0}, "rotation": {"x": -65, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 2.4},
 	"tpHandTransform": {
-		"translation": { "x": -1.3, "y": -0.5, "z": -1.2 },
-		"rotation": { "x": -57, "y": -165, "z": 92 },
-		"origin": { "x": 0.4, "y": 0.2, "z": 0.4 },
+		"translation": {"x": -1.3, "y": -0.5, "z": -1.2},
+		"rotation": {"x": -57, "y": -165, "z": 92},
+		"origin": {"x": 0.4, "y": 0.2, "z": 0.4},
 		"scale": 0.41
 	}
 }

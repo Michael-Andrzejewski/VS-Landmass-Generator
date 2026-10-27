@@ -35,6 +35,77 @@ public partial class LandmassGeneratorModSystem
         return job == null ? null : new Vec3d(job.Cx + 0.5, job.SeaLevel, job.Cz + 0.5);
     }
 
+    // Centre of a story structure (lazaret, tobiascave...), at sea level.
+    public Vec3d FindStoryLocation(string code)
+    {
+        var loc = sapi.ModLoader.GetModSystem<GenStoryStructures>()?.Structures.Get(code);
+        return loc?.CenterPos == null ? null : new Vec3d(loc.CenterPos.X + 0.5, sapi.World.SeaLevel, loc.CenterPos.Z + 0.5);
+    }
+
+    // Where an island map's attributes point: a story structure
+    // (storyLocation) or a plan island (islandShape).
+    public Vec3d FindMapTarget(Vintagestory.API.Datastructures.JsonObject attrs)
+    {
+        string story = attrs?["storyLocation"]?.AsString();
+        return story != null ? FindStoryLocation(story) : FindPlanIsland(attrs?["islandShape"]?.AsString());
+    }
+
+    public class MapTarget
+    {
+        public string Key, Label;
+        public Vec3d Pos;
+    }
+
+    // Every place a worn chart may show: each island map's place (except
+    // the ones marked randomPool: false, the starter's own waters) and each
+    // Better Ruins island of the plan's `ruins` line.
+    public List<MapTarget> MapTargets()
+    {
+        var list = new List<MapTarget>();
+        foreach (Item item in sapi.World.Items)
+        {
+            if (item?.Code == null || item.Code.Domain != "landmassgenerator" || !item.Code.Path.StartsWith("islandmap-")) continue;
+            if (item.Attributes?["randomTarget"]?.AsBool() == true || item.Attributes?["randomPool"]?.AsBool(true) == false) continue;
+            Vec3d pos = FindMapTarget(item.Attributes);
+            if (pos != null) list.Add(new MapTarget { Key = item.Code.Path, Label = Lang.Get(item.Attributes["waypointText"].AsString(item.Code.Path)), Pos = pos });
+        }
+        foreach (var job in _wgIslandJobs ?? new List<IslandJob>())
+            if (job.Opt != null && job.Opt.TryGetValue("ruin", out string ruin))
+                list.Add(new MapTarget { Key = $"ruin:{job.Cx},{job.Cz}", Label = RuinName(ruin), Pos = new Vec3d(job.Cx + 0.5, job.SeaLevel, job.Cz + 0.5) });
+        return list;
+    }
+
+    // A worn chart's pick: a place this player (if any) has not marked yet,
+    // at least 600 blocks from where they stand.
+    public MapTarget PickMapTarget(IServerPlayer plr, Vec3d from)
+    {
+        var layer = sapi.ModLoader.GetModSystem<WorldMapManager>()?.MapLayers.FirstOrDefault(ml => ml is WaypointMapLayer) as WaypointMapLayer;
+        var marked = plr == null ? new List<Vec3d>()
+            : layer?.Waypoints.Where(wp => wp.OwningPlayerUid == plr.PlayerUID).Select(wp => wp.Position).ToList() ?? new List<Vec3d>();
+        var left = MapTargets().Where(t => t.Pos.HorizontalSquareDistanceTo(from) > 600 * 600
+            && !marked.Any(m => Math.Abs(m.X - t.Pos.X) < 2 && Math.Abs(m.Z - t.Pos.Z) < 2)).ToList();
+        return left.Count == 0 ? null : left[sapi.World.Rand.Next(left.Count)];
+    }
+
+    // megastructures-houseofusher-virrno: "The House of Usher"
+    private static readonly Dictionary<string, string> RuinNames = new()
+    {
+        ["oasis"] = "The Oasis", ["auldburg"] = "Auldburg", ["romanbathhouse"] = "The Roman Bathhouse", ["wallsegment"] = "The Old Wall",
+        ["houseofusher"] = "The House of Usher", ["normancastle"] = "The Norman Castle", ["castlewalls"] = "The Castle Walls",
+        ["visingsborg"] = "Visingsborg", ["destroyedlargechurch"] = "The Ruined Church", ["palaceofnestor"] = "The Palace of Nestor",
+        ["forlornhopetower"] = "The Forlorn Hope Tower", ["rockformation"] = "The Rock Formation", ["settlementofkeykeepers"] = "The Keykeepers' Settlement",
+        ["jumblerockcastle"] = "Jumblerock Castle", ["wolfstonecastle"] = "Wolfstone Castle", ["aqueduct"] = "The Aqueduct",
+        ["undergroundlibrary"] = "The Underground Library", ["giantcathedral"] = "The Cathedral",
+    };
+
+    private static string RuinName(string code)
+    {
+        string[] parts = code.Split('-');
+        string family = parts.Length > 1 && parts[0] == "megastructures" ? parts[1] : parts[0];
+        return RuinNames.TryGetValue(family, out string name) ? name
+            : "The " + char.ToUpperInvariant(family[0]) + family.Substring(1) + " Ruins";
+    }
+
     // Settings on a placed block's entity (a spawner's trigger radius...):
     // read its attributes, change the named ones, read them back. Numbers
     // go in as floats, true/false as booleans; mods read their own keys.
@@ -486,15 +557,19 @@ public partial class LandmassGeneratorModSystem
 
     // ── story chests ───────────────────────────────────────────────────
 
-    // Plan line: storychest <storycode> <contents> [near=<block>]. Once the
-    // game has built that story structure (it does so when a player first
-    // comes near), the items go into its top entrance chest: the highest
-    // chest within the structure's footprint that has a heavy door within 16
-    // blocks (the Resonance Archives' surface entrance). With near=, the
-    // chest nearest a block whose code starts with that (near=anvil: the
-    // smithy in Nadiya's village), among the chests outside the structure's
-    // locked land claims. Done once per world.
-    private List<(string Code, string Contents, string Near)> _storyChests;
+    // Plan line: storychest <storycode> <contents> [near=<block>] [level=<n>].
+    // Once the game has built that story structure (it does so when a player
+    // first comes near), the items go into its top entrance chest: the
+    // highest chest within the structure's footprint that has a heavy door
+    // within 16 blocks (the Resonance Archives' surface entrance), else its
+    // highest chest. With near=, the chest nearest a block whose code starts
+    // with that (near=anvil: the smithy in Nadiya's village). With level=,
+    // the chest nearest that many blocks above the structure's floor
+    // (level=24: the Devastation tower's ground floor). Only chests a player
+    // may open count; when the game's land claim locks every one (Nadiya's
+    // village, Tobias' cave), a chest of our own goes just outside the claim.
+    // Done once per world.
+    private List<(string Code, string Contents, string Near, int? Level)> _storyChests;
     private long _storyChestListener;
     private bool _storyChestForce;   // /genstorychests: skip the player-nearby test, load the area
     private readonly HashSet<string> _storyChestLoading = new();
@@ -510,7 +585,12 @@ public partial class LandmassGeneratorModSystem
         if (_storyChests == null)
         {
             var saved = sapi.WorldManager.SaveGame.GetData<List<string>>("lgStoryChests", null) ?? new List<string>();
-            _storyChests = saved.Select(s => { var f = s.Split('|'); return (f[0], f.Length > 1 ? f[1] : "", f.Length > 2 ? f[2] : null); }).ToList();
+            _storyChests = saved.Select(s =>
+            {
+                var f = s.Split('|');
+                return (f[0], f.Length > 1 ? f[1] : "", f.Length > 2 && f[2].Length > 0 ? f[2] : null,
+                    f.Length > 3 && int.TryParse(f[3], out int lv) ? lv : (int?)null);
+            }).ToList();
         }
         if (_storyChests.Count == 0) return;
         var genStory = sapi.ModLoader.GetModSystem<GenStoryStructures>();
@@ -588,11 +668,11 @@ public partial class LandmassGeneratorModSystem
                 return best;
             }
             BlockEntityGenericTypedContainer target;
+            // a chest a player may open: none in a claim that keeps everyone out
+            bool Open(BlockPos at) => sapi.World.Claims.Get(at)?.All(cl => cl.AllowUseEveryone) ?? true;
             if (sc.Near != null)
             {
-                bool Open(BlockPos at) => sapi.World.Claims.Get(at)?.All(cl => cl.AllowUseEveryone) ?? true;
                 var byBlock = candidates.Select(c => (Chest: c, D: NearBlock(c.Pos))).Where(t => t.D < double.MaxValue).OrderBy(t => t.D).Select(t => t.Chest).ToList();
-                // a chest a player may open: none in a claim that keeps everyone out
                 target = byBlock.FirstOrDefault(c => Open(c.Pos));
                 // Every one is locked (the game claims Nadiya's village whole): a
                 // chest of our own just outside the claim, on the side nearest it
@@ -606,8 +686,11 @@ public partial class LandmassGeneratorModSystem
             }
             else
             {
-                target = candidates.OrderByDescending(c => c.Pos.Y).FirstOrDefault(c => NearHeavyDoor(c.Pos));
-                if (target == null) { if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, none by a heavy door", sc.Code, candidates.Count); continue; }
+                var order = (sc.Level is int lv ? candidates.OrderBy(c => Math.Abs(c.Pos.Y - area.Y1 - lv)) : candidates.OrderByDescending(c => c.Pos.Y)).ToList();
+                target = sc.Level == null ? order.FirstOrDefault(c => Open(c.Pos) && NearHeavyDoor(c.Pos)) : null;
+                target ??= order.FirstOrDefault(c => Open(c.Pos));
+                if (target == null && order.Count > 0) target = StoryChestOutsideClaim(order[0].Pos, Open);
+                if (target == null) { if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, none open and no open ground outside its claim", sc.Code, candidates.Count); continue; }
             }
 
             var notes = new List<string>();
@@ -657,10 +740,14 @@ public partial class LandmassGeneratorModSystem
     }
 }
 
-// A chart with one plan island circled in red. Use it (right click) and the
-// island gets a red X on your world map, the same way a Better Ruins or
-// Great Machine locator map marks its find. Which island: the item's
-// islandShape attribute, matched against the world plan's shape names.
+// A chart with one place circled in red. Use it (right click) and the place
+// gets a red X on your world map, the same way a Better Ruins or Great
+// Machine locator map marks its find. Which place: the item's islandShape
+// attribute (matched against the world plan's shape names) or storyLocation
+// (a story structure: lazaret, tobiascave...). The worn chart
+// (islandmap-random, randomTarget) circles nothing until first used: then it
+// picks a place its reader has not marked yet, at least 600 blocks away, and
+// keeps it (stack attributes mapTarget, mapTargetName).
 public class ItemIslandMap : Item
 {
     public override void OnHeldInteractStart(ItemSlot slot, EntityAgent byEntity, BlockSelection blockSel, EntitySelection entitySel, bool firstEvent, ref EnumHandHandling handling)
@@ -671,9 +758,32 @@ public class ItemIslandMap : Item
         if (api.Side != EnumAppSide.Server) return;
         if ((byEntity as EntityPlayer)?.Player is not IServerPlayer plr) return;
 
-        string shape = Attributes?["islandShape"]?.AsString();
-        string label = Lang.Get(Attributes?["waypointText"]?.AsString() ?? shape ?? "?");
-        Vec3d pos = api.ModLoader.GetModSystem<LandmassGeneratorModSystem>()?.FindPlanIsland(shape);
+        var mod = api.ModLoader.GetModSystem<LandmassGeneratorModSystem>();
+        string label;
+        Vec3d pos;
+        if (Attributes?["randomTarget"]?.AsBool() == true)
+        {
+            string key = slot.Itemstack.Attributes.GetString("mapTarget");
+            var target = key != null ? mod?.MapTargets().FirstOrDefault(t => t.Key == key) : mod?.PickMapTarget(plr, byEntity.Pos.XYZ);
+            if (target == null)
+            {
+                plr.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get(key != null ? "No location found on this map" : "landmassgenerator:islandmap-nothingnew"), EnumChatType.Notification);
+                return;
+            }
+            if (key == null)
+            {
+                slot.Itemstack.Attributes.SetString("mapTarget", target.Key);
+                slot.Itemstack.Attributes.SetString("mapTargetName", target.Label);
+                slot.MarkDirty();
+            }
+            label = target.Label;
+            pos = target.Pos;
+        }
+        else
+        {
+            label = Lang.Get(Attributes?["waypointText"]?.AsString() ?? Attributes?["islandShape"]?.AsString() ?? "?");
+            pos = mod?.FindMapTarget(Attributes);
+        }
         if (pos == null)
         {
             plr.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get("No location found on this map"), EnumChatType.Notification);
@@ -703,5 +813,12 @@ public class ItemIslandMap : Item
             Title = label
         }, plr);
         plr.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get("Location of {0} added to your world map", label), EnumChatType.Notification);
+    }
+
+    public override void GetHeldItemInfo(ItemSlot inSlot, System.Text.StringBuilder dsc, IWorldAccessor world, bool withDebugInfo)
+    {
+        base.GetHeldItemInfo(inSlot, dsc, world, withDebugInfo);
+        string name = inSlot.Itemstack?.Attributes.GetString("mapTargetName");
+        if (name != null) dsc.AppendLine(Lang.Get("landmassgenerator:islandmap-shows", name));
     }
 }

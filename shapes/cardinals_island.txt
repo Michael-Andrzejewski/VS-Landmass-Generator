@@ -9,6 +9,7 @@ region h rock=andesite fertility=low surface=grass wildgrass=0.25 litter=0.5 for
 region B rock=andesite surface=sand shells=0.01 height=0.12 shore=22 rough=0.03
 region W rock=andesite fertility=low surface=grass pond=5 pondslope=8 cattails=0.2 clay=0.03 height=0.62 shore=40 rough=0.02
 struct Q kind=ruin size=60 structure=megastructures-giantcathedral-dampus blend=10
+loot ruin 2 near=Q radius=70 where=inside with=landmassgenerator:islandmap-random,randomlore:rfpool-war
 map
 ............................................................................................................................................
 ............................................................................................................................................

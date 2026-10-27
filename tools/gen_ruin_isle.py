@@ -94,8 +94,11 @@ def main():
     if big:
         print(f"region W rock={rock} fertility=low surface=grass pond=5 pondslope=8 cattails=0.2 clay=0.03 height=0.62 shore=40 rough=0.02")
         print("struct Q kind=ruin size=60 structure=megastructures-giantcathedral-dampus blend=10")
+        # a worn chart to somewhere else and a soldier's papers (0.70.0)
+        print("loot ruin 2 near=Q radius=70 where=inside with=landmassgenerator:islandmap-random,randomlore:rfpool-war")
     else:
         print("struct Q kind=ruin size=40")
+        print("loot ruin 1 near=Q radius=45 where=surface with=landmassgenerator:islandmap-random,randomlore:rfpool-war")
     print("map")
     for row in grid:
         print("".join(row))

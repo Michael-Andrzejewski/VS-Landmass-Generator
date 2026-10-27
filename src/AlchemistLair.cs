@@ -1119,7 +1119,7 @@ public partial class LandmassGeneratorModSystem
         LairClut(L, cx - 1, cg + 1, gz, "chair-aged", 0);
         LairClut(L, cx - 1, cg + 1, gz + 2, "pile-writing", 0);
         k.Job.StructChests.Add((new BlockPos(cx - 2, cg + 1, gz - 3, k.Job.Dim), "normal-aged",
-            new List<string>(RollTable("alchemist", k.Rand, 4)) { "lore:alchemist_last_entry", "randomlore:rfpool-lab" }, "the gatekeeper's chest"));
+            new List<string>(RollTable("alchemist", k.Rand, 4)) { "lore:alchemist_last_entry", "randomlore:rfpool-lab", "landmassgenerator:islandmap-random" }, "the gatekeeper's chest"));
         L.Chests++;
         // the road from the campus down to the bowl, and the pipe beside it
         int x0 = L.Cx + LairQuadStep + LairQuadHalf + 4;

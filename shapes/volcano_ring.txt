@@ -37,9 +37,9 @@ cave y heading=160 dip=38 length=120 radius=2.8 squash=0.8 weave=0.4 scale=1 bra
 cave z heading=270 dip=30 length=100 radius=2.8 squash=0.8 weave=0.4 scale=1 branches=1 branchdepth=1 branchlen=0.5 depth=55 entry=4 flooded=1 ores=copper:0.05 seed=1
 deposits natural
 
-loot mine 1 cave=a with=randomlore:rfpool-jonas
-loot mine 1 cave=h
-loot mine 1 cave=i
+loot mine 1 cave=a with=landmassgenerator:islandmap-village,randomlore:rfpool-jonas
+loot mine 1 cave=h with=landmassgenerator:islandmap-village
+loot mine 1 cave=i with=landmassgenerator:islandmap-village
 loot sunken 1 near=S radius=60 where=underwater
 map
 ............................................................................................................................................................................................................................................................................................................

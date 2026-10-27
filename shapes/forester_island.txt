@@ -28,7 +28,7 @@ tree A sugarmaple 2.6
 cave V heading=auto dip=20 length=170 radius=2.8 squash=0.8 weave=0.5 scale=1.35 branches=3 branchdepth=2 branchlen=0.6 depth=70 mouth=2 entry=6 timbers=12 holders=14 seed=26
 deposits natural
 
-chest Z collapsed3 lore:forest_ticking,randomlore:rfpool-jonas,game:ore-bituminouscoal*12 cave=V
+chest Z collapsed3 lore:forest_ticking,landmassgenerator:islandmap-archives,randomlore:rfpool-jonas,game:ore-bituminouscoal*12 cave=V
 struct U kind=treasurehunter seed=3 chest=landmassgenerator:islandmap-tinmine
 loot mine 2 cave=V with=lore:trader_post,game:gear-temporal,game:gear-rusty*8,randomlore:rfpool-trade,randomlore:rfpool-trade
 map

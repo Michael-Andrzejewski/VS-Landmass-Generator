@@ -1061,7 +1061,7 @@ public partial class LandmassGeneratorModSystem
                     var pp = P(-1, Hw - 1); e.Prop(pp.X, Y, pp.Z, "bookshelves/bookpile-aged" + k.RI(1, 5), 0);
                     var kp = P(2, Hw - 1); e.Candles(kp.X, Y, kp.Z);
                     FloorChest(Hl - 1, Hw - 1, "normal-aged",
-                        new List<string> { "lore:eerie_ledger", "randomlore:rfpool-tobias" }.Concat(RollLoot(k.Rand, WardenLoot, 3)).ToList(), "wardens' room");
+                        new List<string> { "lore:eerie_ledger", "randomlore:rfpool-tobias", "landmassgenerator:islandmap-random" }.Concat(RollLoot(k.Rand, WardenLoot, 3)).ToList(), "wardens' room");
                     break;
                 }
                 case "cell":

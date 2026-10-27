@@ -16,7 +16,7 @@ region u rock=basalt surface=rock climate=arid flood=3 height=0.30 shore=1 rough
 ocean plunge=20
 wreck W radius=55 whirlpool=1 seed=7
 
-loot wreck 5 where=inside with=randomlore:rfpool-sea,randomlore:rfpool-sea
+loot wreck 5 where=inside with=landmassgenerator:islandmap-devastation,randomlore:rfpool-sea,randomlore:rfpool-sea
 loot sunken 2 where=underwater
 map
 ........................................................................................................................

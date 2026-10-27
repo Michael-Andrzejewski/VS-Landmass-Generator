@@ -5,6 +5,7 @@ using System.Reflection;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
 using Vintagestory.API.Datastructures;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 using Vintagestory.GameContent;
 
@@ -64,6 +65,30 @@ public partial class LandmassGeneratorModSystem
                 .RequiresPlayer()
                 .WithArgs(p.Word("spec"), p.OptionalWord("read"))
                 .HandleWith(OnGenLoreBook));
+
+        RegisterCmd(api, "genmaps", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("List every island map and the place it marks (HUD coordinates), the worn chart's pool, and five worn charts read at the starter.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .HandleWith(_ => OnGenMaps()));
+    }
+
+    private TextCommandResult OnGenMaps()
+    {
+        int hx = sapi.WorldManager.MapSizeX / 2, hz = sapi.WorldManager.MapSizeZ / 2;
+        var lines = new List<string>();
+        foreach (Item item in sapi.World.Items.Where(i => i?.Code?.Domain == "landmassgenerator" && i.Code.Path.StartsWith("islandmap-")))
+        {
+            if (item.Attributes?["randomTarget"]?.AsBool() == true) continue;
+            Vec3d pos = FindMapTarget(item.Attributes);
+            lines.Add($"{item.Code.Path}: " + (pos == null ? "NOT FOUND" : $"HUD {(int)pos.X - hx}, {(int)pos.Z - hz}"));
+        }
+        var pool = MapTargets();
+        lines.Add($"worn chart pool, {pool.Count} places: " + string.Join(", ", pool.Select(t => t.Label)));
+        var at = new Vec3d(hx, sapi.World.SeaLevel, hz);
+        lines.Add("worn charts read at the starter: " + string.Join(", ", Enumerable.Range(0, 5).Select(_ => PickMapTarget(null, at)?.Label ?? "nothing")));
+        foreach (string l in lines) sapi.Logger.Notification("[landmassgenerator] maps: {0}", l);
+        return TextCommandResult.Success(string.Join("\n", lines));
     }
 
     private TextCommandResult OnGenLoreBook(TextCommandCallingArgs args)

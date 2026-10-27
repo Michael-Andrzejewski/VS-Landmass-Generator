@@ -604,6 +604,20 @@ chests outside the structure's locked land claims. More island maps:
 (the Ruined Fortress, `lone_bastion_1`). A new loot table, `serpentnest`, is
 heavy on gold and silver.
 
+Map chain (0.70.0). There is an `islandmap-<target>` for every place on
+Michael's map of 2026-10-27. Its `islandShape` attribute names a plan island;
+`storyLocation` names a story structure (`archives`, `lazaret`, `village`,
+`devastation`, `tobiascave`, `tradingpost`). Each stop along the map's arrows
+holds the map to the next one (tips.md has the table). `islandmap-random` is
+the worn chart. It marks nothing until first used. Then it picks a place its
+reader has not marked yet, at least 600 blocks away, and keeps it: any map's
+place but the Cattail Isles, or a Better Ruins island of the `ruins` line. A
+`storychest` line takes `level=<n>`: the chest nearest n blocks above the
+structure's floor. Without near= or level=, it takes the top chest by a heavy
+door, else the highest open one. When the game's claim locks every chest, a
+chest of our own goes just outside the claim. `/genmaps` lists every map and
+the place it marks, and reads five worn charts at the starter.
+
 Mine props: a cave line may add `timbers=N` (a log frame, two posts and a cap
 beam, every N steps where the tunnel is 3 to 7 wide and 3 to 6 tall) and
 `holders=N` (an empty aged torch holder on the wall at head height every N

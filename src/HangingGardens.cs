@@ -427,7 +427,7 @@ public partial class LandmassGeneratorModSystem
                 k.Clutter(mid + 3, fy + 1, z0 + 1, "clutter|pottery/art" + k.RI(1, 27), 0);
                 for (int x = x0 + 2; x <= x1 - 2; x += 4) { GardensLantern(g, x, floorY + wallH - 1, z0 + 2); GardensLantern(g, x, floorY + wallH - 1, z1 - 2); }
                 k.Job.StructChests.Add((new BlockPos(mid + 4, fy, z0 + 1, k.Job.Dim), "normal-aged",
-                    new List<string> { "lore:gardens_assistant", "lore:hanging_gardens_chronicle", "randomlore:rfpool-village", "game:candle*6", "game:beeswax*4" }, "the temple's chronicle"));
+                    new List<string> { "lore:gardens_assistant", "lore:hanging_gardens_chronicle", "randomlore:rfpool-village", "landmassgenerator:islandmap-random", "game:candle*6", "game:beeswax*4" }, "the temple's chronicle"));
                 break;
             }
             case "quarters":

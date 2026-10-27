@@ -30,7 +30,8 @@ namespace LandmassGenerator;
 // side=<east|west|north|south> puts it right against that tree's trunk.
 // trail=rust (cave chests) paints oxidation rust along the cave floor from
 // the mouth down to the chest. An island map, landmassgenerator:islandmap-*,
-// marks its plan island on the world map when used.
+// marks its plan island or story site on the world map when used; the worn
+// chart, islandmap-random, a place its reader has not found yet.
 //
 // Lore files live in <LandmassGenerator folder>/lore/<id>.txt:
 //   title: Letter to Seraph

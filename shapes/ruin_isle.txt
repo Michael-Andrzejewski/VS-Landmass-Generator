@@ -7,6 +7,7 @@ region f rock=granite fertility=medium surface=grass wildgrass=0.3 litter=0.6 fo
 region h rock=granite fertility=medium surface=grass wildgrass=0.3 litter=0.6 forest=0.05 trees=englishoak,silverbirch,scotspine bushes=raspberry:0.004 height=0.85 shore=30 rough=0.14
 region B rock=granite surface=sand shells=0.02 height=0.12 shore=22 rough=0.03
 struct Q kind=ruin size=40
+loot ruin 1 near=Q radius=45 where=surface with=landmassgenerator:islandmap-random,randomlore:rfpool-war
 map
 ....................................................................................................
 ....................................................BBBBB...........................................
