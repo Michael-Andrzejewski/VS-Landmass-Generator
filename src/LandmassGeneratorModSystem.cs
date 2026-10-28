@@ -240,6 +240,21 @@ public partial class LandmassGeneratorModSystem : ModSystem
                     _storyChests = null; _storyChestForce = true; StoryChestTick(0); _storyChestForce = false; return TextCommandResult.Success("Story chests checked; see the server log.");
                 }));
 
+        RegisterCmd(api, "genstorycheck", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("How much of a story structure's schematic stands in the world (village, lazaret, tobiascave, resonancearchive...), loading its area first. Logs the share of blocks in place and a map of 16-block cells. 'repair' deletes the chunk columns where less than half stands and generates them again.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(p.Word("code"), p.OptionalWord("repair or schematic"))
+                .HandleWith(a =>
+                {
+                    string code = (string)a[0];
+                    string opt = a.Parsers[1].IsMissing ? null : (string)a[1];
+                    bool repair = opt == "repair";
+                    string schem = opt != null && !repair ? opt : "story/" + (code == "resonancearchive" ? "resoarchive" : code);
+                    StoryCheck(code, schem, repair);
+                    return TextCommandResult.Success("Checking; see the server log.");
+                }));
+
         RegisterCmd(api, "timereset", name =>
             api.ChatCommands.Create(name)
                 .WithDescription("Rewind the calendar to 8am on the 1st of May, year 0, the date and time a brand new world starts on. Use after building out a world, right before handing the save file to a new player, so their story begins on day one.")

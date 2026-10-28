@@ -28,6 +28,14 @@ install it as Michael's `Rustfall.vcdbs`.
   a gzip (header json, then runs of (count u32, palette index u16) over y, z, x).
   `knollcheck.py` shows how to read one.
 - `/gencount x z radius` logs the creatures and dropped items around a spot.
+- `/genstorycheck <code>` logs how much of a story structure's schematic stands,
+  with a map by chunk column. After a full `/genmapexport`, check `village`:
+  Rustfall 0.70's three-hour export left two of its chunk columns bare land
+  (the smithy and 24 of its 32 chests gone), though a fresh world builds it
+  whole. `/genstorycheck village repair` generates any column under half again.
+  Fresh-world readings: village 100%, Lazaret 92%, Tobias' Cave 75%, Resonance
+  Archives 74%; the rest is terrain inside their schematics, so their edge
+  columns read low by nature and want no repair.
 - A headless server keeps almost nothing loaded. A `/build` script or a spawner
   far from spawn silently does nothing there. Test those with a real client
   (Pilot, see its README), standing at the spot.

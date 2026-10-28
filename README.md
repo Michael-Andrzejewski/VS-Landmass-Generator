@@ -599,7 +599,9 @@ A `loot` line takes `with=<contents>`: those go into the first chest it places,
 ahead of the roll (the lighthouse keeper's log, the lore in a sunken hull). A
 `storychest` plan line takes `near=<block>`: the chest nearest a block whose code
 starts with that (`near=anvil` is the smithy in Nadiya's village), among the
-chests outside the structure's locked land claims. More island maps:
+chests outside the structure's locked land claims. With no chest within 12
+blocks of such a block (0.70.1), it starts from the block itself: the nearest
+open chest within 24, or a chest of its own outside the claim. More island maps:
 `islandmap-ironmine`, `-serpent` (the giant serpent skeleton) and `-fortress`
 (the Ruined Fortress, `lone_bastion_1`). A new loot table, `serpentnest`, is
 heavy on gold and silver.
@@ -661,6 +663,9 @@ new world (saved with it; `/devastate start` resumes). `storychest <code>
 <contents>` adds items to a vanilla story structure's top entrance chest once
 the game has built it (the highest chest near a heavy door in its footprint);
 `/genstorychests` runs that check at once without waiting for a player.
+`/genstorycheck <code> [repair]` (0.70.1) logs how much of a story structure's
+schematic stands in the world, with a map by chunk column; `repair` generates
+again every chunk column where less than half of its share stands.
 
 World plan line (0.63.3): `rain <x> <z> <rainfall 0..1> [radius] [fade]` sets
 how often it rains around a spot, nothing else (temperature untouched, grass

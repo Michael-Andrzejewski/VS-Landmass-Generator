@@ -1346,6 +1346,28 @@ fixed: "the the northwest", "world world").
   in the meadow west of the palisade).
 - **`/genstorychests` loads the area itself** since 0.69.0. Before, a headless
   build never filled a story chest: nothing stays loaded there.
+- **A story site can come out with chunk columns missing** (0.70.1). In
+  Rustfall 0.70 the full-map export left Nadiya's village with chunk columns
+  15803 and 15804 (HUD x -6250 to -6187, its whole length) as bare land: no
+  smithy, no anvil, 8 of 32 chests. Two fresh worlds built it whole, once
+  loaded on its own and once through a small export, so it is a rare glitch of
+  the long run, like the dark chunks. `/genstorycheck village` shows it by
+  chunk column; `repair` deleted the 16 bad columns, the game built the village
+  into them as they generated again (100%), and their map pieces were drawn
+  again. GhostChunks restores a changed column 30 s after it unloads, so leave
+  it loaded and the server running a few minutes after a repair.
+- **`near=<block>` with no chest near one** (0.70.1) starts from the block
+  itself, and with no such block at all falls back to the usual pick, so the
+  chest always lands somewhere. The log says which.
+- **The vanilla setpos leaves y 1** in a pinned surface structure's stored
+  area; the game sets the real height (sea level plus the schematic's offset)
+  only while a column of it generates, and a restart reads 1 again. Anything
+  that needs the height (`/genstorycheck` does) has to find it.
+- **Never deploy while his game runs.** `dotnet build` swaps the zip in his
+  Mods folder; a world he started during a swap crashed on joining with "Don't
+  know how to instantiate item of class 'LandmassGenerator.ItemIslandMap'"
+  (2026-10-27 22:03). Check for `Vintagestory.exe` first, or build with
+  `-p:NoDeploy=true`.
 - **Testing a lore book** needs a player: `/genlorebook randomlore:rfpool-jonas read`
   as a joined player gives the book and reads it, the way a right click does.
   On the test world ten Jonas-pool books gave falx pages 0 to 5 in order,

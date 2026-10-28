@@ -667,33 +667,46 @@ public partial class LandmassGeneratorModSystem
                         }
                 return best;
             }
-            BlockEntityGenericTypedContainer target;
+            BlockEntityGenericTypedContainer target = null;
             // a chest a player may open: none in a claim that keeps everyone out
             bool Open(BlockPos at) => sapi.World.Claims.Get(at)?.All(cl => cl.AllowUseEveryone) ?? true;
+            var notes = new List<string>();
+            BlockPos from = null;
             if (sc.Near != null)
             {
                 var byBlock = candidates.Select(c => (Chest: c, D: NearBlock(c.Pos))).Where(t => t.D < double.MaxValue).OrderBy(t => t.D).Select(t => t.Chest).ToList();
                 target = byBlock.FirstOrDefault(c => Open(c.Pos));
+                from = byBlock.Count > 0 ? byBlock[0].Pos : null;
+                if (target == null && from == null)
+                {
+                    // No chest within 12 of one (Rustfall 0.70's village kept 8 of
+                    // its 32): start from the block itself
+                    var found = FindBlocksIn(area, sc.Near);
+                    from = found.FirstOrDefault();
+                    notes.Add($"{candidates.Count} chest(s) in the {area.SizeX}x{area.SizeY}x{area.SizeZ} area, none near a {sc.Near}; {found.Count} {sc.Near} block(s) in it"
+                        + (from != null ? $", the first at HUD {from.X - sapi.WorldManager.MapSizeX / 2}, {from.Y}, {from.Z - sapi.WorldManager.MapSizeZ / 2}" : ""));
+                    if (from != null) target = candidates.Where(c => Open(c.Pos)).OrderBy(c => c.Pos.DistanceSqTo(from.X, from.Y, from.Z)).FirstOrDefault(c => c.Pos.DistanceSqTo(from.X, from.Y, from.Z) <= 24 * 24);
+                }
                 // Every one is locked (the game claims Nadiya's village whole): a
                 // chest of our own just outside the claim, on the side nearest it
-                if (target == null && byBlock.Count > 0) target = StoryChestOutsideClaim(byBlock[0].Pos, Open);
-                if (target == null)
+                if (target == null && from != null) target = StoryChestOutsideClaim(from, Open);
+                if (target == null && from != null)
                 {
-                    if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, {2} near a {3}, and no open ground outside its claim",
-                        sc.Code, candidates.Count, byBlock.Count, sc.Near);
+                    if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, {2} near a {3}, and no open ground outside its claim{4}",
+                        sc.Code, candidates.Count, byBlock.Count, sc.Near, notes.Count > 0 ? " (" + string.Join("; ", notes) + ")" : "");
                     continue;
                 }
             }
-            else
+            // No such block in the area at all: the usual pick
+            if (target == null)
             {
                 var order = (sc.Level is int lv ? candidates.OrderBy(c => Math.Abs(c.Pos.Y - area.Y1 - lv)) : candidates.OrderByDescending(c => c.Pos.Y)).ToList();
                 target = sc.Level == null ? order.FirstOrDefault(c => Open(c.Pos) && NearHeavyDoor(c.Pos)) : null;
                 target ??= order.FirstOrDefault(c => Open(c.Pos));
                 if (target == null && order.Count > 0) target = StoryChestOutsideClaim(order[0].Pos, Open);
-                if (target == null) { if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, none open and no open ground outside its claim", sc.Code, candidates.Count); continue; }
+                if (target == null) { if (_storyChestForce) sapi.Logger.Notification("[landmassgenerator] story chest {0}: {1} chest(s) in the area, none open and no open ground outside its claim{2}", sc.Code, candidates.Count, notes.Count > 0 ? " (" + string.Join("; ", notes) + ")" : ""); continue; }
             }
 
-            var notes = new List<string>();
             int put = FillChest(target, sc.Contents.Split(',', StringSplitOptions.RemoveEmptyEntries), notes);
             sapi.WorldManager.SaveGame.StoreData(doneKey, true);
             _storyChests.Remove(sc);
@@ -701,6 +714,161 @@ public partial class LandmassGeneratorModSystem
                 target.Pos.X - sapi.WorldManager.MapSizeX / 2, target.Pos.Y, target.Pos.Z - sapi.WorldManager.MapSizeZ / 2,
                 notes.Count > 0 ? " (" + string.Join("; ", notes) + ")" : "");
         }
+    }
+
+    // /genstorycheck <code>: how much of a story structure's schematic stands in
+    // the world. Compares every non-air block of the schematic with the world
+    // at the structure's location (turned 0 or 180 degrees, at the height that
+    // fits best: a surface structure's stored area starts at y 1), by the first
+    // word of the block code, so a chest facing east matches one facing west.
+    // Meta blocks (placeholders) never stand, so they are left out. Logs the
+    // total and a map of 16-block cells. With repair, every chunk column where
+    // less than half of its share stands is deleted and generated again (the
+    // game places the structure into a column as it generates), then checked.
+    private void StoryCheck(string code, string schematic, bool repair = false)
+    {
+        var genStory = sapi.ModLoader.GetModSystem<GenStoryStructures>();
+        var loc = genStory?.Structures.Get(code);
+        if (loc == null || loc.Location == null) { sapi.Logger.Notification("[landmassgenerator] story check {0}: no such story location", code); return; }
+        if (!loc.DidGenerate) sapi.Logger.Notification("[landmassgenerator] story check {0}: not generated yet; loading its area generates it", code);
+        var asset = sapi.Assets.TryGet(new AssetLocation("game", "worldgen/schematics/" + schematic + ".json"));
+        if (asset == null) { sapi.Logger.Notification("[landmassgenerator] story check {0}: no schematic {1}", code, schematic); return; }
+        var schem = JsonUtil.FromString<BlockSchematic>(asset.ToText());
+        var area = loc.Location;
+        int cs = GlobalConstants.ChunkSize;
+        // first, which of its chunk columns exist already ('#'), before the
+        // check loads (and so generates) the rest
+        int ex1 = area.X1 / cs, ez1 = area.Z1 / cs, ew = (area.X1 + schem.SizeX - 1) / cs - ex1 + 1, eh = (area.Z1 + schem.SizeZ - 1) / cs - ez1 + 1;
+        var exists = new bool[ew, eh];
+        int tested = 0;
+        for (int i = 0; i < ew; i++)
+            for (int k = 0; k < eh; k++)
+            {
+                int ii = i, kk = k;
+                sapi.WorldManager.TestMapChunkExists(ex1 + i, ez1 + k, ok => sapi.Event.EnqueueMainThreadTask(() =>
+                {
+                    exists[ii, kk] = ok;
+                    if (++tested < ew * eh) return;
+                    for (int r = 0; r < eh; r++)
+                        sapi.Logger.Notification("[landmassgenerator] story check {0} existing z {1}: {2}", code, ez1 + r,
+                            new string(Enumerable.Range(0, ew).Select(c => exists[c, r] ? '#' : '.').ToArray()));
+                    StoryCheckLoaded(code, schematic, schem, area, repair);
+                }, "genstorycheck"));
+            }
+    }
+
+    private void StoryCheckLoaded(string code, string schematic, BlockSchematic schem, Cuboidi area, bool repair)
+    {
+        int cs = GlobalConstants.ChunkSize;
+        LoadChunkAreaBanded((area.X1 - 16) / cs, (area.Z1 - 16) / cs, (area.X2 + 16) / cs, (area.Z2 + 16) / cs, false, () =>
+        {
+            var world = sapi.World.BlockAccessor;
+            static string Word(string path) { int i = path.IndexOf('-'); return i < 0 ? path : path.Substring(0, i); }
+            var want = new List<(int X, int Y, int Z, string W)>();
+            for (int i = 0; i < schem.Indices.Count; i++)
+            {
+                uint idx = schem.Indices[i];
+                if (!schem.BlockCodes.TryGetValue(schem.BlockIds[i], out var bc) || bc.Path == "air" || bc.Path.StartsWith("meta")) continue;
+                want.Add(((int)(idx & 0x3ff), (int)((idx >> 20) & 0x3ff), (int)((idx >> 10) & 0x3ff), Word(bc.Path)));
+            }
+            var p = new BlockPos(0, 0, 0, 0);
+            bool Match((int X, int Y, int Z, string W) b, bool turn, int y0)
+            {
+                int x = turn ? schem.SizeX - 1 - b.X : b.X, z = turn ? schem.SizeZ - 1 - b.Z : b.Z;
+                p.Set(area.X1 + x, y0 + b.Y, area.Z1 + z);
+                string path = world.GetBlock(p)?.Code?.Path;
+                return path != null && Word(path) == b.W;
+            }
+            (bool Turn, int Dy, int N) best = (false, 0, -1);
+            int sea = sapi.World.SeaLevel;
+            foreach (bool turn in new[] { false, true })
+                for (int y0 = Math.Max(1, sea - 60); y0 <= Math.Min(sapi.WorldManager.MapSizeY - schem.SizeY, sea + 80); y0++)
+                {
+                    int n = 0;
+                    for (int i = 0; i < want.Count; i += 13) if (Match(want[i], turn, y0)) n++;
+                    if (n > best.N) best = (turn, y0, n);
+                }
+            int cw = (schem.SizeX + 15) / 16, ch = (schem.SizeZ + 15) / 16;
+            var all = new int[cw, ch]; var hit = new int[cw, ch];
+            int total = 0;
+            var missing = new Dictionary<string, int>();
+            foreach (var b in want)
+            {
+                int x = best.Turn ? schem.SizeX - 1 - b.X : b.X, z = best.Turn ? schem.SizeZ - 1 - b.Z : b.Z;
+                all[x / 16, z / 16]++;
+                if (Match(b, best.Turn, best.Dy)) { hit[x / 16, z / 16]++; total++; }
+                else missing[b.W] = missing.GetValueOrDefault(b.W) + 1;
+            }
+            sapi.Logger.Notification("[landmassgenerator] story check {0}: {1} of {2} schematic blocks stand ({3:0}%), turned {4}, base at y {5}; area HUD {6}, {7}, {8} to {9}, {10}; most missing: {11}",
+                code, total, want.Count, 100.0 * total / Math.Max(1, want.Count), best.Turn ? 180 : 0, best.Dy,
+                area.X1 - sapi.WorldManager.MapSizeX / 2, area.Y1, area.Z1 - sapi.WorldManager.MapSizeZ / 2,
+                area.X2 - sapi.WorldManager.MapSizeX / 2, area.Z2 - sapi.WorldManager.MapSizeZ / 2,
+                string.Join(", ", missing.OrderByDescending(kv => kv.Value).Take(10).Select(kv => kv.Key + " " + kv.Value)));
+            // one line per 16-block row, north to south: tenths standing, '.' empty cell
+            for (int r = 0; r < ch; r++)
+            {
+                var row = new System.Text.StringBuilder();
+                for (int c = 0; c < cw; c++) row.Append(all[c, r] < 20 ? '.' : (char)('0' + Math.Min(9, 10 * hit[c, r] / all[c, r])));
+                sapi.Logger.Notification("[landmassgenerator] story check {0} row {1,2}: {2}", code, r, row.ToString());
+            }
+            // the same by chunk column (32 blocks), and what stands instead
+            // where less than half of a chunk column's share stands
+            int ccx1 = area.X1 / cs, ccz1 = area.Z1 / cs;
+            int ccw = (area.X1 + schem.SizeX - 1) / cs - ccx1 + 1, cch = (area.Z1 + schem.SizeZ - 1) / cs - ccz1 + 1;
+            var call = new int[ccw, cch]; var chit = new int[ccw, cch];
+            foreach (var b in want)
+            {
+                int x = best.Turn ? schem.SizeX - 1 - b.X : b.X, z = best.Turn ? schem.SizeZ - 1 - b.Z : b.Z;
+                int i = (area.X1 + x) / cs - ccx1, k = (area.Z1 + z) / cs - ccz1;
+                call[i, k]++;
+                if (Match(b, best.Turn, best.Dy)) chit[i, k]++;
+            }
+            var instead = new Dictionary<string, int>();
+            foreach (var b in want)
+            {
+                int x = best.Turn ? schem.SizeX - 1 - b.X : b.X, z = best.Turn ? schem.SizeZ - 1 - b.Z : b.Z;
+                int i = (area.X1 + x) / cs - ccx1, k = (area.Z1 + z) / cs - ccz1;
+                if (call[i, k] == 0 || chit[i, k] * 2 >= call[i, k] || Match(b, best.Turn, best.Dy)) continue;
+                string w = world.GetBlock(p)?.Code?.Path ?? "none";
+                w = w.IndexOf('-') < 0 ? w : w.Substring(0, w.IndexOf('-'));
+                instead[w] = instead.GetValueOrDefault(w) + 1;
+            }
+            sapi.Logger.Notification("[landmassgenerator] story check {0}: chunk columns x {1}..{2} (mod 16: {3}..{4}), z {5}..{6} (mod 16: {7}..{8}); in the ones under half, instead: {9}",
+                code, ccx1, ccx1 + ccw - 1, ccx1 % 16, (ccx1 + ccw - 1) % 16, ccz1, ccz1 + cch - 1, ccz1 % 16, (ccz1 + cch - 1) % 16,
+                string.Join(", ", instead.OrderByDescending(kv => kv.Value).Take(10).Select(kv => kv.Key + " " + kv.Value)));
+            for (int k = 0; k < cch; k++)
+            {
+                var row = new System.Text.StringBuilder();
+                for (int i = 0; i < ccw; i++) row.Append(call[i, k] < 20 ? '.' : (char)('0' + Math.Min(9, 10 * chit[i, k] / call[i, k])));
+                sapi.Logger.Notification("[landmassgenerator] story check {0} chunk row z {1}: {2}", code, ccz1 + k, row.ToString());
+            }
+            if (!repair) return;
+            var bad = new List<(int X, int Z)>();
+            for (int i = 0; i < ccw; i++)
+                for (int k = 0; k < cch; k++)
+                    if (call[i, k] >= 20 && chit[i, k] * 2 < call[i, k]) bad.Add((ccx1 + i, ccz1 + k));
+            if (bad.Count == 0) { sapi.Logger.Notification("[landmassgenerator] story check {0}: nothing to repair", code); return; }
+            foreach (var (x, z) in bad) sapi.WorldManager.DeleteChunkColumn(x, z);
+            sapi.Logger.Notification("[landmassgenerator] story check {0}: repairing {1} chunk column(s): {2}", code, bad.Count, string.Join(" ", bad.Select(b => b.X + "," + b.Z)));
+            sapi.Event.RegisterCallback(_ => LoadChunkAreaBanded(bad.Min(b => b.X), bad.Min(b => b.Z), bad.Max(b => b.X), bad.Max(b => b.Z), false,
+                () => sapi.Event.RegisterCallback(__ => StoryCheck(code, schematic), 2000)), 2000);
+        });
+    }
+
+    // Every block in the area whose code path starts with `prefix`.
+    private List<BlockPos> FindBlocksIn(Cuboidi area, string prefix)
+    {
+        var world = sapi.World.BlockAccessor;
+        var found = new List<BlockPos>();
+        var p = new BlockPos(0, 0, 0, 0);
+        for (int x = area.X1; x <= area.X2; x++)
+            for (int z = area.Z1; z <= area.Z2; z++)
+                for (int y = area.Y1; y <= area.Y2; y++)
+                {
+                    p.Set(x, y, z);
+                    if (world.GetBlock(p)?.Code?.Path?.StartsWith(prefix) == true) found.Add(p.Copy());
+                }
+        return found;
     }
 
     // From `from` straight out past the nearest edge of the locked claim over
