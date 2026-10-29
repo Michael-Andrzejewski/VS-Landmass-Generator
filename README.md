@@ -647,12 +647,19 @@ spawner and the same land claim); `chest=<contents>` puts a chest 2 blocks
 outside the claim, beside the gate.
 
 Mine dressing (0.60.0): a cave line may add `machinery=N` (every N steps a
-stretch of wall turns to rusted plate with a gearbox or pipe run against it and
-parts on the floor) and `giants=<spawner block>*K` (K spawner blocks in the
-cave's widest, tallest halls, 30+ blocks apart; made for Oversized Horrors'
-`oversizedhorrors:giantspawner-*`).
+stretch of wall turns to rusted plate with a rusted machine against it and
+parts on the floor) and `giants=<spawner block>*K` (K spawner blocks along the
+deep part of the mine, 26+ blocks apart; made for Oversized Horrors'
+`oversizedhorrors:giantspawner-*`). Since 0.71.0 each mine giant sleeps under
+a cavern cut beside a level stretch of tunnel, with a run 7 wide and 8 tall on
+a levelled floor along that stretch, so it can chase a player there (a giant
+cannot climb a steep dive: see papercuts, "Mine giants trapped in their
+lairs"). The props are rusty iron picked from `tools/clutter-catalog`.
 `giantrange=N` gives the `giants=` and `mouthgiant=` spawners their own trigger
-radius (Oversized Horrors 1.3.0+). A `block` line takes `attr:<key>=<value>`
+radius (Oversized Horrors 1.3.0+); a mine giant's range is cut to stay under
+the open ground above it and inside its level stretch, so it wakes for players
+down there with it, never for players on the dive above or on the island. A
+`block` line takes `attr:<key>=<value>`
 settings for the placed block's entity, e.g. a serpent spawner's
 `attr:triggerRange=80 attr:requireWater=true attr:lingerSeconds=120
 attr:lingerRange=120` (Underwater Horrors 0.21.0+); numbers go in as floats,

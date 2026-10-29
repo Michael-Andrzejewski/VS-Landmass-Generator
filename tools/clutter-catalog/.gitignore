@@ -1,0 +1,3 @@
+__pycache__/
+# rebuilt by build_clutter_catalog.py; the CSV holds the same rows
+clutter-catalog-raw.json

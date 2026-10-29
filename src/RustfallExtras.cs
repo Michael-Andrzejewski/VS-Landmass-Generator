@@ -338,10 +338,35 @@ public partial class LandmassGeneratorModSystem
     // ── mine machinery and giants ──────────────────────────────────────
 
     // machinery=N: every N steps, a stretch of tunnel wall is rusted plate
-    // with a gearbox or pipe run standing against it and parts on the floor.
-    // giants=<block>*K: K giant spawners in carved lairs along the deep part
-    // of the mine; deepgiant=<block>: one in a lair at the very bottom;
-    // mouthgiant=<block>: one buried under open ground near the mouth.
+    // with a rusted machine standing against it, a rusty pipe up the wall
+    // beside it and scrap on the floor.
+    // giants=<block>*K: K giant spawners in caverns on level stretches of the
+    // deep part of the mine; deepgiant=<block>: one in a cavern at the very
+    // bottom; mouthgiant=<block>: one buried under open ground near the mouth.
+    //
+    // The props come from tools/clutter-catalog (every clutter type with its
+    // measured colour and hitbox). The first set mixed clean grey gears with
+    // pale tin-bronze ceiling pipes ("-aged" is tarnished tin-bronze, not rust,
+    // and those pipes run 3 or 4 blocks with a hitbox on the first only).
+    // Now everything is dark rusty iron (brightness about 0.2) with a hitbox
+    // that matches its model; the grey gearbox and gear wear the rusty
+    // texture flip.
+    private static readonly (string Block, string Type, string Flip, bool Flat)[] MineStanding =
+    {
+        ("clutter-devastation", "gearbox1", "slightlyrustyiron", false),
+        ("clutter-devastation", "gear24", "rustysheet", true),
+        ("clutter-devastation", "junktanksmall1", null, false),
+        ("clutter-devastation", "junktanksmall2", null, false),
+        ("clutter", "barrel-metal1", null, false),
+        ("clutter", "barrel-metal3", null, false),
+        ("clutter", "machine4", null, false),
+        ("clutter", "machine6", null, false),
+        ("clutter", "machine7", null, false),
+        ("clutter", "mech-part5", null, false),
+    };
+    private static readonly string[] MineWallHung = { "wallhook-mechsection", "wallhook-arm2" };
+    private static readonly string[] MineFloorScrap = { "scrap-art10", "chains/chain-floor", "machine2", "pile-precisiontools" };
+
     private string PlaceMineMachinery(IslandJob job, CaveDef def, List<(double X, double Y, double Z, double R, double V, CaveDef Def)> steps,
         System.Func<int, int, int, bool> open, System.Func<int, int, int, bool> solid)
     {
@@ -350,81 +375,88 @@ public partial class LandmassGeneratorModSystem
         int Bid(string code) => sapi.World.GetBlock(new AssetLocation(code.Contains(':') ? code : "game:" + code))?.BlockId ?? 0;
         int rustA = Bid("metalblock-corroded-riveted-rusty-iron"), rustB = Bid("metalblock-corroded-plain-rusty-iron");
         int[] floorJunk = { Bid("loosegears-1"), Bid("loosegears-3"), Bid("metalpartpile-small"), Bid("metalpartpile-tiny"), Bid("metal-scraps") };
-        string[] standing = { "gearbox1", "geartrain3", "gear24", "gear36", "pipelong3-aged", "pipelong4-aged" };
-        int clutterId = Bid("clutter-devastation");   // the machinery shapes live on this clutter block
         var rotField = typeof(BEBehaviorShapeFromAttributes).GetField("<rotateY>k__BackingField",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         void Put(int x, int y, int z, int id) { if (id == 0) return; p.Set(x, y, z); world.SetBlock(id, p); }
-        void Clut(int x, int y, int z, string type, float rot)
+        // A clutter prop: its shape, its turn, and optionally a texture flip
+        // and a push toward a wall (in blocks; its hitbox moves with it).
+        bool Clut(string block, int x, int y, int z, string type, float rot, string flip = null, float ox = 0, float oz = 0)
         {
-            if (clutterId == 0 || !open(x, y, z)) return;
+            int id = Bid(block);
+            if (id == 0 || !open(x, y, z)) return false;
             p.Set(x, y, z);
-            world.SetBlock(clutterId, p);
+            world.SetBlock(id, p);
             var beh = world.GetBlockEntity(p)?.GetBehavior<BEBehaviorShapeFromAttributes>();
-            if (beh == null) return;
+            if (beh == null) return false;
             beh.Type = type;
             rotField?.SetValue(beh, rot);
+            if (flip != null) beh.overrideTextureCode = flip;
+            beh.offsetX = ox; beh.offsetZ = oz;
             beh.Blockentity.MarkDirty(true);
+            return true;
         }
 
         int machines = 0, giants = 0;
-        var spots = new List<(int Index, int X, int Floor, int Z)>();   // every step's floor, mouth first
         var rnd = new Random((int)(def.Seed * 7919u + 17u));
+        int FloorUnder(int x, int y, int z, int depth) { int f = y; while (f > y - depth && open(x, f - 1, z)) f--; return f; }
+
+        // every step's floor, mouth first
+        var spots = new List<(int Index, int X, int Floor, int Z)>();
+        var floorAt = new int[steps.Count];
+        for (int i = 0; i < steps.Count; i++)
+        {
+            var s = steps[i];
+            int cx = (int)Math.Floor(s.X), cz = (int)Math.Floor(s.Z), cy = (int)Math.Floor(s.Y);
+            floorAt[i] = open(cx, cy, cz) ? FloorUnder(cx, cy, cz, 12) : int.MinValue;
+            if (i == 0 || floorAt[i] == int.MinValue) continue;
+            var a = steps[i - 1];
+            double dx = s.X - a.X, dz = s.Z - a.Z;
+            if (Math.Sqrt(dx * dx + dz * dz) is < 0.2 or > 4) continue;
+            int floor = FloorUnder(cx, cy, cz, 10);
+            if (solid(cx, floor - 1, cz)) spots.Add((i, cx, floor, cz));
+        }
+
+        // The mine as a tree of its steps: each step joins the one before it,
+        // and a branch's first step (a jump of more than 4 blocks) joins the
+        // nearest earlier step, where it forked off.
+        var parent = new int[steps.Count];
+        var kids = new List<int>[steps.Count];
+        for (int i = 0; i < steps.Count; i++) kids[i] = new List<int>();
+        if (steps.Count > 0) parent[0] = -1;
         for (int i = 1; i < steps.Count; i++)
         {
-            var a = steps[i - 1]; var s = steps[i];
-            double dx = s.X - a.X, dz = s.Z - a.Z, len = Math.Sqrt(dx * dx + dz * dz);
-            if (len < 0.2 || len > 4) continue;
-            dx /= len; dz /= len;
-            bool acrossX = Math.Abs(dz) >= Math.Abs(dx);
-            int cx = (int)Math.Floor(s.X), cz = (int)Math.Floor(s.Z), cy = (int)Math.Floor(s.Y);
-            if (!open(cx, cy, cz)) continue;
-            int floor = cy; while (floor > cy - 10 && open(cx, floor - 1, cz)) floor--;
-            if (!solid(cx, floor - 1, cz)) continue;
-            spots.Add((i, cx, floor, cz));
-            int ceil = cy; while (ceil < cy + 14 && open(cx, ceil + 1, cz)) ceil++;
-            int height = ceil - floor + 1;
-            int ux = acrossX ? 1 : 0, uz = acrossX ? 0 : 1;
-            int left = 0; while (left < 10 && open(cx - ux * (left + 1), floor, cz - uz * (left + 1))) left++;
-            int right = 0; while (right < 10 && open(cx + ux * (right + 1), floor, cz + uz * (right + 1))) right++;
-
-            if (def.Machinery <= 0 || i % def.Machinery != def.Machinery / 3 || height < 3) continue;
-            // the wall on one side: plate it from the floor to head height
-            int sgn = rnd.NextDouble() < 0.5 ? -1 : 1;
-            int reach = sgn < 0 ? left : right;
-            int ex = cx + sgn * ux * reach, ez = cz + sgn * uz * reach;      // last open cell
-            int wx = ex + sgn * ux, wz = ez + sgn * uz;                         // the wall
-            int ax = 1 - ux, az = 1 - uz;                                      // along the tunnel
-            bool any = false;
-            for (int k = -1; k <= 1; k++)
-                for (int y = floor; y <= Math.Min(ceil, floor + 3); y++)
-                {
-                    int px = wx + ax * k, pz = wz + az * k;
-                    if (!solid(px, y, pz)) continue;
-                    Put(px, y, pz, (k + y) % 3 == 0 && rustA != 0 ? rustA : rustB != 0 ? rustB : rustA);
-                    any = true;
-                }
-            if (!any) continue;
-            float rot = acrossX ? (sgn < 0 ? (float)(Math.PI / 2) : (float)(-Math.PI / 2)) : (sgn < 0 ? 0f : (float)Math.PI);
-            if (open(ex, floor, ez)) Clut(ex, floor, ez, standing[rnd.Next(standing.Length)], rot);
-            if (height >= 4 && open(ex, floor + 2, ez)) Clut(ex, floor + 2, ez, rnd.NextDouble() < 0.5 ? "pipelong3-aged" : "pipelong4-aged", rot + (float)(Math.PI / 2));
-            int jx = ex - sgn * ux + ax * (rnd.Next(3) - 1), jz = ez - sgn * uz + az * (rnd.Next(3) - 1);
-            int jid = floorJunk[rnd.Next(floorJunk.Length)];
-            if (open(jx, floor, jz) && solid(jx, floor - 1, jz)) Put(jx, floor, jz, jid);
-            machines++;
+            double D2(int j) { double ex = steps[i].X - steps[j].X, ey = steps[i].Y - steps[j].Y, ez = steps[i].Z - steps[j].Z; return ex * ex + ey * ey + ez * ez; }
+            parent[i] = i - 1;
+            if (D2(i - 1) > 16)
+            {
+                double best = double.MaxValue;
+                for (int j = 0; j < i - 1; j++) { double d = D2(j); if (d < best) { best = d; parent[i] = j; } }
+            }
+            kids[parent[i]].Add(i);
         }
 
         // ── giant spawners ──
-        // A giant needs room: Oversized Horrors spawns one only where its
-        // hitbox plus 3 blocks on every side and above is clear (a giant
-        // shiver: an 11 x 11 x 7 box). Tunnel halls never were, so the first
-        // spawners stayed dormant. Each spawner now gets a lair carved round
-        // it, and the spawner block itself is buried two blocks under the
-        // lair floor: invisible, and the giant appears standing on the floor
-        // (the spawner tries 1, 2 and 3 blocks above itself).
+        // A giant needs room to appear: Oversized Horrors spawns one only
+        // where its hitbox plus 3 blocks on every side and above is clear (a
+        // deep shiver: an 11 x 11 x 7 box). It also needs room to move, and
+        // the game's pathfinder must agree. A deep shiver is 4.8 blocks wide
+        // and 4 tall, and the mine's tunnels narrow below that. The first
+        // lairs were flat-floored rooms on the tunnel, with a slab of stone
+        // bridging any dip under them, and they held their giants for good.
+        // On the mine's dive (43 to 50 degrees) a body that wide sweeps a
+        // band 9 blocks tall and the pathfinder wants 12 of headroom, so no
+        // reasonable cut lets one climb it. Each spawner now sleeps under a
+        // cavern cut beside a LEVEL stretch of tunnel, a run 7 wide and 8 tall
+        // is cut along the tunnel from it for as far as the floor stays level
+        // (up to 70 steps each way), and its trigger range stays inside that
+        // stretch and under the ground above: it wakes for a player who is
+        // down there with it and can be reached, never for one on the dive
+        // above it or walking the island.
         var notes = new List<string>();
         int stoneId = job.StoneId;
         var lairs = new List<(int X, int Z)>();
+        var runSteps = new HashSet<int>();
+        bool InCavern(int x, int z) => lairs.Any(l => (l.X - x) * (l.X - x) + (l.Z - z) * (l.Z - z) < 9 * 9);
         Cuboidf GiantBox(string spawnerCode)
         {
             int dash = spawnerCode.IndexOf("giantspawner-", StringComparison.Ordinal);
@@ -437,69 +469,225 @@ public partial class LandmassGeneratorModSystem
         }
         bool RoomFor(Cuboidf box, int x, int y, int z) =>
             box == null || !sapi.World.CollisionTester.IsColliding(world, box, new Vec3d(x + 0.5, y, z + 0.5), false);
+        bool FluidAt(int x, int y, int z) { p.Set(x, y, z); return (world.GetBlock(p, BlockLayersAccess.Fluid)?.Id ?? 0) != 0; }
         bool FluidNear(int x, int y, int z, int r, int h)
         {
             for (int ddx = -r; ddx <= r; ddx++)
                 for (int ddz = -r; ddz <= r; ddz++)
                     for (int ddy = -2; ddy <= h; ddy++)
-                    {
-                        p.Set(x + ddx, y + ddy, z + ddz);
-                        if ((world.GetBlock(p, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) return true;
-                    }
+                        if (FluidAt(x + ddx, y + ddy, z + ddz)) return true;
             return false;
         }
-        int Surface(int x, int z) =>
-            ColumnSurface(job, x, z, job.SeaLevel, out int ty, out _, out _, out _, out _, out _) ? ty : job.SeaLevel;
+        // The highest real rock or earth in a column (through any water: the
+        // sea floor counts, a diver can stand there). Measured, not taken
+        // from the design: a headwall or a cut stands where the design says
+        // nothing.
+        var surfaceCache = new Dictionary<long, int>();
+        int Surface(int x, int z)
+        {
+            long k = ((long)x << 32) ^ (uint)z;
+            if (surfaceCache.TryGetValue(k, out int t)) return t;
+            t = 0;
+            for (int y = job.SeaLevel + job.DomeHeight + 40; y > 0; y--)
+            {
+                p.Set(x, y, z);
+                var b = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
+                if (b == null || b.Id == 0 || b.BlockMaterial is EnumBlockMaterial.Plant or EnumBlockMaterial.Leaves) continue;
+                t = y; break;
+            }
+            return surfaceCache[k] = t;
+        }
+        // Only rock and earth are cut: never a chest, a prop or a placed block.
+        void Cut(int x, int y, int z)
+        {
+            p.Set(x, y, z);
+            Block b = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
+            if (b == null || b.Id == 0) return;
+            if (b.BlockMaterial is not (EnumBlockMaterial.Stone or EnumBlockMaterial.Ore or EnumBlockMaterial.Soil
+                or EnumBlockMaterial.Gravel or EnumBlockMaterial.Sand)) return;
+            if ((world.GetBlock(p, BlockLayersAccess.Fluid)?.Id ?? 0) != 0) return;
+            world.SetBlock(0, p);
+        }
 
-        bool Lair(int cx, int floor, int cz, string code, string what, float range = 0)
+        // A run: a round cut 7 blocks across and 8 tall from the floor up,
+        // swept from one point to the next, leaving 4 blocks of roof (2 near
+        // the mouth). Its floor is levelled: a dip of one or two blocks (the
+        // groove an oval tunnel leaves along its middle) is filled with the
+        // local rock, because the game's pathfinder will not set a wide body
+        // over any hole under its middle. A deeper drop stays open.
+        void Bore(double x, double z, int floor, bool doorway)
+        {
+            const double Rad = 3.6;
+            for (int bx = (int)Math.Floor(x - Rad); bx <= (int)Math.Floor(x + Rad); bx++)
+                for (int bz = (int)Math.Floor(z - Rad); bz <= (int)Math.Floor(z + Rad); bz++)
+                {
+                    double ex = bx + 0.5 - x, ez = bz + 0.5 - z;
+                    if (ex * ex + ez * ez > Rad * Rad) continue;
+                    int cap = Surface(bx, bz) - (doorway ? 2 : 4);
+                    for (int y = floor; y <= floor + 7 && y <= cap; y++) Cut(bx, y, bz);
+                    if (InCavern(bx, bz)) continue;   // a cavern keeps its own floor and its spawn room
+                    if (open(bx, floor - 1, bz) && !FluidAt(bx, floor - 1, bz)
+                        && (solid(bx, floor - 2, bz) || (open(bx, floor - 2, bz) && solid(bx, floor - 3, bz))))
+                        for (int y = floor - 2; y <= floor - 1; y++) if (open(bx, y, bz)) Put(bx, y, bz, stoneId);
+                }
+        }
+        void BoreLine(double x0, double z0, int f0, double x1, double z1, int f1, bool doorway)
+        {
+            double len = Math.Sqrt((x1 - x0) * (x1 - x0) + (z1 - z0) * (z1 - z0));
+            int n = Math.Max(1, (int)Math.Ceiling(len / 0.7));
+            for (int j = 0; j <= n; j++)
+            {
+                double t = j / (double)n;
+                Bore(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, (int)Math.Round(f0 + (f1 - f0) * t), doorway);
+            }
+        }
+
+        // The level stretch round a step: out along the tree both ways while
+        // the floor stays within 2 blocks over any 6 steps (a slope of about
+        // a third, what a 4.8-wide body can climb with the pathfinder's
+        // blessing), up to 70 steps. Returns the steps in it and the steps
+        // where it turned steep.
+        (List<(int A, int B)> Edges, List<int> Steep, int Count) LevelStretch(int start)
+        {
+            var edges = new List<(int A, int B)>();
+            var steep = new List<int>();
+            var depth = new Dictionary<int, int> { [start] = 0 };
+            var back = new Dictionary<int, int> { [start] = -1 };
+            var q = new Queue<int>(); q.Enqueue(start);
+            while (q.Count > 0)
+            {
+                int c = q.Dequeue();
+                var next = new List<int>(kids[c]);
+                if (parent[c] >= 0) next.Add(parent[c]);
+                foreach (int nb in next)
+                {
+                    if (depth.ContainsKey(nb)) continue;
+                    if (floorAt[nb] == int.MinValue || floorAt[c] == int.MinValue) { steep.Add(nb); continue; }
+                    int anc = c; for (int k = 0; k < 5 && back[anc] >= 0; k++) anc = back[anc];
+                    if (Math.Abs(floorAt[nb] - floorAt[c]) > 1 || Math.Abs(floorAt[nb] - floorAt[anc]) > 2) { steep.Add(nb); continue; }
+                    if (depth[c] + 1 > 70) continue;
+                    depth[nb] = depth[c] + 1; back[nb] = c;
+                    edges.Add((c, nb));
+                    q.Enqueue(nb);
+                }
+            }
+            return (edges, steep, depth.Count);
+        }
+
+        // How far the spawner may reach for a player: no further than the
+        // nearest open ground above, less a margin, and not past the places
+        // where its stretch turns steep.
+        float RangeFor(int x, int y, int z, List<int> steep)
+        {
+            double best = 200;
+            for (int ddx = -70; ddx <= 70; ddx += 2)
+                for (int ddz = -70; ddz <= 70; ddz += 2)
+                {
+                    double h2 = ddx * ddx + ddz * ddz;
+                    if (h2 >= best * best) continue;
+                    double dy = Surface(x + ddx, z + ddz) + 1 - y;
+                    best = Math.Min(best, Math.Sqrt(h2 + dy * dy));
+                }
+            double r = best - 4;
+            foreach (int i in steep)
+            {
+                double ex = steps[i].X - (x + 0.5), ey = steps[i].Y - y, ez = steps[i].Z - (z + 0.5);
+                r = Math.Min(r, Math.Sqrt(ex * ex + ey * ey + ez * ez) - 3);
+            }
+            float want = def.GiantRange > 0 ? def.GiantRange : 20f;   // Oversized Horrors' own default
+            return (float)Math.Min(want, r);
+        }
+
+        // A cavern beside the tunnel at this step: its floor level with the
+        // tunnel floor, flat over the middle and curling up into walls that
+        // wander, under a low uneven dome. Cut into the rock only, so where
+        // it meets the tunnel and the tunnel runs lower, the floor simply
+        // ends in a ledge; nothing is built under it.
+        bool Lair((int Index, int X, int Floor, int Z) sp, string code, string what)
         {
             int gid = Bid(code);
             if (gid == 0) { notes.Add($"spawner '{code}' is not in this game (is its mod installed?)"); return false; }
-            const double R = 8.5;
-            const int H = 8;
-            for (int ddx = -9; ddx <= 9; ddx += 3)
-                for (int ddz = -9; ddz <= 9; ddz += 3)
-                    if (floor + H + 4 > Surface(cx + ddx, cz + ddz)) return false;   // keep a thick roof under the island
-            if (FluidNear(cx, floor, cz, 10, H + 1)) return false;
-            for (int ddx = -9; ddx <= 9; ddx++)
-                for (int ddz = -9; ddz <= 9; ddz++)
+            var a = steps[Math.Max(0, sp.Index - 2)]; var b = steps[Math.Min(steps.Count - 1, sp.Index + 2)];
+            double tx = b.X - a.X, tz = b.Z - a.Z, tl = Math.Sqrt(tx * tx + tz * tz);
+            if (tl < 0.5) return false;
+            tx /= tl; tz /= tl;
+            var stretch = LevelStretch(sp.Index);
+            if (stretch.Count < 30) return false;           // too little level ground to hunt on
+            var lr = new Random(sp.X * 73856093 ^ sp.Z * 19349663 ^ (int)def.Seed);
+            int first = lr.NextDouble() < 0.5 ? -1 : 1;
+            // The floor stays flat out to the spawn box's corners (5.4 blocks each
+            // way) however the walls wander, and the dome over it stays 7 high.
+            const double R = 10.0;     // half-width, before the walls wander
+            const int H = 11;          // the dome over the middle of the floor
+            int floor = sp.Floor;
+            foreach (int side in new[] { first, -first })
+            {
+                double nx = -tz * side, nz = tx * side;      // across the tunnel, toward this side
+                int reach = 0;
+                while (reach < 12 && open(sp.X + (int)Math.Round(nx * (reach + 1)), floor, sp.Z + (int)Math.Round(nz * (reach + 1)))) reach++;
+                int cx = sp.X + (int)Math.Round(nx * (reach + 5.5)), cz = sp.Z + (int)Math.Round(nz * (reach + 5.5));
+                bool thick = true;
+                for (int ddx = -12; ddx <= 12 && thick; ddx += 3)
+                    for (int ddz = -12; ddz <= 12 && thick; ddz += 3)
+                        if (floor + H + 6 > Surface(cx + ddx, cz + ddz)) thick = false;   // a thick roof under the island
+                if (!thick || FluidNear(cx, floor, cz, 12, H + 2)) continue;
+                int under = 0, cells = 0;
+                for (int ddx = -5; ddx <= 5; ddx++)
+                    for (int ddz = -5; ddz <= 5; ddz++) { cells++; if (solid(cx + ddx, floor - 1, cz + ddz)) under++; }
+                if (under < cells * 0.8) continue;           // rock to stand on, not a drop
+                float range = RangeFor(cx, floor - 2, cz, stretch.Steep);
+                if (range < 14) continue;                    // it would wake only on top of itself
+
+                double w1 = lr.NextDouble() * 6.3, w2 = lr.NextDouble() * 6.3, w3 = lr.NextDouble() * 6.3;
+                double c1 = lr.NextDouble() * 6.3, c2 = lr.NextDouble() * 6.3;
+                for (int ddx = -13; ddx <= 13; ddx++)
+                    for (int ddz = -13; ddz <= 13; ddz++)
+                    {
+                        double ang = Math.Atan2(ddz, ddx);
+                        double rr = R * (1 + 0.10 * Math.Sin(3 * ang + w1) + 0.06 * Math.Sin(5 * ang + w2) + 0.04 * Math.Sin(8 * ang + w3));
+                        double n = Math.Pow(Math.Abs(ddx) / rr, 3) + Math.Pow(Math.Abs(ddz) / rr, 3);
+                        if (n > 1) continue;
+                        double bump = Math.Sin(ddx * 0.55 + c1) * Math.Sin(ddz * 0.5 + c2);
+                        int fl = floor + (n < 0.6 ? 0 : (int)Math.Round((n - 0.6) * 10 + bump * 0.8));
+                        int top = floor + (int)Math.Round(H + 1.4 * bump - (n < 0.45 ? 0 : (n - 0.45) * 14));
+                        for (int y = fl; y <= top; y++) Cut(cx + ddx, y, cz + ddz);
+                    }
+                // the buried spawner, rock all round it
+                for (int ddx = -1; ddx <= 1; ddx++)
+                    for (int ddz = -1; ddz <= 1; ddz++)
+                        for (int y = floor - 3; y <= floor - 1; y++)
+                            if (!solid(cx + ddx, y, cz + ddz)) Put(cx + ddx, y, cz + ddz, stoneId);
+                Put(cx, floor - 2, cz, gid);
+                lairs.Add((cx, cz));
+                // the way from the cavern onto the tunnel, then the level run
+                BoreLine(cx + 0.5, cz + 0.5, floor, steps[sp.Index].X, steps[sp.Index].Z, floorAt[sp.Index], false);
+                foreach (var (ea, eb) in stretch.Edges)
                 {
-                    double n = Math.Pow(Math.Abs(ddx) / R, 4) + Math.Pow(Math.Abs(ddz) / R, 4);
-                    if (n > 1) continue;
-                    int h = n < 0.55 ? H : H - (int)((n - 0.55) * 12);
-                    for (int y = floor; y <= floor + h; y++) Put0(cx + ddx, y, cz + ddz);
-                    p.Set(cx + ddx, floor - 1, cz + ddz);
-                    var fb = world.GetBlock(p, BlockLayersAccess.SolidBlocks);
-                    if (fb == null || fb.Id == 0 || !fb.SideSolid[BlockFacing.UP.Index]) Put(cx + ddx, floor - 1, cz + ddz, stoneId);
+                    BoreLine(steps[ea].X, steps[ea].Z, floorAt[ea], steps[eb].X, steps[eb].Z, floorAt[eb], ea < 30 && eb < 30);
+                    runSteps.Add(ea); runSteps.Add(eb);
                 }
-            // the buried spawner, rock all round it
-            for (int ddx = -1; ddx <= 1; ddx++)
-                for (int ddz = -1; ddz <= 1; ddz++)
-                    for (int y = floor - 3; y <= floor - 1; y++)
-                        if (!solid(cx + ddx, y, cz + ddz)) Put(cx + ddx, y, cz + ddz, stoneId);
-            Put(cx, floor - 2, cz, gid);
-            if (range > 0) SetBlockEntitySettings(new BlockPos(cx, floor - 2, cz, job.Dim), new Dictionary<string, string> { ["triggerRange"] = range.ToString(System.Globalization.CultureInfo.InvariantCulture) });
-            lairs.Add((cx, cz));
-            giants++;
-            bool room = RoomFor(GiantBox(code), cx, floor, cz);
-            sapi.Logger.Notification("[landmassgenerator] {0}: {1} buried at HUD {2}, {3}, {4}; spawn room {5}", what, code,
-                cx - sapi.WorldManager.MapSizeX / 2, floor - 2, cz - sapi.WorldManager.MapSizeZ / 2, room ? "clear" : "BLOCKED");
-            if (!room) notes.Add($"{what} lair at {cx - sapi.WorldManager.MapSizeX / 2},{cz - sapi.WorldManager.MapSizeZ / 2} lacks room");
-            return true;
-        }
-        void Put0(int x, int y, int z)
-        {
-            p.Set(x, y, z);
-            if ((world.GetBlock(p, BlockLayersAccess.SolidBlocks)?.Id ?? 0) != 0) world.SetBlock(0, p);
+                runSteps.Add(sp.Index);
+                // the run's points (HUD x, floor, z), for tests to walk it
+                sapi.Logger.Debug("[landmassgenerator] {0} run: {1}", what, string.Join(" ", stretch.Edges.Select(e => e.B).Where((_, k) => k % 4 == 0)
+                    .Select(i => $"{(int)Math.Floor(steps[i].X) - sapi.WorldManager.MapSizeX / 2},{floorAt[i]},{(int)Math.Floor(steps[i].Z) - sapi.WorldManager.MapSizeZ / 2}")));
+                SetBlockEntitySettings(new BlockPos(cx, floor - 2, cz, job.Dim), new Dictionary<string, string> { ["triggerRange"] = range.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+                giants++;
+                bool room = RoomFor(GiantBox(code), cx, floor, cz);
+                sapi.Logger.Notification("[landmassgenerator] {0}: {1} buried at HUD {2}, {3}, {4}; spawn room {5}; level run of {6} steps; wakes within {7:0} blocks", what, code,
+                    cx - sapi.WorldManager.MapSizeX / 2, floor - 2, cz - sapi.WorldManager.MapSizeZ / 2, room ? "clear" : "BLOCKED", stretch.Count, range);
+                if (!room) notes.Add($"{what} cavern at {cx - sapi.WorldManager.MapSizeX / 2},{cz - sapi.WorldManager.MapSizeZ / 2} lacks room");
+                return true;
+            }
+            return false;
         }
         bool FarFromLairs(int x, int z, int d) => !lairs.Any(l => (l.X - x) * (l.X - x) + (l.Z - z) * (l.Z - z) < d * d);
 
         // the bottom of the mine: deepgiant=
         if (!string.IsNullOrEmpty(def.DeepGiantCode) && spots.Count > 0)
-            foreach (var sp in spots.OrderBy(sp => sp.Floor).Take(40))
-                if (Lair(sp.X, sp.Floor, sp.Z, def.DeepGiantCode, "deepest lair")) break;
+            foreach (var sp in spots.OrderBy(sp => sp.Floor).Take(60))
+                if (Lair(sp, def.DeepGiantCode, "deepest lair")) break;
 
-        // giants=<code>*N: lairs spread along the deep part of the mine
+        // giants=<code>*N: caverns spread along the deep part of the mine
         if (def.GiantCount > 0 && !string.IsNullOrEmpty(def.GiantCode))
         {
             var deep = spots.Where(sp => sp.Floor <= job.SeaLevel - 15).ToList();
@@ -512,7 +700,7 @@ public partial class LandmassGeneratorModSystem
                 {
                     var sp = deep[(start + t) % deep.Count];
                     if (!FarFromLairs(sp.X, sp.Z, 26)) continue;
-                    if (Lair(sp.X, sp.Floor, sp.Z, def.GiantCode, "mine lair", def.GiantRange)) { made++; break; }
+                    if (Lair(sp, def.GiantCode, "mine lair")) { made++; break; }
                 }
             }
             if (made < want) notes.Add($"{made} of {want} mine lairs fit");
@@ -551,6 +739,67 @@ public partial class LandmassGeneratorModSystem
                 }
             if (!done) notes.Add("no open ground near the mine mouth for the surface giant");
         }
+
+        // ── machinery ── after the giants, so it stands in the tunnel as
+        // their caverns and runs left it, and never in a run (a prop at the
+        // wall narrows a run below what a giant's pathfinder will take)
+        if (def.Machinery > 0)
+            for (int i = 1; i < steps.Count; i++)
+            {
+                if (i % def.Machinery != def.Machinery / 3) continue;
+                if (runSteps.Contains(i) || runSteps.Contains(i - 2) || runSteps.Contains(i + 2)) continue;
+                var a = steps[i - 1]; var s = steps[i];
+                double dx = s.X - a.X, dz = s.Z - a.Z, len = Math.Sqrt(dx * dx + dz * dz);
+                if (len < 0.2 || len > 4) continue;
+                dx /= len; dz /= len;
+                bool acrossX = Math.Abs(dz) >= Math.Abs(dx);
+                int cx = (int)Math.Floor(s.X), cz = (int)Math.Floor(s.Z), cy = (int)Math.Floor(s.Y);
+                if (!open(cx, cy, cz)) continue;
+                int floor = FloorUnder(cx, cy, cz, 10);
+                if (!solid(cx, floor - 1, cz)) continue;
+                int ceil = cy; while (ceil < cy + 14 && open(cx, ceil + 1, cz)) ceil++;
+                int height = ceil - floor + 1;
+                if (height < 3) continue;
+                int ux = acrossX ? 1 : 0, uz = acrossX ? 0 : 1;
+                int left = 0; while (left < 10 && open(cx - ux * (left + 1), floor, cz - uz * (left + 1))) left++;
+                int right = 0; while (right < 10 && open(cx + ux * (right + 1), floor, cz + uz * (right + 1))) right++;
+                // the wall on one side: plate it from the floor to head height
+                int sgn = rnd.NextDouble() < 0.5 ? -1 : 1;
+                int reach = sgn < 0 ? left : right;
+                int ex = cx + sgn * ux * reach, ez = cz + sgn * uz * reach;      // last open cell
+                int wx = ex + sgn * ux, wz = ez + sgn * uz;                         // the wall
+                int ax = 1 - ux, az = 1 - uz;                                      // along the tunnel
+                bool any = false;
+                for (int k = -1; k <= 1; k++)
+                    for (int y = floor; y <= Math.Min(ceil, floor + 3); y++)
+                    {
+                        int px = wx + ax * k, pz = wz + az * k;
+                        if (!solid(px, y, pz)) continue;
+                        Put(px, y, pz, (k + y) % 3 == 0 && rustA != 0 ? rustA : rustB != 0 ? rustB : rustA);
+                        any = true;
+                    }
+                if (!any) continue;
+                // rot turns a prop's north side (its flat back) to the wall
+                float rot = acrossX ? (sgn < 0 ? (float)(Math.PI / 2) : (float)(-Math.PI / 2)) : (sgn < 0 ? 0f : (float)Math.PI);
+                float pushX = sgn * ux * 0.34f, pushZ = sgn * uz * 0.34f;             // a pipe against the rock
+                var st = MineStanding[rnd.Next(MineStanding.Length)];
+                if (open(ex, floor, ez)) Clut(st.Block, ex, floor, ez, st.Type, rot, st.Flip, st.Flat ? pushX * 0.6f : 0, st.Flat ? pushZ * 0.6f : 0);
+                // a rusty pipe up the wall beside it, and a bracket over it
+                int side = rnd.NextDouble() < 0.5 ? -1 : 1;
+                int qx = ex + ax * side, qz = ez + az * side;
+                for (int y = floor; y <= Math.Min(ceil - 1, floor + 3); y++)
+                    if (!Clut("clutter", qx, y, qz, "pipe-veryrusted-v-empty", 0, null, pushX, pushZ)) break;
+                if (height >= 4 && open(ex, floor + 2, ez)) Clut("clutter", ex, floor + 2, ez, MineWallHung[rnd.Next(MineWallHung.Length)], rot);
+                // scrap on the floor
+                int jx = ex - sgn * ux + ax * (rnd.Next(3) - 1), jz = ez - sgn * uz + az * (rnd.Next(3) - 1);
+                if (open(jx, floor, jz) && solid(jx, floor - 1, jz))
+                {
+                    if (rnd.NextDouble() < 0.5) Put(jx, floor, jz, floorJunk[rnd.Next(floorJunk.Length)]);
+                    else Clut("clutter", jx, floor, jz, MineFloorScrap[rnd.Next(MineFloorScrap.Length)], (float)(rnd.Next(4) * Math.PI / 2));
+                }
+                machines++;
+            }
+
         return (machines > 0 ? $" {machines} wall machine(s)." : "") + (giants > 0 ? $" {giants} giant spawner(s)." : "")
             + (notes.Count > 0 ? " Giants: " + string.Join("; ", notes) + "." : "");
     }

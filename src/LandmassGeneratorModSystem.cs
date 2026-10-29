@@ -3751,6 +3751,11 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
             sapi.Logger.Notification("[gencount-maps] region {0},{1}: {2} animal maps: {3}", x / rs, z / rs, mr == null ? "NO REGION" : "", string.Join(", ", dens));
             sapi.Logger.Notification("[gencount] around HUD {0},{1} r{2}: {3}", hx, hz, r,
                 string.Join(", ", System.Linq.Enumerable.Select(System.Linq.Enumerable.OrderByDescending(counts, kv => kv.Value), kv => kv.Key + " " + kv.Value)));
+            // every giant by name and place, to follow one through a mine
+            foreach (var e in sapi.World.LoadedEntities.Values)
+                if (e.Alive && e.Code?.Path.StartsWith("giant") == true && Math.Abs(e.Pos.X - x) <= r && Math.Abs(e.Pos.Z - z) <= r)
+                    sapi.Logger.Notification("[gencount-giant] {0} id {1} at HUD {2:0.0}, {3:0.0}, {4:0.0}", e.Code, e.EntityId,
+                        e.Pos.X - sapi.WorldManager.MapSizeX / 2, e.Pos.Y, e.Pos.Z - sapi.WorldManager.MapSizeZ / 2);
         });
         return TextCommandResult.Success("Counting; see the log.");
     }

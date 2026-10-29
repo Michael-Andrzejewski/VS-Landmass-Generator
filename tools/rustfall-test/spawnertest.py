@@ -22,14 +22,15 @@ for _ in range(120):
     time.sleep(3)
 time.sleep(5)
 
-# spawner HUD position, where to stand (x y z), name
+# spawner HUD position, where to stand (x y z, on a lair's level run and
+# inside its wake range), name: Landmass Generator 0.71.0's tin mine
 SPOTS = [
     ((1901, 122, -1586), (1909, 126, -1586), "mouth (surface) shiver"),
-    ((1890, 65, -1636), (1897, 67, -1636), "mine lair shiver 1"),
-    ((1916, 88, -1633), (1923, 90, -1633), "mine lair shiver 2"),
-    ((1913, 36, -1577), (1920, 38, -1577), "mine lair shiver 3"),
-    ((1947, 29, -1588), (1954, 31, -1588), "mine lair shiver 4"),
-    ((1887, 23, -1577), (1894, 25, -1577), "deepest lair locust"),
+    ((1919, 30, -1559), (1925, 32, -1563), "mine lair shiver 1 (wakes within 14)"),
+    ((1890, 25, -1552), (1877, 31, -1533), "mine lair shiver 2 (wakes within 32)"),
+    ((1944, 30, -1569), (1948, 32, -1578), "mine lair shiver 3 (wakes within 18)"),
+    ((1958, 31, -1597), (1963, 34, -1603), "mine lair shiver 4 (wakes within 18)"),
+    ((1879, 23, -1578), (1885, 25, -1571), "deepest lair locust (wakes within 15)"),
 ]
 SAFE = "/tp 1850 140 -1500"
 print(cmd("/gamemode survival"))

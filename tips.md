@@ -1418,3 +1418,40 @@ the map to the next one:
   chests, Tobias' cave 3 (all inside its use-locked claim), the Devastation
   tower 12 from its cellar (y 6) to its top (y 91); its ground floor is y 23,
   so `level=24`.
+
+## The tin mine's props and giants (0.71.0)
+
+Michael's brief: the pipes in the tin mine don't fit ("we need more rusty
+metal"), classify every clutter prop by colour, age and hitbox, and let the
+deep shiver spawn where it can run at the player, not on "a weird platform".
+
+- **The clutter catalog** (`tools/clutter-catalog`, rebuilt by
+  `build_clutter_catalog.py` in about two minutes after a game update): all
+  1,461 shape-from-attributes types (clutter, clutter-devastation, bookshelves,
+  Jonas lamps, banners) with their measured colour (texture pixels weighted by
+  face area), brightness, condition, size, hitbox and the colour after each
+  texture flip. Read `clutter-catalog.md` before picking props. Rusty iron
+  sits at brightness 0.19 to 0.20, the median metal prop at 0.31.
+- **"-aged" is not rust.** The old mine pipes (`pipelong3-aged`,
+  `pipelong4-aged`) are 75 to 81 percent tarnished tin-bronze (khaki, 0.42 to
+  0.46), hang from the ceiling, run 3 or 4 blocks and have a hitbox on the
+  first block only. The grey gears and gearboxes are clean iron sheet (0.36);
+  set the block entity's `overrideTextureCode` (`rustysheet`,
+  `slightlyrustyiron`) to rust them.
+- **The new mine props:** rusted plate on the wall, a rusty machine standing
+  against it (gearbox and gear with the rust flip, small junk tanks, metal
+  barrels, `machine4/6/7`, `mech-part5`), a `pipe-veryrusted-v-empty` column up
+  the wall beside it (pushed 0.34 toward the rock with `offsetX/Z`; the hitbox
+  moves with it), a wall bracket over it, and floor scrap.
+- **Giants and the pathfinder:** see papercuts, "Mine giants trapped in their
+  lairs". In short: test with the giant's own box and the game's step rule
+  (`stepHeight` raises the whole body), a wide body can climb a step but no
+  path takes it down one, and on a dive it can't follow at all. The chase task
+  falls back to walking straight at the player. Put giants where the ground
+  round them is level and open.
+- **Testing a mine giant:** `/gencount x z r` now logs every giant in the
+  square with its position (`[gencount-giant]`). The build's debug log lists
+  each lair's run (`... run: x,floor,z ...`), for a test player to walk.
+  `astarcheck.py`-style checks need the game's rules, not a free box flood:
+  the free flood said the first runs were open and the client showed they
+  were not.

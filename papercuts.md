@@ -1053,3 +1053,61 @@ The fix lives outside this repo: Dark Chunk Fix
 loads, before it is sent, and marks it modified so the save keeps the repair.
 With it in a build server's Mods, check a build with `/darkfix scan x z r`
 (it reports dark chunks left and columns relit while loading).
+
+## Mine giants trapped in their lairs (fixed in 0.71.0)
+
+Michael saw a deep shiver in the tin mine stuck on "a weird platform", and
+asked for it to spawn where it can run at the player. A dump of a test build
+(`/gendumparea`) showed why, for all four mine lairs and the corrupt locust at
+the bottom: a deep shiver is 4.8 blocks wide and 4 tall, and the mine's
+tunnels narrow below that (radius 2.7 x scale 1.6, thinner near both ends of
+every tunnel). A flood fill of the giant's box (5 x 5 x 4 blocks) from each
+spawn spot reached about 800 cells, its own lair, and never the mouth. The
+lair itself was a flat-floored room centred on the tunnel, and where the
+tunnel dipped under it a one-block slab of stone bridged the dip: that was
+the platform. On top of that the spawners woke for any player within 60
+blocks, and the lairs lie 24 to 53 blocks under open ground, so a player
+walking the island could wake a giant that could never reach them.
+
+A first fix cut a run 7 wide and 7 tall from every lair to the mouth. The
+flood fill passed, and in a real client (Pilot, `chase.py`) the giant still
+never climbed it. The game's pathfinder (`AStar.traversable`, VS 1.22) is the
+limit, three ways:
+
+- **Step height.** To step up one block it tests the body raised by the
+  entity's whole `stepHeight`. Oversized Horrors gave giant shivers 8.5 (four
+  times the vanilla 2.1251), so every step up wanted about 12.5 blocks of
+  headroom. Oversized Horrors 1.3.1 gives the deep variant the vanilla value.
+- **No planned way down.** A move is refused when the block under the body's
+  middle is open and the body lowered by one would touch anything: a wide body
+  half over a one-block drop always does. So a path for a giant can climb
+  steps but never go down one, and a one-block groove along a tunnel's middle
+  stops it.
+- **Steep tunnels.** On the mine's dive (43 to 50 degrees) a body 4.8 wide
+  sweeps a band about 9 blocks tall, and the raised-body test wants about 12.
+
+When no path is found the chase task walks straight at the player instead,
+every 0.75 seconds (`WaypointsTraverser.HandleNoPath`). That works on level
+ground and slides along walls; on the dive it walks into rock.
+
+So each giant now sleeps under a cavern cut beside a level stretch of the
+tunnel (rock only, no slab: where the tunnel runs lower the floor ends in a
+ledge). A run 7 wide and 8 tall is cut along the tunnel from it for as long as
+the floor stays within 2 blocks over any 6 steps, up to 70 steps each way (the
+steps form a tree: a branch's first step joins the nearest earlier step). The
+run's floor is levelled: dips of one or two blocks are filled with the local
+rock, deeper drops stay. Each spawner's trigger range stays under the distance
+to the nearest open ground or sea floor above it and short of where its
+stretch turns steep, so it wakes for a player who is down there with it. Cuts
+take only rock and earth, never a chest or a prop, and leave 4 blocks of roof
+(2 at the doorway), measured from the real blocks: the design's ground height
+cut a trench to the sky beside the mouth on the first try. Machinery stays out
+of the runs, and timbers too (a run is too tall for a frame).
+
+Checked: a test build puts all five lairs on the bottom gallery (y 23 to 31),
+every spawn room clear, wake ranges 14 to 32 blocks, nothing opened to the
+sky. In a real client the giant from the lair at 1890, -1552 woke 1.5 seconds
+after the player stood 24 blocks away, came up its run (floor 27 to 32) and
+reached the player at the far end in about 34 seconds. The same run with the
+old step height of 8.5: in two and a half minutes the giant came no nearer
+than 16 blocks and ended stuck.

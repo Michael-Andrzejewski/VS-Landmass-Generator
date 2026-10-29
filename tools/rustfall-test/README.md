@@ -55,3 +55,18 @@ check what spawns. They read the debug log and `/gencount`. Copy the test save
 to `Saves\pilot-<name>.vcdbs.vcdbs` and launch it with the mouse-guard
 launcher, `--openWorld pilot-<name>.vcdbs`. The Pilot README explains why the
 name matters.
+
+## Mine giants
+
+- `astarcheck.py <dump> <outdir> x,y,z ...` walks a giant's box (4.8 x 4) from
+  each spawner by the game's own pathfinding rules (step up only with the body
+  raised by the step height; no step down while part of the body is still on
+  the higher floor) and says what blocks its spawn box. Dump the mine with
+  `/gendumparea 1915 -1605 85` (or set `CX`, `CZ`, `CR` to match your dump).
+  A plain box flood fill is not enough: it passed runs the real giant never
+  climbed.
+- `chase.py <spawner x,y,z> <stand x,y,z> <next x,y,z> ...` is the real test,
+  in a Pilot client: it stands the player inside the wake range, follows the
+  giant through `/gencount` (which logs every giant's position), and moves the
+  player on along the given points whenever the giant comes within 14 blocks.
+  The build's debug log lists each lair's run points for the route.
