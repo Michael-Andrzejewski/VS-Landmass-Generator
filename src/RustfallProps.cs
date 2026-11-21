@@ -60,8 +60,17 @@ public partial class LandmassGeneratorModSystem
     private static readonly string[] RustfallTapestries1x2 = { "rustfall-lens", "rustfall-sealed", "rustfall-bells", "rustfall-keeper" };
     private const string MineTapestryChestWith = "lore:cinder_maps";
 
+    // One chest of set contents somewhere in a ruin: The Spoils holds the map on to the Great Machine, the
+    // last arrow of the map chain (Tobias' cave gives the map to The Spoils).
+    private record PlacedChestDef(char Near, int Radius, string Where, string Type, string Contents);
+    private static readonly Dictionary<string, PlacedChestDef> PlacedChests = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["the_spoils"] = new('Q', 90, "any", "collapsed2", "landmassgenerator:islandmap-greatmachine,randomlore:rfpool-jonas"),
+    };
+
     private bool HasRustfallProps(IslandJob job) => job.ShapeName != null
-        && (HiddenChests.ContainsKey(job.ShapeName) || Bookshelves.ContainsKey(job.ShapeName) || MineTapestries.ContainsKey(job.ShapeName));
+        && (HiddenChests.ContainsKey(job.ShapeName) || Bookshelves.ContainsKey(job.ShapeName) || MineTapestries.ContainsKey(job.ShapeName)
+            || PlacedChests.ContainsKey(job.ShapeName));
 
     private string PlaceRustfallProps(IslandJob job)
     {
@@ -74,6 +83,7 @@ public partial class LandmassGeneratorModSystem
             if (HiddenChests.TryGetValue(job.ShapeName, out var hc)) notes.Add(PlaceHiddenChests(job, hc));
             if (Bookshelves.TryGetValue(job.ShapeName, out var shelves)) notes.Add(PlaceBookshelves(job, shelves));
             if (MineTapestries.TryGetValue(job.ShapeName, out char cave)) notes.Add(PlaceMineTapestry(job, cave));
+            if (PlacedChests.TryGetValue(job.ShapeName, out var pc)) notes.Add(PlaceSetChest(job, pc));
         }
         catch (Exception e)
         {
@@ -164,6 +174,16 @@ public partial class LandmassGeneratorModSystem
         sapi.Logger.Notification("[props] chest ({0}) at HUD {1}, {2}, {3}: {4}", type,
             at.X - sapi.WorldManager.MapSizeX / 2, at.Y, at.Z - sapi.WorldManager.MapSizeZ / 2, string.Join(", ", contents));
         return true;
+    }
+
+    private string PlaceSetChest(IslandJob job, PlacedChestDef d)
+    {
+        int cx = job.Cx, cz = job.Cz;
+        if (job.Shape.FirstCells.TryGetValue(d.Near, out var cell)) MarkerWorld(job, cell.X, cell.Z, out cx, out cz);
+        var rand = new CaveRand((uint)(job.Seed * 977 + 61));
+        var spots = FloorSpots(job, cx, cz, d.Radius, d.Where, 1, rand, new List<BlockPos>());
+        if (spots.Count == 0) return "no floor for its chest.";
+        return PlaceChestAt(spots[0], d.Type, d.Contents.Split(',').ToList()) ? "a chest with " + d.Contents + "." : "its chest failed.";
     }
 
     // ── old bookshelves ─────────────────────────────────────────────────

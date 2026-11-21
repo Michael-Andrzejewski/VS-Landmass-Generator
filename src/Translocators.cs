@@ -242,6 +242,7 @@ public partial class LandmassGeneratorModSystem
 
     private void StartStoryTranslocatorWatcher()
     {
+        StartIslandLureWatcher();   // the Great Machine's landing invasion (IslandLures.cs)
         if (_storyTranslocatorListener != 0) return;
         _storyTranslocatorListener = sapi.Event.RegisterGameTickListener(_ => StoryTranslocatorTick(false), 5000);
     }
