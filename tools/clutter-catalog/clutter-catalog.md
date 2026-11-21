@@ -30,6 +30,12 @@ It reads `%APPDATA%\Vintagestory\assets` by default (`--assets` changes it, `--o
 
 The builder finds these blocks itself. It scans every blocktype for the classes `BlockClutter`, `ToggleCollisionBox`, `BlockClutterBookshelf` and `BlockClutterBookshelfWithLore`, so a new clutter file in a later version shows up on its own.
 
+## Pictures
+
+`render_clutter.py` draws every type from the same shape and texture files, with its collision box in red (selection box in yellow when it differs) and its block cell in grey. No game client is needed. It writes one PNG per type to `export/clutter-renders/<block>/` (git-ignored) and, with `--sheets`, contact sheets of 48. `--only pipe` limits it to types whose name contains "pipe". It takes a few minutes for all types.
+
+`pipe_compare.py` and `pipe_page.py` build `export/pipe-compare/index.html`: the tin mine's pipes next to rusty candidates, placed as the mine places them, each with a hitbox view. Use them as a pattern for other side-by-side checks.
+
 ## How the game builds a prop
 
 I read this from the decompiled 1.22.7 `VSSurvivalMod.dll` (`BlockShapeFromAttributes`, `BlockClutter`, `ClutterTypeProps`, `BEBehaviorShapeFromAttributes`, `Cuboidf`). It was not guessed from the JSON.
