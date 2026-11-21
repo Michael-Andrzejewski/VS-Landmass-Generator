@@ -28,7 +28,7 @@ cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 b
 
 struct G kind=lab size=16 seed=7 huts=4
 chest L normal-aged lore:tin_lab_notice,lore:tin_chart,landmassgenerator:islandmap-forest,randomlore:rfpool-lab,game:nugget-cassiterite*8,game:ingot-tin*2 at=52,24
-chest Z collapsed2 lore:tin_mine_depths,game:jonasparts-tank01,game:jonasparts-valve01,game:jonasparts-cylinder01,game:gear-rusty*6,lensresearch:miniriftward,randomlore:rfpool-jonas cave=V rust=3
+chest Z collapsed2 lore:tin_mine_depths,game:jonasparts-tank01,game:jonasparts-valve01,game:jonasparts-cylinder01,game:gear-rusty*6,randomlore:rfpool-jonas cave=V rust=3
 loot mine 4 cave=V below=30
 block Y game:statictranslocator-broken-north
 map

@@ -217,7 +217,7 @@ def main():
     print("struct G kind=lab size=16 seed=7 huts=4")
     grid[lz][lx] = "G"
     print(f"chest L normal-aged lore:tin_lab_notice,lore:tin_chart,landmassgenerator:islandmap-forest at={lx},{lz}")
-    print("chest Z collapsed2 lore:tin_mine_depths,game:jonasparts-tank01,game:jonasparts-valve01,game:jonasparts-cylinder01,game:gear-rusty*6,lensresearch:miniriftward cave=V rust=3")
+    print("chest Z collapsed2 lore:tin_mine_depths,game:jonasparts-tank01,game:jonasparts-valve01,game:jonasparts-cylinder01,game:gear-rusty*6 cave=V rust=3")
     print("block Y game:statictranslocator-broken-north")
     grid[lz][min(len(grid[lz]) - 1, lx + 9)] = "Y"
     print("map")

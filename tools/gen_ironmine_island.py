@@ -205,7 +205,7 @@ def main():
         return min(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - mz) ** 2)
     # Lore (2026-10-20): John Vintage's farewell at the bottom of the great
     # mine, and his second note hidden by a landmark pine in the pine wood.
-    print("chest Z golden-aged lore:john_vintage,lensresearch:temporallens,lensresearch:schematic-miniriftward cave=K")
+    print("chest Z golden-aged lore:john_vintage cave=K")
     px, pz = _cell_of("P")
     print("tree Q scotspine 2.2")
     grid[pz][px] = "Q"
