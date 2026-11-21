@@ -28,36 +28,54 @@ public partial class LandmassGeneratorModSystem
 {
     private const string BrokenTranslocatorCode = "game:statictranslocator-broken-north";
 
+    // Spots chosen 2026-11-21 (0.72.3) from the real block dumps of each island, after Michael moved the
+    // Forest Island one out of a wooded valley to the open meadow by the hut: open ground you see as you
+    // come ashore or walk up to the island's landmark, beside it but never inside it.
     private static readonly Dictionary<string, (int Gx, int Gz)> TranslocatorSpots = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["alchemist_lair"] = (150, 125),         // the campus edge above the gateway bowl
-        ["blackfen_island"] = (38, 72),          // dry peat west of the meres
-        ["cardinals_island"] = (68, 112),        // the south approach to the cathedral
-        ["chainfield"] = (50, 50),               // the top of the orb
-        ["colossus_deep"] = (40, 40),            // the colossus' crown
-        ["dangerous_swamplands"] = (95, 75),     // the sandy rise by the lagoon
-        ["divingbell_mine"] = (50, 22),          // the south shore over the blue hole
-        ["eerie_island"] = (84, 104),            // south of the stone circle
-        ["forester_island"] = (50, 72),          // the logging clearing at the bay head
-        ["forge_volcano"] = (45, 72),            // the flats at the foot of the cone
-        ["giant_serpent_skeleton"] = (15, 43),   // the west islet over the lagoon
-        ["granary_lush"] = (60, 82),             // a terrace below the granary
-        ["great_machine"] = (160, 232),          // outside the south gate
-        ["hanging_gardens"] = (62, 150),         // by the lily pond on the approach
-        ["ideal_house_island"] = (85, 108),      // the prairie by the landmark tree
-        ["ironmine_island"] = (125, 200),        // the south pine lowland
-        ["lighthouse"] = (40, 30),               // the keeper's shoal
-        ["lone_bastion_1"] = (50, 50),           // the castle courtyard
-        ["mansion_island"] = (78, 125),          // the top of the landing beach drive
-        ["power_plant"] = (80, 128),             // the south edge of the site
-        ["refinery_island"] = (38, 100),         // the marsh flats west of the plant
+        ["alchemist_lair"] = (94, 141),          // the lawn just inside the college gate, from the south landing
+        ["blackfen_island"] = (85, 31),          // the bare rock knoll on the north-east coast, by the bog mine mouth
+        ["cardinals_island"] = (70, 100),        // the open meadow south of the cathedral
+        ["chainfield"] = (50, 55),               // the orb's south shoulder, seen on the approach
+        ["colossus_deep"] = (40, 43),            // the south edge of the crown, above the blade
+        ["dangerous_swamplands"] = (68, 57),     // the grass clearing by the giant cypress
+        ["divingbell_mine"] = (52, 17),          // the grass bluff over the blue hole, between the derricks
+        ["eerie_island"] = (86, 97),             // the grass outside the stone circle
+        ["forester_island"] = (49, 59),          // the meadow above the bay by the hut (Michael's pick, HUD 1923, -290)
+        ["forge_volcano"] = (42, 67),            // the foot of the cone, below the catwalk to the crucible
+        ["giant_serpent_skeleton"] = (16, 43),   // the west islet's lagoon edge, facing the skull
+        ["granary_lush"] = (68, 77),             // the summit's south edge, at a gap in the yard wall
+        ["great_machine"] = (155, 229),          // where the south landing ramp meets the plateau, on the way to the gate
+        ["hanging_gardens"] = (106, 141),        // the foot of the temple's grand stair
+        ["ideal_house_island"] = (97, 136),      // the prairie between the south-west beach and the pond
+        ["ironmine_island"] = (146, 177),        // the clearing round the landmark pine
+        ["lighthouse"] = (35, 30),               // the soil spit at the tower's foot
+        ["lone_bastion_1"] = (50, 69),           // the south brink of the plateau, facing the castle
+        ["mansion_island"] = (82, 97),           // the front lawn at the head of the drive
+        ["power_plant"] = (77, 82),              // the yard in front of the reactor hall's north door
+        ["refinery_island"] = (78, 98),          // the open ground between the east penstock and a tank
         ["ruin_isle"] = (50, 84),                // the south shore below the ruin
         ["ruin_isle_cold"] = (50, 84),
         ["ruin_isle_arid"] = (50, 84),
-        ["saltteeth_island"] = (40, 75),         // the meadow under the ridge
-        ["the_spoils"] = (60, 150),              // the shelf below the heap
-        ["volcano_ring"] = (100, 250),           // inland from the south cove
-        ["wreckage_maelstrom"] = (38, 63),       // the broadest spire
+        ["saltteeth_island"] = (54, 70),         // the salt saddle east of the halite spire
+        ["the_spoils"] = (84, 148),              // the sand shelf at the foot of the heap
+        ["volcano_ring"] = (118, 236),           // the rim crest above the south cove, over the crater lake
+        ["wreckage_maelstrom"] = (35, 85),       // the highest spire top that is open ground
+    };
+
+    // The 0.72.0 spots. /genchests clears a broken translocator still standing near one of these
+    // when the island's spot has moved, before it places the new one (a repaired one is never touched).
+    private static readonly Dictionary<string, (int Gx, int Gz)> OldTranslocatorSpots = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["alchemist_lair"] = (150, 125), ["blackfen_island"] = (38, 72), ["cardinals_island"] = (68, 112),
+        ["cattail_isles"] = (62, 82), ["chainfield"] = (50, 50), ["colossus_deep"] = (40, 40),
+        ["dangerous_swamplands"] = (95, 75), ["divingbell_mine"] = (50, 22), ["eerie_island"] = (84, 104),
+        ["forester_island"] = (50, 72), ["forge_volcano"] = (45, 72), ["giant_serpent_skeleton"] = (15, 43),
+        ["granary_lush"] = (60, 82), ["great_machine"] = (160, 232), ["hanging_gardens"] = (62, 150),
+        ["ideal_house_island"] = (85, 108), ["ironmine_island"] = (125, 200), ["lighthouse"] = (40, 30),
+        ["lone_bastion_1"] = (50, 50), ["mansion_island"] = (78, 125), ["power_plant"] = (80, 128),
+        ["refinery_island"] = (38, 100), ["saltteeth_island"] = (40, 75), ["the_spoils"] = (60, 150),
+        ["volcano_ring"] = (100, 250), ["wreckage_maelstrom"] = (38, 63),
     };
 
     // Islands with no natural ground (an orb, a statue, a drowned lighthouse): the translocator may stand on
@@ -77,14 +95,15 @@ public partial class LandmassGeneratorModSystem
 
     private string PlaceTranslocator(IslandJob job)
     {
-        if (!TranslocatorTarget(job, out int tx, out int tz)) return "";
+        string cleared = ClearOldTranslocator(job);
+        if (!TranslocatorTarget(job, out int tx, out int tz)) return cleared;
         Block block = sapi.World.GetBlock(new AssetLocation(BrokenTranslocatorCode));
         if (block == null) return " Translocator block not in this game.";
         var ba = sapi.World.BlockAccessor;
         int radius = TranslocatorRadius(job);
 
         if (TranslocatorNear(job, tx, tz, radius * 2 + 4, out BlockPos existing))
-            return $" Translocator already at {existing.X},{existing.Y},{existing.Z}.";
+            return cleared + $" Translocator already at {existing.X},{existing.Y},{existing.Z}.";
 
         bool anySurface = TranslocatorOnAnySurface.Contains(job.ShapeName);
         var pos = new BlockPos(0, 0, 0, job.Dim);
@@ -103,11 +122,46 @@ public partial class LandmassGeneratorModSystem
                     string ground = ba.GetBlock(new BlockPos(x, y, z, job.Dim)).Code?.Path ?? "?";
                     sapi.Logger.Notification("[translocators] {0}: placed at {1},{2},{3} on {4}, {5} blocks from its target {6},{7}",
                         job.ShapeName, x, y + 1, z, ground, r, tx, tz);
-                    return $" Translocator at {x},{y + 1},{z} ({r} from its target).";
+                    return cleared + $" Translocator at {x},{y + 1},{z} ({r} from its target).";
                 }
         }
         sapi.Logger.Warning("[translocators] {0}: no open level ground within {1} blocks of {2},{3}; none placed", job.ShapeName, radius * 2, tx, tz);
         return $" No open ground for the translocator within {radius * 2} blocks of {tx},{tz}.";
+    }
+
+    // Where the island's 0.72.0 translocator was aimed, when its spot has moved since (or it has none now).
+    private bool OldTranslocatorTarget(IslandJob job, out int x, out int z)
+    {
+        x = z = 0;
+        if (job.Shape == null || job.ShapeName == null || !OldTranslocatorSpots.TryGetValue(job.ShapeName, out var old)) return false;
+        if (TranslocatorSpots.TryGetValue(job.ShapeName, out var now) && now == old) return false;
+        MarkerWorld(job, old.Gx, old.Gz, out x, out z);
+        return true;
+    }
+
+    // A broken translocator left by 0.72.0 at a spot that has moved: taken away (only a broken one at the
+    // surface, so one a player repaired, or a Great Machine find underground, stays).
+    private string ClearOldTranslocator(IslandJob job)
+    {
+        if (!OldTranslocatorTarget(job, out int ox, out int oz)) return "";
+        var ba = sapi.World.BlockAccessor;
+        int range = TranslocatorRadius(job) * 2 + 4;
+        var p = new BlockPos(0, 0, 0, job.Dim);
+        int removed = 0;
+        for (int x = ox - range; x <= ox + range; x++)
+            for (int z = oz - range; z <= oz + range; z++)
+            {
+                int top = ba.GetRainMapHeightAt(x, z);
+                for (int y = top + 1; y >= Math.Max(1, top - 1); y--)
+                {
+                    p.Set(x, y, z);
+                    if (ba.GetBlock(p).Code?.Path.StartsWith("statictranslocator-broken") != true) continue;
+                    ba.SetBlock(0, p);
+                    removed++;
+                    sapi.Logger.Notification("[translocators] {0}: took away the old one at {1},{2},{3}", job.ShapeName, x, y, z);
+                }
+            }
+        return removed > 0 ? $" Took away {removed} old translocator(s)." : "";
     }
 
     // Open, level, natural, dry ground at this column; y is its top block.

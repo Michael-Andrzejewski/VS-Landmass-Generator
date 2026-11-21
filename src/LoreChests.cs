@@ -504,7 +504,7 @@ public partial class LandmassGeneratorModSystem
     private TextCommandResult OnGenChests(TextCommandCallingArgs args)
     {
         if (_wgIslandJobs == null || _wgIslandJobs.Count == 0) return TextCommandResult.Error("This world has no plan islands.");
-        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.Loot.Count > 0 || j.Shape?.BlockMarkers.Count > 0 || j.Shape?.Structs.Any(s => NewStructKinds.Contains(s.Def.Kind)) == true || j.Shape?.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0) == true || TranslocatorTarget(j, out _, out _)).ToList();
+        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.Loot.Count > 0 || j.Shape?.BlockMarkers.Count > 0 || j.Shape?.Structs.Any(s => NewStructKinds.Contains(s.Def.Kind)) == true || j.Shape?.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0) == true || TranslocatorTarget(j, out _, out _) || OldTranslocatorTarget(j, out _, out _)).ToList();
         if (todo.Count == 0) return TextCommandResult.Error("No plan island has chests or marker blocks in its shape file.");
         GenChestsNext(todo, 0, new List<string>());
         return TextCommandResult.Success($"Placing chests on {todo.Count} island(s); results follow in chat.");
@@ -554,6 +554,11 @@ public partial class LandmassGeneratorModSystem
         {
             int tr = TranslocatorRadius(job) * 2 + 4;
             x1 = Math.Min(x1, ttx - tr); x2 = Math.Max(x2, ttx + tr); z1 = Math.Min(z1, ttz - tr); z2 = Math.Max(z2, ttz + tr);
+        }
+        if (OldTranslocatorTarget(job, out int otx, out int otz))
+        {
+            int tr = TranslocatorRadius(job) * 2 + 4;
+            x1 = Math.Min(x1, otx - tr); x2 = Math.Max(x2, otx + tr); z1 = Math.Min(z1, otz - tr); z2 = Math.Max(z2, otz + tr);
         }
         foreach (var sm in job.Shape.Structs.Where(s => NewStructKinds.Contains(s.Def.Kind)))
         {
