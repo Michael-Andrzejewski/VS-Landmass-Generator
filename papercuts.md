@@ -1129,3 +1129,47 @@ A shape element's pivot is `rotationOrigin`. A key named `origin` is ignored,
 and the element turns round the block's corner instead: the Lens Housing's
 gold prongs stood in the air beside it. `render_shape.py` shows this the way
 the game does.
+
+## Floating props on every island (fixed in 0.73.2)
+
+Checked with `tools/floatcheck.py` on headless dumps of all 36 shapes; three
+subagents traced each group to its code. Causes, each now fixed:
+
+- **Wreckage trusses lay across their run.** Long pipe and beam models run
+  along z at rotation 0; the truss turned them as if they ran along x.
+- **`junkchain5` is a floor chain,** not a hanging one. `junksheet1/2/4`,
+  `gauge2` and `misc1-aged` touch no face of their block: nothing holds them
+  alone. The wreck pass commits its own props (not through the "~" commit), so
+  it now calls ClutterFit itself; a piece whose model reaches its floor, with
+  water right under it, stays as flotsam.
+- **Props leaned on props that were not there.** The fit counted every planned
+  prop as support, including ones later left out or moved. It now fits all,
+  frees those spots and fits again until stable; then a group of props held
+  only by each other (a pipe run, a chain) needs one member that holds on to
+  the world, or the group is left out.
+- **Eerie headstones** used the mound's height; their own ground can be a step
+  lower. **Diving Bell junk** used heights from the bell, not the rock under
+  it. **Refinery pad scrap** used ceiling pipes. **Alchemist desk** used wall
+  instruments on an open desk. **Hanging Gardens** put wall shelves on the open
+  square. **The forge's crucible ring** was cut to a square of 8 and the ring
+  walkway never formed. **A Great Machine vault's chains** started one block
+  under the crown. **A tin mine machine** with its back on its south side faced
+  away from the wall.
+- **Not ours:** the game's own underground ruins float a few props by design
+  (broken pipe stubs over filler); Underwater Horrors builds seabed ruins in the
+  dump area. floatcheck counts the two ruin pipe types apart.
+- **dumpgen while Michael plays:** `DUMPGEN_MODS=<folder>` makes dumpgen read
+  the mod zips from a staging folder, so a test never writes to his Mods
+  folder; build with `-p:NoDeploy=true`.
+- **Anchors that only held after a turn.** The group check counted a prop as
+  anchored if it *could* turn or push onto a wall, even when it kept its own
+  turn. An anchor now must hold as it stands (same turn and push). In the
+  wreck pass a piece leans only on a neighbour on a side its model touches.
+  (Doing that in the main pass too dropped 7,000 Great Machine props: long
+  pipes touch cells beyond their own block, which that check does not see.)
+- **Machine rooms and vaults put ceiling pipes (`pipelong3-aged`,
+  `pipelong4bent-aged`) on the floor;** now floor pipes. Market awnings and
+  Eerie candles settle ("~"), so one with nothing under or beside it drops out.
+- **Results after 0.73.2:** 0 floating on tin, Alchemist, Diving Bell and most
+  islands; wreckage 36-41 of about 600 (tangles the check reads differently);
+  Great Machine 14 of 27,042 (13 are the open last piece of a ceiling pipe run).

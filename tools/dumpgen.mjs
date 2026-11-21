@@ -28,7 +28,8 @@ import { fileURLToPath } from 'url';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appdata = process.env.APPDATA;
 const serverExe = path.join(appdata, 'Vintagestory', 'VintagestoryServer.exe');
-const realMods = path.join(appdata, 'VintagestoryData', 'Mods');
+// DUMPGEN_MODS: read the mod zips from another folder (a staging copy while Michael plays)
+const realMods = process.env.DUMPGEN_MODS || path.join(appdata, 'VintagestoryData', 'Mods');
 const dataPath = path.join(repo, 'export', 'data');
 const exportMods = path.join(dataPath, 'Mods');
 const shapeDir = path.join(dataPath, 'LandmassGenerator');

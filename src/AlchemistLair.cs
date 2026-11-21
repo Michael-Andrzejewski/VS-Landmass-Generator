@@ -356,7 +356,7 @@ public partial class LandmassGeneratorModSystem
         ["lecture"] = (new[] { "bookshelves/scrollrack-full2", "@bookshelf-ruined-full4", "globe1", "globe3", "abacus2", "drafting-table-stuff", "coatrack-full2" },
             new[] { "table-long", "table-long", "table-long-with-accessories", "bookshelves/lecturn-aged-book-closed" }, 0.4),
         ["engine"] = (new[] { "!boilerend", "!boilerdoor-aged", "!tank1-aged", "!tank2-aged", "!gauge1", "!gauge3", "!valve2-aged", "!lever2-aged", "!switch1-aged",
-            "!sightglass2-aged", "!pipelong4-aged", "!column1-aged", "machine1", "machine2", "machine6" },
+            "!sightglass2-aged", "!junkpipe3", "!column1-aged", "machine1", "machine2", "machine6" },
             new[] { "!boilerbody", "!gearbox1", "!geartrain3", "!tower1", "!gear36", "machine7", "machine8" }, 0.7),
     };
 
@@ -1109,7 +1109,8 @@ public partial class LandmassGeneratorModSystem
                 for (int yy = Math.Min(k.Ground(cx + dx, gz + dz), cg) - 1; yy <= cg; yy++) k.Set(cx + dx, yy, gz + dz, L.ObsBrick);
                 for (int yy = cg + 1; yy <= cg + 4; yy++) k.Set(cx + dx, yy, gz + dz, 0);
             }
-        string[] controls = { "!lever1-aged", "!lever4-aged", "!switch1-aged", "!switch3-aged", "!gauge1", "!gauge2", "!gauge3", "!valve2-aged", "!sightglass2-aged" };
+        // controls that stand on the desk top (the wall instruments need a wall to be pushed against)
+        string[] controls = { "!lever1-aged", "!lever2-aged", "!lever3-aged", "!lever4-aged", "!switch4-aged", "!gauge4", "!valve2-aged" };
         for (int dz = -4; dz <= 4; dz++)
         {
             int dx = 2 - (int)Math.Round(Math.Abs(dz) * 0.4);

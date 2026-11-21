@@ -1193,6 +1193,8 @@ public partial class LandmassGeneratorModSystem
             _ => new[] { "clutter|agriculture1", "clutter|agriculture2", "clutter|agriculture3", "clutter|sacks1", "clutter|sacks2", "clutter|sacks3", "clutter|jars1", "clutter|jars2", "clutter|dryingrack2", "clutter|dryingrack4", "clutter|crate/crate-large-pottery", "clutter|pottery/container3" },
         };
         string awning = trade switch { "furniture" => "clutter|overhang2x1-angled-woodplain", "clothing" => "clutter|overhang2x1-angled-clothfancy", _ => "clutter|overhang2x1-angled-clothplain" };
+        // wall shelves hang on a wall: only the stall's back wall has one
+        string[] floorGoods = goods.Where(t => !t.EndsWith("shelf1x1-plain") && !t.EndsWith("shelf2x1-plain")).ToArray();
         for (int i = 0; i < 3; i++)
         {
             int sx0 = x0 + 1 + i * 7, sz0 = z0 + 1, sx1 = sx0 + 5, sz1 = sz0 + 4;
@@ -1206,7 +1208,7 @@ public partial class LandmassGeneratorModSystem
             {
                 for (int yy = y + 1; yy <= y + 3; yy++) k.Set(x, yy, sz0, g.DarkPlank);
                 k.Set(x, y + 1, sz1 - 1, g.Floor);
-                if (x != tx) k.Clutter(x, y + 2, sz1 - 1, goods[k.RI(0, goods.Length - 1)], Math.PI);
+                if (x != tx) k.Clutter(x, y + 2, sz1 - 1, floorGoods[k.RI(0, floorGoods.Length - 1)], Math.PI);
             }
             for (int z = sz0 + 1; z <= sz1 - 1; z++)
                 foreach (int x in new[] { sx0, sx1 })
@@ -1215,8 +1217,8 @@ public partial class LandmassGeneratorModSystem
             for (int x = sx0 + 1; x < sx1; x++)
                 if (Math.Abs(x - tx) > 0 && k.R() < 0.6) k.Clutter(x, y + 1, sz0 + 1, goods[k.RI(0, goods.Length - 1)], 0);
             GardensRoof(g, sx0 - 1, sz0 - 1, sx1 + 1, sz1 + 1, y + 5, trade != "furniture");
-            k.Clutter(sx0 + 1, y + 4, sz1 + 1, awning, Math.PI);
-            k.Clutter(sx1 - 2, y + 4, sz1 + 1, awning, Math.PI);
+            k.Clutter(sx0 + 1, y + 4, sz1 + 1, "~" + awning, Math.PI);
+            k.Clutter(sx1 - 2, y + 4, sz1 + 1, "~" + awning, Math.PI);
             GardensLantern(g, (sx0 + sx1) / 2, y + 4, sz1);
             g.Stalls++;
             g.Traders.Add((tx, y + 1, tz, GardensTraderCode(g, traders[i])));
@@ -1227,7 +1229,7 @@ public partial class LandmassGeneratorModSystem
             int x = k.RI(x0 + 1, x1 - 1), z = k.RI(z0 + 8, z1 - 1);
             if (Math.Abs(x - mx) < 2 && Math.Abs(z - mz) < 2) continue;
             if (trade == "agriculture" && k.R() < 0.4) { int hay = k.Id("hay-normal-ud"); if (hay != 0) { k.Set(x, y + 1, z, hay); continue; } }
-            k.Clutter(x, y + 1, z, goods[k.RI(0, goods.Length - 1)], k.RI(0, 3) * Math.PI / 2);
+            k.Clutter(x, y + 1, z, floorGoods[k.RI(0, floorGoods.Length - 1)], k.RI(0, 3) * Math.PI / 2);
         }
         k.Clutter(x0 + 2, y + 1, z1 - 1, "clutter|chair-long", 0);
         k.Clutter(x1 - 2, y + 1, z1 - 1, "clutter|chair-long", 0);

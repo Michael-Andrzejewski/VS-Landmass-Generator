@@ -49,7 +49,7 @@ public partial class LandmassGeneratorModSystem
     private enum FitResult { Fail, Kept, Turned, Pushed, Dropped }
 
     private static FitResult ClutterFit(IBlockAccessor wba, BlockPos at, string blockCode, string type, HashSet<long> spots,
-        ref float rot, out int y, out float ox, out float oz)
+        ref float rot, out int y, out float ox, out float oz, bool turnToProps = false)
     {
         y = at.Y; ox = 0; oz = 0;
         if (!ClutterSupport.Types.TryGetValue((blockCode + "|" + type).ToLowerInvariant(), out var t)) return FitResult.Fail;
@@ -67,6 +67,12 @@ public partial class LandmassGeneratorModSystem
             var (fx, fz) = FaceDir(bit);
             var face = fx < 0 ? BlockFacing.EAST : fx > 0 ? BlockFacing.WEST : fz < 0 ? BlockFacing.SOUTH : BlockFacing.NORTH;
             return Solid(fx, 0, fz, face);
+        }
+        // turnToProps: a piece may also turn toward a neighbouring prop (the wreckage tangles)
+        bool PropAt(byte bit)
+        {
+            var (fx, fz) = FaceDir(bit);
+            return Spot(fx, 0, fz) || IsClutterBlock(fx, 0, fz);
         }
         bool Held(byte m)
         {
@@ -96,7 +102,7 @@ public partial class LandmassGeneratorModSystem
             {
                 byte m = (byte)(TurnMask(touch, q + k) & H);
                 foreach (byte bit in new[] { TW, TE, TN, TS })
-                    if ((m & bit) != 0 && WallAt(bit)) { rot = (float)((q + k) * Math.PI / 2); return FitResult.Turned; }
+                    if ((m & bit) != 0 && (WallAt(bit) || turnToProps && PropAt(bit))) { rot = (float)((q + k) * Math.PI / 2); return FitResult.Turned; }
             }
 
         // 3. a small instrument floating in its block: to the nearest wall, flush
@@ -129,6 +135,19 @@ public partial class LandmassGeneratorModSystem
                 if (under != null && under.Id != 0 && under.SideSolid[BlockFacing.UP.Index]) { y = at.Y - d; return FitResult.Dropped; }
             }
         return FitResult.Fail;
+    }
+
+    // the neighbour cells (dx, dy, dz) a prop's turned model touches
+    private static List<(int X, int Y, int Z)> TouchedCells(string blockCode, string type, float rot)
+    {
+        var res = new List<(int, int, int)>();
+        if (!ClutterSupport.Types.TryGetValue((blockCode + "|" + type).ToLowerInvariant(), out var t)) return res;
+        byte m = TurnMask(t.Touch, (int)Math.Round(rot / (Math.PI / 2)));
+        if ((m & TD) != 0) res.Add((0, -1, 0));
+        if ((m & TU) != 0) res.Add((0, 1, 0));
+        foreach (byte bit in new[] { TW, TE, TN, TS })
+            if ((m & bit) != 0) { var (fx, fz) = FaceDir(bit); res.Add((fx, 0, fz)); }
+        return res;
     }
 
     private static long SpotKey(int x, int y, int z) => ((long)(x & 0x3FFFFFF) << 38) | ((long)(y & 0xFFF) << 26) | (uint)(z & 0x3FFFFFF);

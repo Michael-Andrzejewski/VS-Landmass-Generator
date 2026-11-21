@@ -161,7 +161,7 @@ public partial class LandmassGeneratorModSystem
             Dead++;
         }
 
-        public void Candles(int x, int y, int z) => Prop(x, y, z, K.R() < 0.3 ? "candlestub-single" : "candlestubs-bunch" + K.RI(1, 4), K.R() * Math.PI * 2);
+        public void Candles(int x, int y, int z) => K.Clutter(x, y, z, "~clutter|" + (K.R() < 0.3 ? "candlestub-single" : "candlestubs-bunch" + K.RI(1, 4)), K.R() * Math.PI * 2);
 
         // A ghostlight set into the full block at x, y, z
         public void Light(int x, int y, int z)
@@ -1068,6 +1068,7 @@ public partial class LandmassGeneratorModSystem
                 {
                     // the last warden's cell: he died in his bed
                     var bp = P(-Hl + 1, -Hw + 1); e.Prop(bp.X, Y, bp.Z, "skeleton-inbed", along);
+                    var bb = P(-Hl + 1, -Hw + 2); e.Prop(bb.X, Y, bb.Z, "bed/bed-straw-single1", along);   // its frame reaches back under him
                     var tp = P(1, -Hw + 1); e.Prop(tp.X, Y, tp.Z, "table-ruined2", 0);
                     var kp = P(0, Hw - 1); e.Candles(kp.X, Y, kp.Z);
                     var gp = P(Hl, 0);
@@ -1640,12 +1641,15 @@ public partial class LandmassGeneratorModSystem
         // the mound
         for (int m = 0; m <= 1; m++) { k.Set(x + dx2 * m, g, z + dz2 * m, e.Dirt); k.Set(x + dx2 * m, g + 1, z + dz2 * m, e.Soil); }
         int hx = x - dx2, hz = z - dz2;
+        // the headstone stands on its own ground, which may sit a step below the mound's
+        int hy = k.Ground(hx, hz) + 1;
+        k.Set(hx, hy, hz, 0);   // clear tallgrass, or the clutter commit skips the cell
         double hs = k.R();
-        if (hs < 0.45) e.Prop(hx, g + 1, hz, "gravestone-" + k.RI(1, 5), lie);
+        if (hs < 0.45) e.Prop(hx, hy, hz, "gravestone-" + k.RI(1, 5), lie);
         else if (hs < 0.85)
         {
-            k.Set(hx, g + 1, hz, e.HeadStone);
-            if (k.R() < 0.6) k.Set(hx, g + 2, hz, e.HeadSlab);
+            k.Set(hx, hy, hz, e.HeadStone);
+            if (k.R() < 0.6) k.Set(hx, hy + 1, hz, e.HeadSlab);
         }
         if (k.R() < 0.06) e.Candles(x + dx2, g + 2, z + dz2);
         if (what < 0.2 && e.Chest(x, g - 1, z, "collapsed" + k.RI(1, 3), RollLoot(k.Rand, GraveLoot, 2 + k.RI(0, 2)), "grave"))

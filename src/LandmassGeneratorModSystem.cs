@@ -5938,11 +5938,15 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
         string[] longPipes = { "pipelong2", "pipelong3", "pipelong4", "pipelong4bent",
             "pipelong3-aged", "pipelong4-aged", "pipelong4bent-aged" };
         string[] pipeJoints = { "junkpipe1", "junkpipe2", "junkpipe3", "junkpipe4", "pipe1" };
+        // ground litter: joints whose model reaches the floor
+        string[] floorJoints = { "junkpipe2", "junkpipe3", "junkpipe4" };
         string[] beamTypes = { "junkbeamstraight1", "junkbeamstraight2", "junkbeamstraight3",
             "junkbeamstraight4", "junkbeamcross1", "junkbeamcross2" };
+        // hanging chains only: junkchain5 is a chain lying on a floor
         string[] chainTypes = { "junkchain1", "junkchain2", "junkchain3",
-            "junkchain4", "junkchain5", "junkchain6" };
-        string[] junkTypes = { "junksheet2", "junksheet4", "junktanksmall1", "junktanksmallbase",
+            "junkchain4", "junkchain6" };
+        // junksheet2 and 4 touch no face of their block, so nothing can hold them
+        string[] junkTypes = { "junksheet5", "junktanksmall1", "junktanksmallbase",
             "valve2-aged", "gauge2", "misc1-aged", "miscmedium1-aged" };
         var clutterSpots = new List<(int X, int Y, int Z, string Type, float Rot)>();
 
@@ -6305,7 +6309,8 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                         - Math.Sin(f * Math.PI) * 1.5 + Math.Sin(k * 0.55 + phase) * 0.8);
                     bool stepX = Math.Abs(gx2 - x) * (0.7 + Hash01(x, z) * 0.6) >= Math.Abs(gz2 - z);
                     bool corner = k > 0 && stepX != lastAxisX;
-                    double axisRot = stepX ? 0.0 : Math.PI / 2;
+                    // pipe and beam models run along z at rotation 0: turn them onto the run's axis
+                    double axisRot = stepX ? Math.PI / 2 : 0.0;
                     double roll = Hash01(x * 3 + k, z * 5 - k);
                     if (corner && roll < 0.66)
                         Clutter(x, y, z, pipeJoints[(int)(rand.NextDouble() * pipeJoints.Length)], axisRot);
@@ -6367,7 +6372,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
 
                 double kind = rand.NextDouble();
                 if (kind < 0.30)
-                    Clutter(x, g + 1, z, pipeJoints[(int)(rand.NextDouble() * pipeJoints.Length)], rand.NextDouble() * Math.PI * 2);
+                    Clutter(x, g + 1, z, floorJoints[(int)(rand.NextDouble() * floorJoints.Length)], rand.NextDouble() * Math.PI * 2);
                 else if (kind < 0.45)
                 {
                     // a jutting beam: a rising diagonal of hull metal
@@ -6418,20 +6423,106 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
             // field directly (verified against the 1.22 VSSurvivalMod build).
             FieldInfo rotField = typeof(BEBehaviorShapeFromAttributes)
                 .GetField("<rotateY>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+            // Each piece is fitted to what holds it (ClutterFit): a neighbouring
+            // piece, the hull, rock; a joint may turn toward the piece beside
+            // it. Flotsam stays: a piece whose model reaches its floor, in air,
+            // with water right under it, lies on the sea.
+            var spotKeys = new HashSet<long>();
             foreach (var c in clutterSpots)
             {
                 cpos.Set(c.X, c.Y, c.Z);
+                if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id == 0) spotKeys.Add(SpotKey(c.X, c.Y, c.Z));
+            }
+            bool OnWater(BlockPos p)
+            {
+                if (wba.GetBlock(p, BlockLayersAccess.Fluid)?.IsLiquid() == true) return false;
+                return wba.GetBlock(p.DownCopy(), BlockLayersAccess.Fluid)?.IsLiquid() == true;
+            }
+            int left = 0;
+            // Fit every piece, then fit again while pieces drop out, so none
+            // leans on a piece that will not be there.
+            var wfits = new Dictionary<int, (FitResult R, float Rot, int Y, float Ox, float Oz)>();
+            for (int pass = 0; pass < 8; pass++)
+            {
+                bool freed = false;
+                for (int i = 0; i < clutterSpots.Count; i++)
+                {
+                    var c = clutterSpots[i];
+                    if (wfits.TryGetValue(i, out var had) && (had.R == FitResult.Fail || had.Y != c.Y)) continue;
+                    cpos.Set(c.X, c.Y, c.Z);
+                    if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue;
+                    if (!ClutterSupport.Types.TryGetValue(("clutter-devastation|" + c.Type).ToLowerInvariant(), out var fitInfo)
+                        || (fitInfo.Touch & TD) != 0 && OnWater(cpos)) continue;
+                    float r = c.Rot;
+                    var res = ClutterFit(wba, cpos, "clutter-devastation", c.Type, spotKeys, ref r, out int fy0, out float fox, out float foz, turnToProps: true);
+                    wfits[i] = (res, r, fy0, fox, foz);
+                    if (res == FitResult.Fail || fy0 != c.Y)
+                    {
+                        spotKeys.Remove(SpotKey(c.X, c.Y, c.Z));
+                        if (res != FitResult.Fail) spotKeys.Add(SpotKey(c.X, fy0, c.Z));
+                        freed = true;
+                    }
+                }
+                if (!freed) break;
+            }
+            // A tangle held only by its own pieces needs one piece that holds on
+            // to the world (hull, rock, sea, or a piece not fitted); the rest of
+            // a tangle with none hangs in the air and is left out.
+            {
+                var none = new HashSet<long>();
+                var at = new Dictionary<long, int>();
+                var anchored = new HashSet<int>();
+                foreach (var (i, f) in wfits)
+                {
+                    if (f.R == FitResult.Fail) continue;
+                    var c = clutterSpots[i];
+                    at[SpotKey(c.X, f.Y, c.Z)] = i;
+                    cpos.Set(c.X, f.Y, c.Z);
+                    float r3 = f.Rot;
+                    if (ClutterFit(wba, cpos, "clutter-devastation", c.Type, none, ref r3, out int y3, out float ox3, out float oz3) != FitResult.Fail && y3 == f.Y && r3 == f.Rot && ox3 == f.Ox && oz3 == f.Oz) anchored.Add(i);
+                }
+                bool Anchor(long key) => at.TryGetValue(key, out int j) ? anchored.Contains(j) : spotKeys.Contains(key);
+                bool grew = true;
+                while (grew)
+                {
+                    grew = false;
+                    foreach (var (key, i) in at)
+                    {
+                        if (anchored.Contains(i)) continue;
+                        var c = clutterSpots[i];
+                        int y0 = wfits[i].Y;
+                        foreach (var (dx, dy, dz) in TouchedCells("clutter-devastation", c.Type, wfits[i].Rot))
+                            if (Anchor(SpotKey(c.X + dx, y0 + dy, c.Z + dz))) { anchored.Add(i); grew = true; break; }
+                    }
+                }
+                foreach (var (key, i) in at)
+                    if (!anchored.Contains(i)) { wfits[i] = (FitResult.Fail, 0, 0, 0, 0); spotKeys.Remove(key); }
+            }
+            for (int ci = 0; ci < clutterSpots.Count; ci++)
+            {
+                var c = clutterSpots[ci];
+                cpos.Set(c.X, c.Y, c.Z);
                 if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue; // never eat terrain or hull
+                float rot = c.Rot, ox = 0, oz = 0;
+                if (wfits.TryGetValue(ci, out var wf))
+                {
+                    if (wf.R == FitResult.Fail) { left++; continue; }
+                    rot = wf.Rot; ox = wf.Ox; oz = wf.Oz;
+                    cpos.Set(c.X, wf.Y, c.Z);
+                    if (wba.GetBlock(cpos, BlockLayersAccess.SolidBlocks).Id != 0) continue;
+                }
                 wba.SetBlock(clutterId, cpos);
                 var beh = wba.GetBlockEntity(cpos)?.GetBehavior<BEBehaviorShapeFromAttributes>();
                 if (beh != null)
                 {
                     beh.Type = c.Type;
-                    rotField?.SetValue(beh, c.Rot);
+                    rotField?.SetValue(beh, rot);
+                    if (ox != 0 || oz != 0) { beh.offsetX = ox; beh.offsetZ = oz; }
                     beh.Blockentity.MarkDirty(true);
                 }
                 placed++;
             }
+            if (left > 0) sapi.Logger.Notification("[landmassgenerator] wreckage: {0} junk piece(s) left out, nothing to hold them", left);
         }
         return placed;
     }
@@ -7534,8 +7625,9 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
 
                 // the suspended crucible: a metal bowl full of lava
                 int crY = poolY + 13;
-                for (int x = cx - 8; x <= cx + 8; x++)
-                    for (int z = cz - 8; z <= cz + 8; z++)
+                // wide enough for the ring walkway and its fence (out to 11.8), not just the bowl
+                for (int x = cx - 12; x <= cx + 12; x++)
+                    for (int z = cz - 12; z <= cz + 12; z++)
                     {
                         double d = Math.Sqrt((x - cx) * (x - cx) + (double)(z - cz) * (z - cz));
                         for (int y = crY; y <= crY + 7; y++)
@@ -8058,7 +8150,16 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                 //    is an air pocket a diver can surface into, and none of
                 //    them floats: the floor ones rest on the floor and the
                 //    wall ones are driven into solid rock.
-                string[] junk = { "junkchain2", "junkchain5", "junkbeamstraight2", "junksheet4", "junktanksmallbase", "junkpipe3" };
+                string[] junk = { "~junkchain2", "~junkchain5", "~junkbeamstraight2", "~junksheet5", "~junktanksmallbase", "~junkpipe3" }; // "~": settle on the floor the carving leaves
+                // the first open cell on rock at (x, z): climb out of rock, or sink through the water
+                int RestOn(int x, int y, int z)
+                {
+                    for (int up = 0; up < 12 && IsRock(x, y, z); up++) y++;
+                    if (IsRock(x, y, z)) return int.MinValue;
+                    for (int d = 0; d < 48 && y > 9; d++, y--)
+                        if (IsRock(x, y - 1, z)) return y;
+                    return int.MinValue;
+                }
 
                 // driven into the chasm walls, mouth opening on the rift
                 if (walls.Count > 0)
@@ -8080,7 +8181,8 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                         {
                             double jd = br4 + 1 + Hash01(k * 11, i * 5) * 4;
                             int jx = (int)(fx2 - dirx * jd), jz = (int)(fz2 - dirz * jd);
-                            Clutter(jx, (int)wy - (int)br4, jz, junk[(int)(Hash01(k * 7, i * 3) * junk.Length) % junk.Length], taz2);
+                            int jy4 = RestOn(jx, (int)wy - (int)br4, jz);
+                            if (jy4 != int.MinValue) Clutter(jx, jy4, jz, junk[(int)(Hash01(k * 7, i * 3) * junk.Length) % junk.Length], taz2);
                         }
                     }
 
@@ -8108,7 +8210,8 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                     {
                         double ja = Hash01(i * 61 + k, 31) * Math.PI * 2, jd = br3 + 2 + Hash01(k * 7, i) * 9;
                         int jx = (int)(bx + Math.Cos(ja) * jd), jz = (int)(bz + Math.Sin(ja) * jd);
-                        int jy = by - (int)br3;
+                        int jy = RestOn(jx, by - (int)br3, jz);
+                        if (jy == int.MinValue) continue;
                         if (Hash01(k * 13, i * 3) < 0.5) Clutter(jx, jy, jz, junk[(int)(Hash01(k, i) * junk.Length) % junk.Length], ja);
                         else Set(jx, jy, jz, Rust());
                     }
@@ -8129,7 +8232,8 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                     {
                         double ja = Hash01(i * 7 + k, 43) * Math.PI * 2, jd = 6 + Hash01(k * 5, i) * 12;
                         int jx = (int)(hx2 + Math.Cos(ja) * jd), jz = (int)(hz2 + Math.Sin(ja) * jd);
-                        Clutter(jx, MassifY(jx, jz) + 1, jz, junk[(int)(Hash01(k * 3, i * 7) * junk.Length) % junk.Length], ja);
+                        int jyr = RestOn(jx, MassifY(jx, jz) + 1, jz);
+                        if (jyr != int.MinValue) Clutter(jx, jyr, jz, junk[(int)(Hash01(k * 3, i * 7) * junk.Length) % junk.Length], ja);
                     }
                 }
 
@@ -9129,8 +9233,81 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                 var droppedKinds = new Dictionary<string, int>();
                 var spotKeys = new HashSet<long>();
                 foreach (var c in clutterSpots) spotKeys.Add(SpotKey(c.X, c.Y, c.Z));
-                foreach (var c in clutterSpots)
+                // Fit every settled prop first. A prop that is left out or moves
+                // holds nothing where it was planned: free its spot and fit the
+                // rest again, until nothing changes, so no prop leans on one that
+                // will not be there.
+                (string B, string T) FitKey(string t)
                 {
+                    t = t.Substring(1);
+                    int fb = t.IndexOf('|');
+                    return (fb > 0 ? t.Substring(0, fb) : t.StartsWith("coffin") ? "clutter" : "clutter-devastation",
+                            (fb > 0 ? t.Substring(fb + 1) : t).Split('|')[0]);
+                }
+                var fits = new Dictionary<int, (FitResult R, float Rot, int Y, float Ox, float Oz)>();
+                for (int pass = 0; pass < 8; pass++)
+                {
+                    bool freed = false;
+                    for (int i = 0; i < clutterSpots.Count; i++)
+                    {
+                        var c = clutterSpots[i];
+                        if (c.Type.Length == 0 || c.Type[0] != '~') continue;
+                        if (fits.TryGetValue(i, out var had) && (had.R == FitResult.Fail || had.Y != c.Y)) continue;
+                        var (fb2, ft2) = FitKey(c.Type);
+                        if (!ClutterSupport.Types.ContainsKey((fb2 + "|" + ft2).ToLowerInvariant())) continue;
+                        cpos.Set(c.X, c.Y, c.Z);
+                        float r = c.Rot;
+                        var res = ClutterFit(wba, cpos, fb2, ft2, spotKeys, ref r, out int fy0, out float fox, out float foz);
+                        fits[i] = (res, r, fy0, fox, foz);
+                        if (res == FitResult.Fail || fy0 != c.Y)
+                        {
+                            spotKeys.Remove(SpotKey(c.X, c.Y, c.Z));
+                            if (res != FitResult.Fail) spotKeys.Add(SpotKey(c.X, fy0, c.Z));
+                            freed = true;
+                        }
+                    }
+                    if (!freed) break;
+                }
+                // Props held only by each other (a pipe run, a chain) need one of
+                // them to hold on to the world: anchored props are those held with
+                // no neighbouring props at all, then any prop touching an anchored
+                // one; props placed as they are (no "~") count as anchors. The
+                // rest hang in the air together and are left out.
+                {
+                    var none = new HashSet<long>();
+                    var at = new Dictionary<long, int>();
+                    var anchored = new HashSet<int>();
+                    foreach (var (i, f) in fits)
+                    {
+                        if (f.R == FitResult.Fail) continue;
+                        var c = clutterSpots[i];
+                        at[SpotKey(c.X, f.Y, c.Z)] = i;
+                        var (fb3, ft3) = FitKey(c.Type);
+                        cpos.Set(c.X, f.Y, c.Z);
+                        float r3 = f.Rot;
+                        if (ClutterFit(wba, cpos, fb3, ft3, none, ref r3, out int y3, out float ox3, out float oz3) != FitResult.Fail && y3 == f.Y && r3 == f.Rot && ox3 == f.Ox && oz3 == f.Oz) anchored.Add(i);
+                    }
+                    bool Anchor(long key) => at.TryGetValue(key, out int j) ? anchored.Contains(j) : spotKeys.Contains(key);
+                    bool grew = true;
+                    while (grew)
+                    {
+                        grew = false;
+                        foreach (var (key, i) in at)
+                        {
+                            if (anchored.Contains(i)) continue;
+                            var c = clutterSpots[i];
+                            int y0 = fits[i].Y;
+                            if (Anchor(SpotKey(c.X + 1, y0, c.Z)) || Anchor(SpotKey(c.X - 1, y0, c.Z)) || Anchor(SpotKey(c.X, y0 + 1, c.Z))
+                                || Anchor(SpotKey(c.X, y0 - 1, c.Z)) || Anchor(SpotKey(c.X, y0, c.Z + 1)) || Anchor(SpotKey(c.X, y0, c.Z - 1)))
+                            { anchored.Add(i); grew = true; }
+                        }
+                    }
+                    foreach (var (key, i) in at)
+                        if (!anchored.Contains(i)) { fits[i] = (FitResult.Fail, 0, 0, 0, 0); spotKeys.Remove(key); }
+                }
+                for (int ci = 0; ci < clutterSpots.Count; ci++)
+                {
+                    var c = clutterSpots[ci];
                     cpos.Set(c.X, c.Y, c.Z);
                     string type = c.Type, variant = null, type2 = null;
                     float useRot = c.Rot, useOx = 0, useOz = 0;
@@ -9142,9 +9319,10 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                         string fBlock = fbar > 0 ? type.Substring(0, fbar) : type.StartsWith("coffin") ? "clutter" : "clutter-devastation";
                         string fType = (fbar > 0 ? type.Substring(fbar + 1) : type).Split('|')[0];
                         int sy;
-                        if (ClutterSupport.Types.ContainsKey((fBlock + "|" + fType).ToLowerInvariant()))
+                        if (fits.TryGetValue(ci, out var pre))
                         {
-                            var fit = ClutterFit(wba, cpos, fBlock, fType, spotKeys, ref useRot, out int fy, out useOx, out useOz);
+                            var fit = pre.R; int fy = pre.Y;
+                            useRot = pre.Rot; useOx = pre.Ox; useOz = pre.Oz;
                             sy = fit == FitResult.Fail ? int.MinValue : fy;
                             if (fit == FitResult.Turned) settleTurned++;
                             if (fit == FitResult.Pushed) settlePushed++;

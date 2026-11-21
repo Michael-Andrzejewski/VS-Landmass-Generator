@@ -689,7 +689,7 @@ public partial class LandmassGeneratorModSystem
         ["specimens"] = (new[] { "tank-glass1", "tank-glass3", "tank-glass5", "tank-glass7", "carcass-ribcage1", "carcass-ribcage2", "skeleton-long", "pile-bones1",
             "pile-bones2", "shelf-flasks2", "golem-head", "golem-hand2" },
             new[] { "tank-glass9", "golem-skull", "table-long", "carcass-large" }, 0.65),
-        ["machine"] = (new[] { "!boilerend", "!tank1bracket-aged", "!column3-aged", "!column6-broke", "!pipelong3-aged", "!pipelong4bent-aged", "!junktanksmallbase",
+        ["machine"] = (new[] { "!boilerend", "!tank1bracket-aged", "!column3-aged", "!column6-broke", "!junkpipe3", "!junkpipe2", "!junktanksmallbase",
             "!junktanksmall1", "!gear24", "!gear36", "!brokengear/big02", "machine1", "machine4", "machine6", "mech-part2", "mech-part5", "mechanics-ruined1" },
             new[] { "!gearbox1", "!geartrain3", "!tower2", "machine7", "machine8", "!boilerbody" }, 0.6),
         // where the locusts were assembled, and the camps of the diggers

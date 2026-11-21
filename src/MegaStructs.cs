@@ -378,7 +378,7 @@ public partial class LandmassGeneratorModSystem
         int water = k.Job.WaterId;
         System.Func<int> rust = () => k.Rust();
         System.Func<int> beam = () => k.R() < 0.7 ? k.Rust() : (steel != 0 ? steel : k.Rust());
-        string[] junk = { "pipelong3-aged", "pipelong4-aged", "pipelong2", "gear24", "gearbox1", "geartrain3" };
+        string[] junk = { "junkpipe3", "junktanksmall1", "junktanksmallbase", "gear24", "gearbox1", "geartrain3" };   // floor scrap (the pipelong pipes hang from a ceiling)
         int g0 = Median(k, cx, cz, R / 2);
 
         // concrete pad levelled at height y over a rectangle: cracked, with
@@ -606,6 +606,7 @@ public partial class LandmassGeneratorModSystem
             int x = cx + k.RI(-R, R), z = cz + k.RI(-R / 3, R / 3);
             int g = k.Ground(x, z);
             if (g < k.Sea || Math.Abs(z - rz) < 9) continue;   // not under the rack
+            if (k.Hash01(x * 3, z * 7) <= 0.12) continue;        // a hole in the pad
             k.Clutter(x, g0 + 1, z, junk[k.RI(0, junk.Length - 1)], k.R() * Math.PI * 2);
         }
     }

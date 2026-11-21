@@ -789,7 +789,10 @@ public partial class LandmassGeneratorModSystem
                 float rot = acrossX ? (sgn < 0 ? (float)(Math.PI / 2) : (float)(-Math.PI / 2)) : (sgn < 0 ? 0f : (float)Math.PI);
                 float pushX = sgn * ux * 0.34f, pushZ = sgn * uz * 0.34f;             // a pipe against the rock
                 var st = MineStanding[rnd.Next(MineStanding.Length)];
-                if (open(ex, floor, ez) && solid(ex, floor - 1, ez)) Clut(st.Block, ex, floor, ez, st.Type, rot, st.Flip, st.Flat ? pushX * 0.6f : 0, st.Flat ? pushZ * 0.6f : 0);
+                // rot turns a north back to the wall; a model whose back is its south side turns the other way
+                float stRot = ClutterSupport.Types.TryGetValue((st.Block + "|" + st.Type).ToLowerInvariant(), out var sup)
+                    && (sup.Touch & 32) != 0 && (sup.Touch & 16) == 0 ? rot + (float)Math.PI : rot;
+                if (open(ex, floor, ez) && solid(ex, floor - 1, ez)) Clut(st.Block, ex, floor, ez, st.Type, stRot, st.Flip, st.Flat ? pushX * 0.6f : 0, st.Flat ? pushZ * 0.6f : 0);
                 // a rusty pipe up the wall beside it, and a bracket over it.
                 // The game turns a mesh by rotateY with x' = x cos + z sin,
                 // z' = z cos - x sin, so rot - 90 degrees turns a pipe's west

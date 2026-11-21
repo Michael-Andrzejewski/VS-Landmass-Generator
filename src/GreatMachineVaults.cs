@@ -350,7 +350,7 @@ public partial class LandmassGeneratorModSystem
             }
             // chains hanging from the vault over the aisle
             for (int u = -HU + 10; u <= HU - 10; u += 20)
-                for (int v = H - 1; v >= H - 6; v--) GC(g, f, u, v, 0, v == H - 6 ? "chains/chain-end-hook" : "chains/chain-section", 0, 1);
+                for (int v = H; v >= H - 5; v--) GC(g, f, u, v, 0, v == H - 5 ? "chains/chain-end-hook" : "chains/chain-section", 0, 1);   // from the crown, as the lamps hang
             // ── clutter down the aisle and the side aisles ──
             for (int i = 0; i < 70; i++)
             {
@@ -497,7 +497,7 @@ public partial class LandmassGeneratorModSystem
                 int u = g.RI(-HU + 1, HU - 1), w = g.RI(-HW + 1, 14);
                 if (Math.Abs(w) <= 10 && u > -36 && u < 36) continue;
                 string t = g.Pick(new[] { "barrel-metal1", "barrel-metal3", "pile-tools2", "mech-part1", "mech-part4", "mechanics-ruined3", "rubble-cracked2",
-                    "!gear12", "!brokengear/small01", "!junkpipe1", "!pipelong3-aged", "crate/crate-medium-junk", "toolrack-ruined2" });
+                    "!gear12", "!brokengear/small01", "!junkpipe1", "!junkpipe3", "crate/crate-medium-junk", "toolrack-ruined2" });
                 if (t[0] == '!') GD(g, f, u, 0, w, t.Substring(1), 0, 1); else GC(g, f, u, 0, w, t, 0, 1);
             }
             g.K.Job.StructChests.Add((new Vintagestory.API.MathTools.BlockPos(f.X(-44, 21), f.Y(Mez), f.Z(-44, 21), g.K.Job.Dim), "normal-aged",
