@@ -350,7 +350,10 @@ public partial class LandmassGeneratorModSystem
     // and those pipes run 3 or 4 blocks with a hitbox on the first only).
     // Now everything is dark rusty iron (brightness about 0.2) with a hitbox
     // that matches its model; the grey gearbox and gear wear the rusty
-    // texture flip.
+    // texture flip. Since 0.72.2 (Michael picked sets A and B of
+    // export/pipe-compare): the wall pipe comes out of the wall at the
+    // bottom and bends back in at the top, and a rusty pipe runs along the
+    // roof corner over many machines, one hitbox per block.
     private static readonly (string Block, string Type, string Flip, bool Flat)[] MineStanding =
     {
         ("clutter-devastation", "gearbox1", "slightlyrustyiron", false),
@@ -380,7 +383,7 @@ public partial class LandmassGeneratorModSystem
         void Put(int x, int y, int z, int id) { if (id == 0) return; p.Set(x, y, z); world.SetBlock(id, p); }
         // A clutter prop: its shape, its turn, and optionally a texture flip
         // and a push toward a wall (in blocks; its hitbox moves with it).
-        bool Clut(string block, int x, int y, int z, string type, float rot, string flip = null, float ox = 0, float oz = 0)
+        bool Clut(string block, int x, int y, int z, string type, float rot, string flip = null, float ox = 0, float oz = 0, float oy = 0)
         {
             int id = Bid(block);
             if (id == 0 || !open(x, y, z)) return false;
@@ -391,7 +394,7 @@ public partial class LandmassGeneratorModSystem
             beh.Type = type;
             rotField?.SetValue(beh, rot);
             if (flip != null) beh.overrideTextureCode = flip;
-            beh.offsetX = ox; beh.offsetZ = oz;
+            beh.offsetX = ox; beh.offsetY = oy; beh.offsetZ = oz;
             beh.Blockentity.MarkDirty(true);
             return true;
         }
@@ -743,6 +746,9 @@ public partial class LandmassGeneratorModSystem
         // ── machinery ── after the giants, so it stands in the tunnel as
         // their caverns and runs left it, and never in a run (a prop at the
         // wall narrows a run below what a giant's pathfinder will take)
+        var runCells = runSteps.Where(i => i >= 0 && i < steps.Count)
+            .Select(i => ((int)Math.Floor(steps[i].X), (int)Math.Floor(steps[i].Z))).ToList();
+        int colPieces = 0, runPieces = 0;
         if (def.Machinery > 0)
             for (int i = 1; i < steps.Count; i++)
             {
@@ -784,11 +790,72 @@ public partial class LandmassGeneratorModSystem
                 float pushX = sgn * ux * 0.34f, pushZ = sgn * uz * 0.34f;             // a pipe against the rock
                 var st = MineStanding[rnd.Next(MineStanding.Length)];
                 if (open(ex, floor, ez)) Clut(st.Block, ex, floor, ez, st.Type, rot, st.Flip, st.Flat ? pushX * 0.6f : 0, st.Flat ? pushZ * 0.6f : 0);
-                // a rusty pipe up the wall beside it, and a bracket over it
+                // a rusty pipe up the wall beside it, and a bracket over it.
+                // The game turns a mesh by rotateY with x' = x cos + z sin,
+                // z' = z cos - x sin, so rot - 90 degrees turns a pipe's west
+                // stub to the wall. Where rock is behind it, the bottom piece
+                // comes out of the wall (v-W) and the top piece bends back in
+                // (v-topW); now and then a middle piece is cracked.
+                float stubRot = rot - (float)(Math.PI / 2);
                 int side = rnd.NextDouble() < 0.5 ? -1 : 1;
+                // The column slides out to the rock (the tunnel is often wider
+                // beside the machine). The mine's round tunnels lean away above
+                // the floor, so where the rock falls back the column gets a
+                // backing of the same rusted plate: both ends always go into
+                // something.
                 int qx = ex + ax * side, qz = ez + az * side;
-                for (int y = floor; y <= Math.Min(ceil - 1, floor + 3); y++)
-                    if (!Clut("clutter", qx, y, qz, "pipe-veryrusted-v-empty", 0, null, pushX, pushZ)) break;
+                for (int t = 0; t < 3 && open(qx, floor, qz) && open(qx + sgn * ux, floor, qz + sgn * uz); t++) { qx += sgn * ux; qz += sgn * uz; }
+                int colTop = floor - 1;
+                while (colTop < Math.Min(ceil - 1, floor + 3) && open(qx, colTop + 1, qz)) colTop++;
+                if (colTop > floor && solid(qx, floor - 1, qz) && solid(qx + sgn * ux, floor, qz + sgn * uz))
+                    for (int y = floor; y <= colTop; y++)
+                    {
+                        if (!solid(qx + sgn * ux, y, qz + sgn * uz)) Put(qx + sgn * ux, y, qz + sgn * uz, rustB != 0 ? rustB : rustA);
+                        string pt = y == floor ? "pipe-veryrusted-v-W"
+                            : y == colTop ? "pipe-veryrusted-v-topW"
+                            : rnd.NextDouble() < 0.3 ? "pipe-veryrusted-v-empty_broken" : "pipe-veryrusted-v-empty";
+                        bool stub = y == floor || y == colTop;
+                        if (Clut("clutter", qx, y, qz, pt, stub ? stubRot : 0, null, pushX, pushZ)) colPieces++;
+                    }
+                // a rusty pipe along the ceiling over the machine, in the
+                // corner of wall and roof: one block per segment, so every
+                // block has its own hitbox. offsetY 0.31 lifts it against the
+                // roof. A segment needs rock above and behind it and stays
+                // well clear of a giant's run. Where the run meets rock it
+                // goes in flush; where it stops in the open its end is broken.
+                {
+                    float runRot = ax != 0 ? 0f : (float)(-Math.PI / 2);     // turns the pipe's +x end along +along
+                    // the roof corner: along the roof row from the middle of
+                    // the tunnel toward the plated wall, the last open cell
+                    int fx = cx, fz = cz;
+                    for (int t = 0; t < 10 && open(fx + sgn * ux, ceil, fz + sgn * uz); t++) { fx += sgn * ux; fz += sgn * uz; }
+                    bool RunCell(int k)
+                    {
+                        int rx = fx + ax * k, rz = fz + az * k;
+                        if (!open(rx, ceil, rz) || !solid(rx, ceil + 1, rz) || !solid(rx + sgn * ux, ceil, rz + sgn * uz)) return false;
+                        foreach (var (gx, gz) in runCells)
+                            if ((gx - rx) * (gx - rx) + (gz - rz) * (gz - rz) < 36) return false;
+                        return true;
+                    }
+                    int k0 = 0, k1 = 0;
+                    if (RunCell(0))
+                    {
+                        while (k0 > -3 && RunCell(k0 - 1)) k0--;
+                        while (k1 < 3 && RunCell(k1 + 1)) k1++;
+                    }
+                    if (RunCell(0) && k1 - k0 >= 2)
+                        for (int k = k0; k <= k1; k++)
+                        {
+                            int rx = fx + ax * k, rz = fz + az * k;
+                            bool end = k == k0 || k == k1;
+                            int dir = k == k0 ? -1 : 1;
+                            bool intoRock = end && solid(rx + ax * dir, ceil, rz + az * dir);
+                            string pt = end && !intoRock ? "pipe-veryrusted-h-broken1"
+                                : rnd.NextDouble() < 0.25 ? "pipe-veryrusted-h-EW_broken" : "pipe-veryrusted-h-EW";
+                            float r = pt == "pipe-veryrusted-h-broken1" && dir < 0 ? runRot + (float)Math.PI : runRot;
+                            if (Clut("clutter", rx, ceil, rz, pt, r, null, pushX, pushZ, 0.31f)) runPieces++;
+                        }
+                }
                 if (height >= 4 && open(ex, floor + 2, ez)) Clut("clutter", ex, floor + 2, ez, MineWallHung[rnd.Next(MineWallHung.Length)], rot);
                 // scrap on the floor
                 int jx = ex - sgn * ux + ax * (rnd.Next(3) - 1), jz = ez - sgn * uz + az * (rnd.Next(3) - 1);
@@ -800,6 +867,8 @@ public partial class LandmassGeneratorModSystem
                 machines++;
             }
 
+        if (machines > 0)
+            sapi.Logger.Notification("[landmassgenerator] mine pipes: {0} wall machines, {1} wall pipe pieces, {2} ceiling pipe pieces", machines, colPieces, runPieces);
         return (machines > 0 ? $" {machines} wall machine(s)." : "") + (giants > 0 ? $" {giants} giant spawner(s)." : "")
             + (notes.Count > 0 ? " Giants: " + string.Join("; ", notes) + "." : "");
     }
