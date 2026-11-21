@@ -237,7 +237,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
                     if ((a.Parsers[0].IsMissing ? "" : (string)a[0]) == "redo")
                         foreach (string sc in sapi.WorldManager.SaveGame.GetData<List<string>>("lgStoryChests", null) ?? new List<string>())
                             sapi.WorldManager.SaveGame.StoreData("lgStoryChestDone:" + sc.Split('|')[0], false);
-                    _storyChests = null; _storyChestForce = true; StoryChestTick(0); _storyChestForce = false; return TextCommandResult.Success("Story chests checked; see the server log.");
+                    _storyChests = null; _storyChestForce = true; StoryChestTick(0); _storyChestForce = false; StoryTranslocatorTick(true); return TextCommandResult.Success("Story chests checked; see the server log.");
                 }));
 
         RegisterCmd(api, "genstorycheck", name =>
@@ -278,6 +278,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // Story chests (plan `storychest` lines): filled once the game has
         // built their story structure.
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryChestWatcher);
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryTranslocatorWatcher);
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartRelightWatcher);
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
         // The Great Machine's red fog zones (RedFog.cs).

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Vintagestory.API.Common;
+using System.Linq;
+using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
+using Vintagestory.GameContent;
 
 namespace LandmassGenerator;
 
@@ -30,7 +33,6 @@ public partial class LandmassGeneratorModSystem
         ["alchemist_lair"] = (150, 125),         // the campus edge above the gateway bowl
         ["blackfen_island"] = (38, 72),          // dry peat west of the meres
         ["cardinals_island"] = (68, 112),        // the south approach to the cathedral
-        ["cattail_isles"] = (62, 82),            // the largest islet
         ["chainfield"] = (50, 50),               // the top of the orb
         ["colossus_deep"] = (40, 40),            // the colossus' crown
         ["dangerous_swamplands"] = (95, 75),     // the sandy rise by the lagoon
@@ -93,7 +95,7 @@ public partial class LandmassGeneratorModSystem
                 {
                     if (Math.Max(Math.Abs(dx), Math.Abs(dz)) != r) continue;
                     int x = tx + dx, z = tz + dz;
-                    if (!TranslocatorGround(job, x, z, anySurface, out int y)) continue;
+                    if (!TranslocatorGround(job.SeaLevel, job.Dim, x, z, anySurface, out int y)) continue;
                     pos.Set(x, y + 1, z);
                     ba.SetBlock(block.BlockId, pos);
                     pos.Y = y + 2;
@@ -109,12 +111,12 @@ public partial class LandmassGeneratorModSystem
     }
 
     // Open, level, natural, dry ground at this column; y is its top block.
-    private bool TranslocatorGround(IslandJob job, int x, int z, bool anySurface, out int y)
+    private bool TranslocatorGround(int seaLevel, int dim, int x, int z, bool anySurface, out int y)
     {
         var ba = sapi.World.BlockAccessor;
         y = ba.GetRainMapHeightAt(x, z);
-        if (y < job.SeaLevel || y <= 0) return false;
-        var p = new BlockPos(x, y, z, job.Dim);
+        if (y < seaLevel || y <= 0) return false;
+        var p = new BlockPos(x, y, z, dim);
         if (!Standable(ba.GetBlock(p, BlockLayersAccess.Solid), anySurface)) return false;
         if (ba.GetBlock(p, BlockLayersAccess.Fluid).Id != 0) return false;
         for (int up = 1; up <= 2; up++)
@@ -130,7 +132,7 @@ public partial class LandmassGeneratorModSystem
                 if (dx == 0 && dz == 0) continue;
                 int ny = ba.GetRainMapHeightAt(x + dx, z + dz);
                 if (Math.Abs(ny - y) > 1) return false;
-                if (!Standable(ba.GetBlock(new BlockPos(x + dx, ny, z + dz, job.Dim), BlockLayersAccess.Solid), anySurface)) return false;
+                if (!Standable(ba.GetBlock(new BlockPos(x + dx, ny, z + dz, dim), BlockLayersAccess.Solid), anySurface)) return false;
             }
         return true;
     }
@@ -161,6 +163,135 @@ public partial class LandmassGeneratorModSystem
         found = null;
         var ba = sapi.World.BlockAccessor;
         var p = new BlockPos(0, 0, 0, job.Dim);
+        for (int x = cx - range; x <= cx + range; x++)
+            for (int z = cz - range; z <= cz + range; z++)
+            {
+                int top = ba.GetRainMapHeightAt(x, z);
+                for (int y = top + 1; y >= Math.Max(1, top - 2); y--)
+                {
+                    p.Set(x, y, z);
+                    if (ba.GetBlock(p).Code?.Path.StartsWith("statictranslocator") == true) { found = p.Copy(); return true; }
+                }
+            }
+        return false;
+    }
+
+    // ── story structures ────────────────────────────────────────────────
+    // Story locations the game builds itself (not plan islands) that get a
+    // translocator once they stand. The game claims Nadiya's village whole,
+    // and a claim stops players repairing, naming or linking what is inside,
+    // so the spot is the open level natural ground nearest the structure's
+    // centre that is outside any locked claim: the village's edge.
+    private static readonly string[] StoryTranslocators = { "village" };
+    private long _storyTranslocatorListener;
+    private readonly HashSet<string> _storyTranslocatorLoading = new();
+
+    private void StartStoryTranslocatorWatcher()
+    {
+        if (_storyTranslocatorListener != 0) return;
+        _storyTranslocatorListener = sapi.Event.RegisterGameTickListener(_ => StoryTranslocatorTick(false), 5000);
+    }
+
+    private void StoryTranslocatorTick(bool force)
+    {
+        var genStory = sapi.ModLoader.GetModSystem<GenStoryStructures>();
+        if (genStory == null) return;
+        foreach (string code in StoryTranslocators)
+        {
+            string doneKey = "lgStoryTranslocatorDone:" + code;
+            if (sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false)) continue;
+            var loc = genStory.Structures.Get(code);
+            if (loc == null || !loc.DidGenerate || loc.Location == null) { if (force) sapi.Logger.Notification("[translocators] story {0}: not generated yet", code); continue; }
+            var area = loc.Location;
+            int reach = Math.Max(area.SizeX, area.SizeZ) / 2 + 64;
+            int cx = (area.X1 + area.X2) / 2, cz = (area.Z1 + area.Z2) / 2;
+            bool near = sapi.World.AllOnlinePlayers.Any(pl => pl.Entity != null
+                && Math.Abs(pl.Entity.Pos.X - cx) < reach + 200 && Math.Abs(pl.Entity.Pos.Z - cz) < reach + 200);
+            if (!near && !force) continue;
+
+            int cs = GlobalConstants.ChunkSize;
+            int c1x = (cx - reach - 2) / cs, c2x = (cx + reach + 2) / cs, c1z = (cz - reach - 2) / cs, c2z = (cz + reach + 2) / cs;
+            // Loaded means the block chunks at ground level, not just the map chunks (those outlive them).
+            bool loaded = true;
+            var probe = new BlockPos(0, 0, 0, 0);
+            for (int x = c1x; x <= c2x && loaded; x++)
+                for (int z = c1z; z <= c2z && loaded; z++)
+                {
+                    if (sapi.WorldManager.GetMapChunk(x, z) == null) { loaded = false; break; }
+                    probe.Set(x * cs + cs / 2, 0, z * cs + cs / 2);
+                    probe.Y = Math.Max(1, sapi.World.BlockAccessor.GetRainMapHeightAt(probe.X, probe.Z));
+                    if (sapi.World.BlockAccessor.GetChunkAtBlockPos(probe) == null) loaded = false;
+                }
+            if (!loaded)
+            {
+                if (force && _storyTranslocatorLoading.Add(code))
+                    LoadChunkAreaBanded(c1x, c1z, c2x, c2z, false, () =>
+                    {
+                        try { StoryTranslocatorTick(true); } finally { _storyTranslocatorLoading.Remove(code); }
+                    });
+                continue;
+            }
+
+            if (TranslocatorNearAt(cx, cz, reach, 0, out BlockPos existing))
+            {
+                sapi.WorldManager.SaveGame.StoreData(doneKey, true);
+                sapi.Logger.Notification("[translocators] story {0}: one already at {1}", code, existing);
+                continue;
+            }
+            Block block = sapi.World.GetBlock(new AssetLocation(BrokenTranslocatorCode));
+            var ba = sapi.World.BlockAccessor;
+            bool Open(BlockPos at) => sapi.World.Claims.Get(at)?.All(cl => cl.AllowUseEveryone) ?? true;
+            // The village's own ground level: the median height of the natural ground inside its area.
+            var heights = new List<int>();
+            for (int x = area.X1; x <= area.X2; x += 4)
+                for (int z = area.Z1; z <= area.Z2; z += 4)
+                {
+                    int h = ba.GetRainMapHeightAt(x, z);
+                    if (h >= sapi.World.SeaLevel && NaturalGround(ba.GetBlock(new BlockPos(x, h, z, 0), BlockLayersAccess.Solid))) heights.Add(h);
+                }
+            heights.Sort();
+            int groundY = heights.Count > 0 ? heights[heights.Count / 2] : sapi.World.SeaLevel;
+
+            // Of every open spot outside the claim, the one nearest the village in distance and in height
+            // (a block of climb counts as four of walking), so it stands by the way in, not on a hill above.
+            BlockPos placed = null;
+            int ring = 0;
+            double best = double.MaxValue;
+            int levelSpots = 0;
+            for (int dx = -reach; dx <= reach; dx++)
+                for (int dz = -reach; dz <= reach; dz++)
+                {
+                    int x = cx + dx, z = cz + dz;
+                    if (!TranslocatorGround(sapi.World.SeaLevel, 0, x, z, false, out int y)) continue;
+                    levelSpots++;
+                    double score = Math.Sqrt(dx * dx + dz * dz) + 4 * Math.Abs(y - groundY);
+                    if (score >= best) continue;
+                    var at = new BlockPos(x, y + 1, z, 0);
+                    if (!Open(at)) continue;
+                    best = score; placed = at; ring = (int)Math.Round(Math.Sqrt(dx * dx + dz * dz));
+                }
+            if (placed != null)
+            {
+                ba.SetBlock(block.BlockId, placed);
+                var top = placed.UpCopy();
+                if (ba.GetBlock(top).Id != 0) ba.SetBlock(0, top);
+            }
+            if (placed == null)
+            {
+                sapi.Logger.Warning("[translocators] story {0}: no open level ground outside its claim within {1} blocks of its centre ({2} level spots, all inside the claim; village ground at y {3})", code, reach, levelSpots, groundY);
+                continue;
+            }
+            sapi.WorldManager.SaveGame.StoreData(doneKey, true);
+            sapi.Logger.Notification("[translocators] story {0}: placed at {1},{2},{3} (HUD {4}, {5}), {6} blocks from its centre, village ground at y {7}",
+                code, placed.X, placed.Y, placed.Z, placed.X - sapi.WorldManager.MapSizeX / 2, placed.Z - sapi.WorldManager.MapSizeZ / 2, ring, groundY);
+        }
+    }
+
+    private bool TranslocatorNearAt(int cx, int cz, int range, int dim, out BlockPos found)
+    {
+        found = null;
+        var ba = sapi.World.BlockAccessor;
+        var p = new BlockPos(0, 0, 0, dim);
         for (int x = cx - range; x <= cx + range; x++)
             for (int z = cz - range; z <= cz + range; z++)
             {
