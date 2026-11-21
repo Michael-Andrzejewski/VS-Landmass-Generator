@@ -74,9 +74,10 @@ public partial class LandmassGeneratorModSystem
 
     private string PlaceRustfallProps(IslandJob job)
     {
-        if (job.Shape == null || !HasRustfallProps(job)) { sapi.Logger.Notification("[props] {0}: none for this island", job.ShapeName); return ""; }
+        string tw = PlaceTimewood(job);   // Temporal Growth Gears, with their own done key (TimewoodPlacements.cs)
+        if (job.Shape == null || !HasRustfallProps(job)) { sapi.Logger.Notification("[props] {0}: none for this island", job.ShapeName); return tw; }
         string doneKey = $"lgRustfallPropsDone:{job.ShapeName}@{job.Cx},{job.Cz}";
-        if (sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false)) { sapi.Logger.Notification("[props] {0}: already done", job.ShapeName); return ""; }
+        if (sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false)) { sapi.Logger.Notification("[props] {0}: already done", job.ShapeName); return tw; }
         var notes = new List<string>();
         try
         {
@@ -93,7 +94,7 @@ public partial class LandmassGeneratorModSystem
         sapi.WorldManager.SaveGame.StoreData(doneKey, true);
         string r = string.Concat(notes.Where(n => n.Length > 0).Select(n => " " + n));
         sapi.Logger.Notification("[props] {0}:{1}", job.ShapeName, r);
-        return r;
+        return tw + r;
     }
 
     // ── hidden chests by trees ──────────────────────────────────────────
