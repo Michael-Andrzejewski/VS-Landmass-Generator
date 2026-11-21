@@ -737,6 +737,14 @@ year. Run it as the last step before handing the finished save file to a new
 player, so their story begins on day one. Uses the world's own calendar
 settings, so custom days-per-month worlds land on the right date too.
 
+## Translocators on every island (0.72.0)
+
+Every drawn Rustfall island gets one broken static translocator (`game:statictranslocator-broken-north`) at a prominent spot. `src/Translocators.cs` holds a target cell (map column, row, before `rotate=`) for each shape. After the island and its structures are built, the translocator goes on the nearest open, level, natural ground to the target: grass, soil, sand, gravel or bare rock with open sky above (never inside a building or on a roof), a 3x3 within one block of level, above the sea, two clear blocks on top. The search widens to twice the radius (8 map cells, at least 16 blocks) before it gives up with a note in the log (`[translocators]`). The Chainfield orb, the Colossus and the Lighthouse have no natural ground, so there any open solid top counts. The starter and tin islands carry theirs as `block` markers in their shapes; the pylon lines are open sea and get none. Vanilla story locations and the Better Ruins crossroads are built by the game, not this mod, and get none.
+
+`/genchests` places them into a world built before 0.72.0. An island is skipped when a static translocator, broken or repaired, already stands near its target; the same rule now stops `/genchests` from adding a second one beside a repaired starter or tin translocator.
+
+Checked on 2026-11-20 with `node tools/dumpgen.mjs` on all 26 buildable shapes: every one placed, most within 6 blocks of the target, the farthest 26 (Alchemist Lair, Wreckage Field). The three ruin isles have no Suggested line and were not built.
+
 ## Notes and current limits
 
 Early standalone build, kept separate from Building Commands until it proves stable.

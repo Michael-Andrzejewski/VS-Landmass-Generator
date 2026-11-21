@@ -433,13 +433,16 @@ public partial class LandmassGeneratorModSystem
             if (m.Side != null) BesideTrunk(job, ref x, ref z, m.Side);
             var pos = new BlockPos(x, 0, z, job.Dim);
             bool present = false;
+            bool isTranslocator = block.Code.Path.StartsWith("statictranslocator");
             var q = new BlockPos(0, 0, 0, job.Dim);
             for (int dx = -3; dx <= 3 && !present; dx++)
                 for (int dz = -3; dz <= 3 && !present; dz++)
                     for (int y = Math.Max(1, job.SeaLevel - job.MaxDepth); y <= job.SeaLevel + job.DomeHeight + 12 && !present; y++)
                     {
                         q.Set(x + dx, y, z + dz);
-                        if (world.GetBlock(q)?.Id == block.Id) present = true;
+                        Block here = world.GetBlock(q);
+                        // A translocator counts as present repaired or broken (a player may have fixed it).
+                        if (here?.Id == block.Id || (isTranslocator && here?.Code?.Path.StartsWith("statictranslocator") == true)) present = true;
                     }
             if (present) continue;
             int floor = Math.Max(1, job.SeaLevel - job.MaxDepth);
@@ -501,7 +504,7 @@ public partial class LandmassGeneratorModSystem
     private TextCommandResult OnGenChests(TextCommandCallingArgs args)
     {
         if (_wgIslandJobs == null || _wgIslandJobs.Count == 0) return TextCommandResult.Error("This world has no plan islands.");
-        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.Loot.Count > 0 || j.Shape?.BlockMarkers.Count > 0 || j.Shape?.Structs.Any(s => NewStructKinds.Contains(s.Def.Kind)) == true || j.Shape?.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0) == true).ToList();
+        var todo = _wgIslandJobs.Where(j => j.Shape?.Chests.Count > 0 || j.Shape?.Loot.Count > 0 || j.Shape?.BlockMarkers.Count > 0 || j.Shape?.Structs.Any(s => NewStructKinds.Contains(s.Def.Kind)) == true || j.Shape?.Caves.Any(c => c.Def.Timbers > 0 || c.Def.Holders > 0) == true || TranslocatorTarget(j, out _, out _)).ToList();
         if (todo.Count == 0) return TextCommandResult.Error("No plan island has chests or marker blocks in its shape file.");
         GenChestsNext(todo, 0, new List<string>());
         return TextCommandResult.Success($"Placing chests on {todo.Count} island(s); results follow in chat.");
@@ -547,6 +550,11 @@ public partial class LandmassGeneratorModSystem
             if (m.Side != null) BesideTrunk(job, ref x, ref z, m.Side);
             x1 = Math.Min(x1, x); x2 = Math.Max(x2, x); z1 = Math.Min(z1, z); z2 = Math.Max(z2, z);
         }
+        if (TranslocatorTarget(job, out int ttx, out int ttz))
+        {
+            int tr = TranslocatorRadius(job) * 2 + 4;
+            x1 = Math.Min(x1, ttx - tr); x2 = Math.Max(x2, ttx + tr); z1 = Math.Min(z1, ttz - tr); z2 = Math.Max(z2, ttz + tr);
+        }
         foreach (var sm in job.Shape.Structs.Where(s => NewStructKinds.Contains(s.Def.Kind)))
         {
             MarkerWorld(job, sm.Gx, sm.Gz, out int x, out int z);
@@ -560,7 +568,7 @@ public partial class LandmassGeneratorModSystem
         LoadChunkAreaBanded(lcx1, lcz1, lcx2, lcz2, true, () =>
         {
             string r;
-            try { r = BuildNewStructs(job) + PlaceChests(job) + PlaceMissingMarkerBlocks(job) + PlaceCaveProps(job, skipIfDone: true) + PlaceLoot(job); }
+            try { r = BuildNewStructs(job) + PlaceChests(job) + PlaceMissingMarkerBlocks(job) + PlaceCaveProps(job, skipIfDone: true) + PlaceLoot(job) + PlaceTranslocator(job); }
             catch (Exception e) { r = " FAILED: " + e.Message; sapi.Logger.Error(e); }
             job.PreCx1 = lcx1; job.PreCz1 = lcz1; job.PreCx2 = lcx2; job.PreCz2 = lcz2;
             ReleaseKeptChunks(job);
