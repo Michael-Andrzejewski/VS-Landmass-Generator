@@ -253,7 +253,9 @@ public partial class LandmassGeneratorModSystem
         foreach (string code in StoryTranslocators)
         {
             string doneKey = "lgStoryTranslocatorDone:" + code;
-            if (sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false)) continue;
+            bool tlDone = sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false);
+            bool chestDone = !StoryTreeChests.ContainsKey(code) || sapi.WorldManager.SaveGame.GetData<bool>("lgStoryTreeChestDone:" + code, false);
+            if (tlDone && chestDone) continue;
             var loc = genStory.Structures.Get(code);
             if (loc == null || !loc.DidGenerate || loc.Location == null) { if (force) sapi.Logger.Notification("[translocators] story {0}: not generated yet", code); continue; }
             var area = loc.Location;
@@ -264,7 +266,8 @@ public partial class LandmassGeneratorModSystem
             if (!near && !force) continue;
 
             int cs = GlobalConstants.ChunkSize;
-            int c1x = (cx - reach - 2) / cs, c2x = (cx + reach + 2) / cs, c1z = (cz - reach - 2) / cs, c2z = (cz + reach + 2) / cs;
+            // the hidden chest looks 40 blocks past the translocator's reach
+            int c1x = (cx - reach - 42) / cs, c2x = (cx + reach + 42) / cs, c1z = (cz - reach - 42) / cs, c2z = (cz + reach + 42) / cs;
             // Loaded means the block chunks at ground level, not just the map chunks (those outlive them).
             bool loaded = true;
             var probe = new BlockPos(0, 0, 0, 0);
@@ -279,12 +282,24 @@ public partial class LandmassGeneratorModSystem
             if (!loaded)
             {
                 if (force && _storyTranslocatorLoading.Add(code))
-                    LoadChunkAreaBanded(c1x, c1z, c2x, c2z, false, () =>
+                {
+                    // Kept loaded while we work: a headless server drops unwatched chunks within moments.
+                    LoadChunkAreaBanded(c1x, c1z, c2x, c2z, true, () =>
                     {
-                        try { StoryTranslocatorTick(true); } finally { _storyTranslocatorLoading.Remove(code); }
+                        try { StoryTranslocatorTick(true); }
+                        finally
+                        {
+                            _storyTranslocatorLoading.Remove(code);
+                            ReleaseKeptChunks(new IslandJob { Dim = 0, PreCx1 = c1x, PreCz1 = c1z, PreCx2 = c2x, PreCz2 = c2z });
+                        }
                     });
+                }
+                else if (force) sapi.Logger.Warning("[translocators] story {0}: its area did not stay loaded", code);
                 continue;
             }
+
+            if (StoryTreeChests.TryGetValue(code, out string treeLore)) PlaceStoryTreeChest(code, cx, cz, reach, treeLore);
+            if (tlDone) continue;
 
             if (TranslocatorNearAt(cx, cz, reach, 0, out BlockPos existing))
             {
@@ -339,6 +354,55 @@ public partial class LandmassGeneratorModSystem
             sapi.Logger.Notification("[translocators] story {0}: placed at {1},{2},{3} (HUD {4}, {5}), {6} blocks from its centre, village ground at y {7}",
                 code, placed.X, placed.Y, placed.Z, placed.X - sapi.WorldManager.MapSizeX / 2, placed.Z - sapi.WorldManager.MapSizeZ / 2, ring, groundY);
         }
+    }
+
+    // A hidden chest at the foot of a tree outside the story site's locked claim (0.73.1).
+    private static readonly Dictionary<string, string> StoryTreeChests = new() { ["village"] = "lore:hunter_wolves" };
+
+    private void PlaceStoryTreeChest(string code, int cx, int cz, int reach, string lore)
+    {
+        string doneKey = "lgStoryTreeChestDone:" + code;
+        if (sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false)) return;
+        var ba = sapi.World.BlockAccessor;
+        bool Open(BlockPos at) => sapi.World.Claims.Get(at)?.All(cl => cl.AllowUseEveryone) ?? true;
+        var p = new BlockPos(0, 0, 0, 0);
+        BlockPos best = null;
+        double bestD = double.MaxValue;
+        int far = reach + 40;
+        for (int x = cx - far; x <= cx + far; x++)
+            for (int z = cz - far; z <= cz + far; z++)
+            {
+                double d = Math.Sqrt((x - cx) * (x - cx) + (z - cz) * (z - cz));
+                if (d >= bestD) continue;
+                int top = ba.GetRainMapHeightAt(x, z);
+                p.Set(x, top, z);
+                if (top < sapi.World.SeaLevel || ba.GetBlock(p).BlockMaterial != EnumBlockMaterial.Leaves) continue;
+                int y = top - 1;
+                for (; y > sapi.World.SeaLevel; y--)
+                {
+                    p.Set(x, y, z);
+                    var b = ba.GetBlock(p, BlockLayersAccess.Solid);
+                    if (b.Id != 0 && b.BlockMaterial != EnumBlockMaterial.Leaves && b.BlockMaterial != EnumBlockMaterial.Plant) break;
+                }
+                p.Set(x, y, z);
+                if (!NaturalGround(ba.GetBlock(p, BlockLayersAccess.Solid))) continue;
+                var at = new BlockPos(x, y + 1, z, 0);
+                var a1 = ba.GetBlock(at, BlockLayersAccess.Solid);
+                var a2 = ba.GetBlock(at.UpCopy(), BlockLayersAccess.Solid);
+                if ((a1.Id != 0 && a1.BlockMaterial != EnumBlockMaterial.Plant) || (a2.Id != 0 && a2.BlockMaterial != EnumBlockMaterial.Plant)) continue;
+                if (!Open(at)) continue;
+                bool trunk = BlockFacing.HORIZONTALS.Any(f => ba.GetBlock(at.AddCopy(f)).Code?.Path.StartsWith("log-grown") == true);
+                if (!trunk) continue;
+                best = at; bestD = d;
+            }
+        if (best == null)
+        {
+            sapi.Logger.Warning("[props] story {0}: no tree outside its claim within {1} blocks for the hidden chest", code, far);
+            return;
+        }
+        var rand = new CaveRand((uint)(best.X * 31 + best.Z));
+        var contents = lore.Split(',').Concat(RollTable("ruin", rand, 3)).ToList();
+        if (PlaceChestAt(best, "collapsed3", contents)) sapi.WorldManager.SaveGame.StoreData(doneKey, true);
     }
 
     private bool TranslocatorNearAt(int cx, int cz, int range, int dim, out BlockPos found)

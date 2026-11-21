@@ -1630,6 +1630,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
             extra += PlaceCaveProps(job);
             extra += PlaceLoot(job);
             extra += PlaceTranslocator(job);
+            extra += PlaceRustfallProps(job);
             StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
             sapi.Logger.Notification("[genworldsetup] Island at {0}, {1} decorated before world open: {2} tree(s), {3} plant(s){4}{5}. {6}",
@@ -3578,6 +3579,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
             extra += PlaceCaveProps(job);
             extra += PlaceLoot(job);
             extra += PlaceTranslocator(job);
+            extra += PlaceRustfallProps(job);
             int climRegions = StampClimate(job);
             string depositNote = SyncHeightmapsAndDeposits(job);
 

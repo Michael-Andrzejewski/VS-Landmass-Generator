@@ -37,6 +37,8 @@ public partial class LandmassGeneratorModSystem
         ["rfpool-lab"] = new[] { "research", "jonas", "archives", "vanilla", "any" },
         ["rfpool-war"] = new[] { "forlornhope", "lastwall", "jonas", "vanilla", "any" },
         ["rfpool-trade"] = new[] { "diaries", "villager", "archives", "vanilla", "any" },
+        // Old bookshelves (0.73.1): any Rustfall record not yet found, then the falx scenes, then vanilla.
+        ["rfpool-shelf"] = new[] { "rustfall", "jonas", "vanilla", "any" },
     };
 
     private static readonly string[] VanillaLoreCategories = { "jonas", "tobias", "villager", "diaries", "research", "archives" };
