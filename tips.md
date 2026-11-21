@@ -1443,6 +1443,24 @@ deep shiver spawn where it can run at the player, not on "a weird platform".
   barrels, `machine4/6/7`, `mech-part5`), a `pipe-veryrusted-v-empty` column up
   the wall beside it (pushed 0.34 toward the rock with `offsetX/Z`; the hitbox
   moves with it), a wall bracket over it, and floor scrap.
+- **The mine pipes since 0.72.2** (Michael picked them from
+  `export/pipe-compare/index.html`, built by `tools/clutter-catalog/pipe_compare.py`):
+  the wall column starts with `pipe-veryrusted-v-W` (a stub into the wall),
+  ends with `v-topW` (bends back in) and has `v-empty` / `v-empty_broken`
+  between. A rusty run of `h-EW` / `h-EW_broken` lies in the roof corner,
+  `offsetY` 0.31 against the roof, flush where it meets rock and `h-broken1`
+  where it stops in the open. Every piece is one block with its own hitbox.
+- **Turning a clutter prop:** the game turns the mesh by `rotateY` with
+  x' = x cos + z sin, z' = z cos - x sin (read from `Mat4f.RotateXYZ`). So
+  rotateY 90 degrees turns a prop's north side to the west; a pipe's west stub
+  faces the wall at (north-to-wall turn) minus 90 degrees.
+- **Round tunnels lean away from the wall.** The cell beside a wall machine
+  is often not against the rock, and above the floor the rock falls back. A
+  wall prop has to slide out to the rock first; the column gets rusted plate
+  behind it where the rock is missing. The roof corner is found along the roof
+  row, not at floor width (that found 7 runs in 83 machines; this finds 26).
+  Check placements in a dump: `tools/lmdview.py` shows how to read one, and
+  the palette carries each clutter type (`clutter|<type>`) but not its turn.
 - **Giants and the pathfinder:** see papercuts, "Mine giants trapped in their
   lairs". In short: test with the giant's own box and the game's step rule
   (`stepHeight` raises the whole body), a wide body can climb a step but no
