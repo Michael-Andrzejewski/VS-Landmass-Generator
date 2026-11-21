@@ -668,21 +668,40 @@ public partial class LandmassGeneratorModSystem
                 if (rxz > 3.4) continue;
                 k.Set(x, Yc, z, rxz > 2.4 ? dark : obsP);
             }
+        // The heart is the Lens's place now (0.73.0): the obsidian plinth
+        // holds the Lens Housing of the Rustfall Great Machine mod (placed
+        // ruined here when that mod is loaded; the mod puts it there itself
+        // in older worlds and takes the old Spreading Devastation core away).
+        // The conduit starts four blocks higher, so the Lens has room.
         k.Set(cx, Yc + 1, cz, obsP);
-        if (core != 0) k.Set(cx, Yc + 2, cz, core);
-        else if (glowB != 0) k.Glow(cx, Yc + 2, cz, glowB);
+        int housing = k.Id("rustfallgreatmachine:lensholder-broken");
+        if (housing != 0) k.Set(cx, Yc + 2, cz, housing);
         if (glowB != 0) for (int i = 0; i < 4; i++) k.Glow(cx + (i < 2 ? -3 : 3), Yc, cz + (i % 2 == 0 ? -1 : 1), glowB);
-        string[] consoles = { "gauge1", "switch2-aged", "lever3-aged", "valve1-aged", "sightglass2-aged", "gauge3", "switch4-aged", "lever1-aged" };
+        // The control ring: eight two-high steel panels round the Lens, each
+        // with an instrument fixed to the face toward it (and a lever bank
+        // on top of every other one), and eight pillars behind them with a
+        // gauge or valve on their inner face. "~" lets the clutter commit
+        // fit each to the face it is on, so none hangs in the air.
+        string[] panelFace = { "gauge1", "switch2-aged", "sightglass2-aged", "valve1-aged", "gauge3", "switch3-aged", "sightglass1-aged", "gauge4" };
+        string[] panelTop = { "lever3-aged", "lever1-aged", "lever4-aged", "lever2-aged" };
         double[] consoleAz = { 130, 170, 210, 250, 290, 330, 10, 50 };
+        (int X, int Z) Inward(int x, int z)
+        {
+            int dx = cx - x, dz = cz - z;
+            return Math.Abs(dx) >= Math.Abs(dz) ? (x + Math.Sign(dx), z) : (x, z + Math.Sign(dz));
+        }
         for (int i = 0; i < consoleAz.Length; i++)
         {
             double a = Rad(consoleAz[i]);
             int px = cx + (int)Math.Round(Math.Cos(a) * 6), pz = cz + (int)Math.Round(Math.Sin(a) * 6);
-            k.Set(px, Yc, pz, steelR);
-            k.Clutter(px, Yc + 1, pz, consoles[i], a + Math.PI);
+            k.Box(px, Yc, pz, px, Yc + 1, pz, steelR);
+            var (fx, fz) = Inward(px, pz);
+            k.Clutter(fx, Yc + 1, fz, "~" + panelFace[i], Math.Atan2(cz - fz, cx - fx));
+            if (i % 2 == 0) k.Clutter(px, Yc + 2, pz, "~" + panelTop[i / 2], Math.Atan2(cz - pz, cx - px));
             int bx2 = cx + (int)Math.Round(Math.Cos(a) * 8), bz2 = cz + (int)Math.Round(Math.Sin(a) * 8);
             k.Box(bx2, Yc, bz2, bx2, Yc + 2, bz2, i % 2 == 0 ? rustA : steel);
-            k.Clutter(bx2 - Math.Sign(bx2 - cx), Yc + 2, bz2 - Math.Sign(bz2 - cz), i % 2 == 0 ? "gauge2" : "valve2-aged", a + Math.PI);
+            var (gx, gz) = Inward(bx2, bz2);
+            k.Clutter(gx, Yc + 2, gz, "~" + (i % 2 == 0 ? "gauge2" : "valve3-aged"), Math.Atan2(cz - gz, cx - gx));
         }
         int colTop = Yc + (int)Math.Floor(Math.Sqrt(Math.Max(0, ri2 * ri2 - 9 * 9 - 2)));
         foreach (double ca2 in new[] { 45.0, 135, 225, 315 })
@@ -692,7 +711,14 @@ public partial class LandmassGeneratorModSystem
             k.Box(px, Yc, pz, px + 1, colTop, pz + 1, steelR);
             if (glowB != 0) k.Glow(px, colTop - 2, pz, glowB);
         }
-        k.Tube(cx, Yc + 3, cz, cx, Yc + R - 1, cz, 1.5, 1, rust, false, 3);
+        k.Tube(cx, Yc + 7, cz, cx, Yc + R - 1, cz, 1.5, 1, rust, false, 3);
+        // the conduit's mouth over the Lens: a riveted collar
+        for (int x = cx - 2; x <= cx + 2; x++)
+            for (int z = cz - 2; z <= cz + 2; z++)
+            {
+                double rr = Hyp(x - cx, z - cz);
+                if (rr > 1.2 && rr < 2.6) k.Set(x, Yc + 6, z, steelR);
+            }
         k.Job.StructChests.Add((new BlockPos(cx + 3, Yc, cz - 5, k.Job.Dim), "golden-aged", RollLoot(k.Rand, MachineLoot, 4), "machine heart"));   // a golden chest has 4 slots
 
         // the door: a riveted frame proud of the shell on the south axis,

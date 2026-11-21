@@ -1111,3 +1111,21 @@ after the player stood 24 blocks away, came up its run (floor 27 to 32) and
 reached the player at the far end in about 34 seconds. The same run with the
 old step height of 8.5: in two and a half minutes the giant came no nearer
 than 16 blocks and ended stuck.
+
+## Gauges and racks hanging in the air (fixed in 0.73.0)
+
+Two causes. The settle rule counted any wall beside a wall prop, or a floor
+under it, as holding it, without looking at which way it faced. And several
+instruments (`gauge1`, `gauge2`, `sightglass1/2`, `switch3`, `valve3`) have
+models that touch no face of their block, so they float wherever they stand
+alone. The sphere's gauges were also placed one cell diagonally off their
+pillars. The fit now uses the catalog's model bounds (see tips, 0.73.0).
+In the tin mine the plate and arm racks hang two blocks up, where the round
+tunnel leans away from the wall: rusted plate now fills in behind them.
+
+## Shape element rotation that does nothing (rustfall-great-machine 0.1.0)
+
+A shape element's pivot is `rotationOrigin`. A key named `origin` is ignored,
+and the element turns round the block's corner instead: the Lens Housing's
+gold prongs stood in the air beside it. `render_shape.py` shows this the way
+the game does.

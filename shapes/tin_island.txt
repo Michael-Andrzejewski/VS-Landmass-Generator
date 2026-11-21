@@ -12,23 +12,24 @@
 # Structure sites reserved (later pass): ruined laboratory half underground
 # (north arm, region T), teleporter beside it, tin mine (knoll O).
 
-region A rock=basalt surface=sand    ores=tin:0.02 stones=0.015 shells=0.006 height=0.22 shore=7 rough=0.06
-region P rock=basalt fertility=verylow surface=grass ores=tin:0.02 orebits=tin:0.0008 wildgrass=0.10 stones=0.02 sandy=0.14 scatter=fieldmushroom:0.0015 height=0.66 shore=10 rough=0.14
-region R rock=basalt surface=rocksand ores=tin:0.02 orebits=tin:0.0015 boulders=0.010 stones=0.035 height=1.0 shore=7 rough=0.32
-region D rock=basalt fertility=verylow surface=grass ores=tin:0.02 devastation=0.012 scatter=devgrowth-thorns:0.030,devgrowth-bush:0.018,devgrowth-shard:0.010 wildgrass=0.05 stones=0.02 sandy=0.10 height=0.88 shore=8 rough=0.24
-region E rock=basalt fertility=verylow surface=grass ores=tin:0.02 devastation=0.014 scatter=loosegears-2:0.006,loosegears-4:0.004,devgrowth-thorns:0.010,devgrowth-shard:0.006 wildgrass=0.05 stones=0.02 sandy=0.10 height=0.78 shore=9 rough=0.20
-region B rock=basalt fertility=verylow surface=barren ores=tin:0.02 wildgrass=0 stones=0.025 sandy=0.20 height=0.45 shore=8 rough=0.10
-region M rock=basalt fertility=low    surface=grass ores=tin:0.02 forest=0.010 trees=maple,sugarmaplesmall sticks=0.02 litter=0.6 wildgrass=0.15 sandy=0.05 scatter=fieldmushroom:0.003 height=0.74 shore=10 rough=0.12
-region K rock=basalt fertility=low    surface=grass ores=tin:0.02 pumpkins=0.02 wildgrass=0.12 sandy=0.06 scatter=metalpartpile-tiny:0.004,loosegears-1:0.003 height=0.70 shore=10 rough=0.10
-region J rock=basalt fertility=verylow surface=grass ores=tin:0.02 devastation=0.006 scatter=metalpartpile-tiny:0.008,metalpartpile-small:0.005,metal-scraps:0.003,loosegears-1:0.004,loosegears-3:0.002 wildgrass=0.08 sandy=0.10 height=0.70 shore=10 rough=0.14
-region T rock=basalt fertility=verylow surface=grass ores=tin:0.02 orebits=tin:0.007 wildgrass=0.08 stones=0.02 sandy=0.12 height=0.82 shore=9 rough=0.18
-region S rock=basalt fertility=verylow surface=grass ores=tin:0.02 orebits=tin:0.007 wildgrass=0.08 stones=0.02 sandy=0.12 height=0.74 shore=9 rough=0.16
-region O rock=basalt surface=rocksand ores=tin:0.035 orebits=tin:0.012 boulders=0.015 height=1.0 shore=6 rough=0.35
-cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 timbers=12 holders=14 machinery=10 giants=oversizedhorrors:giantspawner-shiver-deep*4 deepgiant=oversizedhorrors:giantspawner-locust-corrupt mouthgiant=oversizedhorrors:giantspawner-shiver-deep giantrange=60 seed=17
+region A rock=basalt surface=sand    ores=tin:0.02 oredepth=0.2:1.5:80 stones=0.015 shells=0.006 height=0.22 shore=7 rough=0.06
+region P rock=basalt fertility=verylow surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 orebits=tin:0.0008 wildgrass=0.10 stones=0.02 sandy=0.14 scatter=fieldmushroom:0.0015 height=0.66 shore=10 rough=0.14
+region R rock=basalt surface=rocksand ores=tin:0.02 oredepth=0.2:1.5:80 orebits=tin:0.0015 boulders=0.010 stones=0.035 height=1.0 shore=7 rough=0.32
+region D rock=basalt fertility=verylow surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 devastation=0.012 scatter=devgrowth-thorns:0.030,devgrowth-bush:0.018,devgrowth-shard:0.010 wildgrass=0.05 stones=0.02 sandy=0.10 height=0.88 shore=8 rough=0.24
+region E rock=basalt fertility=verylow surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 devastation=0.014 scatter=loosegears-2:0.006,loosegears-4:0.004,devgrowth-thorns:0.010,devgrowth-shard:0.006 wildgrass=0.05 stones=0.02 sandy=0.10 height=0.78 shore=9 rough=0.20
+region B rock=basalt fertility=verylow surface=barren ores=tin:0.02 oredepth=0.2:1.5:80 wildgrass=0 stones=0.025 sandy=0.20 height=0.45 shore=8 rough=0.10
+region M rock=basalt fertility=low    surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 forest=0.010 trees=maple,sugarmaplesmall sticks=0.02 litter=0.6 wildgrass=0.15 sandy=0.05 scatter=fieldmushroom:0.003 height=0.74 shore=10 rough=0.12
+region K rock=basalt fertility=low    surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 pumpkins=0.02 wildgrass=0.12 sandy=0.06 scatter=metalpartpile-tiny:0.004,loosegears-1:0.003 height=0.70 shore=10 rough=0.10
+region J rock=basalt fertility=verylow surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 devastation=0.006 scatter=metalpartpile-tiny:0.008,metalpartpile-small:0.005,metal-scraps:0.003,loosegears-1:0.004,loosegears-3:0.002 wildgrass=0.08 sandy=0.10 height=0.70 shore=10 rough=0.14
+region T rock=basalt fertility=verylow surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 orebits=tin:0.007 wildgrass=0.08 stones=0.02 sandy=0.12 height=0.82 shore=9 rough=0.18
+region S rock=basalt fertility=verylow surface=grass ores=tin:0.02 oredepth=0.2:1.5:80 orebits=tin:0.007 wildgrass=0.08 stones=0.02 sandy=0.12 height=0.74 shore=9 rough=0.16
+region O rock=basalt surface=rocksand ores=tin:0.035 oredepth=0.2:1.5:80 orebits=tin:0.012 boulders=0.015 height=1.0 shore=6 rough=0.35
+cave V heading=198 dip=30 length=220 radius=2.7 squash=0.8 weave=0.6 scale=1.6 branches=3 branchdepth=2 branchlen=0.6 depth=80 mouth=6 entry=6 ores=tin:0.08 oredepth=0.2:1.5 timbers=12 holders=14 machinery=10 giants=oversizedhorrors:giantspawner-shiver-deep*4 deepgiant=oversizedhorrors:giantspawner-locust-corrupt mouthgiant=oversizedhorrors:giantspawner-shiver-deep giantrange=60 seed=17
 
 struct G kind=lab size=16 seed=7 huts=4
 chest L normal-aged lore:tin_lab_notice,lore:tin_chart,landmassgenerator:islandmap-forest,randomlore:rfpool-lab,game:nugget-cassiterite*8,game:ingot-tin*2 at=52,24
 chest Z collapsed2 lore:tin_mine_depths,game:jonasparts-tank01,game:jonasparts-valve01,game:jonasparts-cylinder01,game:gear-rusty*6,lensresearch:miniriftward,randomlore:rfpool-jonas cave=V rust=3
+loot mine 4 cave=V below=30
 block Y game:statictranslocator-broken-north
 map
 ..............................................................................................................

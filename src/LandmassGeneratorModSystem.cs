@@ -1716,11 +1716,49 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
         public double Threshold;
         public int PoorId, MediumId, RichId, BountifulId;
 
+        // oredepth=top:bottom:depth on a region: the amount of this ore scales
+        // with depth, top times as much at sea level and above, rising to
+        // bottom times as much at depth blocks under sea level and below. The
+        // threshold that gives each factor comes from this ore's own noise,
+        // sampled once, so the amount (not just the look) scales exactly.
+        public double DepthTop = 1, DepthBottom = 1, DepthBelow = 0;
+        public int SeaY;
+        private double[] sorted;
+        private readonly Dictionary<int, double> thresholdFor = new();
+
+        public double ThresholdAtY(int y) => ThresholdAt(y);
+        private double ThresholdAt(int y)
+        {
+            if (DepthBelow <= 0 || (DepthTop == 1 && DepthBottom == 1)) return Threshold;
+            double t = y >= SeaY ? 0 : Math.Clamp((SeaY - y) / DepthBelow, 0, 1);
+            double f = DepthTop + (DepthBottom - DepthTop) * t;
+            int key = (int)Math.Round(f * 50);
+            lock (thresholdFor)
+            {
+                if (thresholdFor.TryGetValue(key, out double th)) return th;
+                if (sorted == null)
+                {
+                    var r = new Random(1234);
+                    sorted = new double[40000];
+                    for (int i = 0; i < sorted.Length; i++) sorted[i] = Noise.Noise(r.Next(-200000, 200000), r.Next(0, 256), r.Next(-200000, 200000));
+                    Array.Sort(sorted);
+                }
+                int idx = Array.BinarySearch(sorted, Threshold); if (idx < 0) idx = ~idx;
+                double share = (sorted.Length - idx) / (double)sorted.Length;          // the ore's share at factor 1
+                double want = Math.Clamp(share * key / 50.0, 0, 1);
+                int j = (int)Math.Round(sorted.Length * (1 - want));
+                th = want <= 0 ? double.MaxValue : j >= sorted.Length ? sorted[^1] : j <= 0 ? double.MinValue : sorted[j];
+                thresholdFor[key] = th;
+                return th;
+            }
+        }
+
         public bool TryPick(int x, int y, int z, out int id)
         {
             id = 0;
             double n = Noise.Noise(x, y, z);
-            if (n < Threshold) return false;
+            double threshold = ThresholdAt(y);
+            if (n < threshold) return false;
 
             double into = n - Threshold;
             if (into > 0.12 && BountifulId != 0) id = BountifulId;
@@ -1860,6 +1898,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
         public uint Seed;                       // 0 = derived from the entrance cell, stable per design
         public string OreName;                  // wall-lining ore (ores=copper:0.05)
         public double OreChance;                // chance per exposed wall block
+        public double OreTop = 1, OreBottom = 1; // oredepth=0.2:1.5: the ore chance times OreTop at sea level and above, rising to OreBottom at the cave's lowest point
         public bool Flooded;                    // flooded=1: mouth on the sea/lake FLOOR, tunnel filled with water (a diving cave)
     }
 
@@ -2813,6 +2852,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
     private Region ParseRegion(string[] tok, IslandJob job, long seed, ref int oreIdx, List<string> problems)
     {
         var r = new Region { Key = tok[1][0] };
+        string oreDepthStr = null;
         string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null, oreBitsStr = null, climateStr = null;
 
         for (int i = 2; i < tok.Length; i++)
@@ -2829,6 +2869,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                 case "sand": sandCode = v; break;        // explicit beach block (e.g. white sand)
                 case "fertility": fert = v; break;       // verylow..high: sets the soil and grass
                 case "ores": oreStr = v; break;
+                case "oredepth": oreDepthStr = v; break;
                 case "trees": treeStr = v; break;
                 case "surface":
                     r.Surface = v.ToLowerInvariant() switch
@@ -2944,6 +2985,21 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
 
         if (!string.IsNullOrWhiteSpace(oreStr))
             ParseOres(oreStr, r.RockType, seed + 31 * (oreIdx++ + 1), r.Ores, problems);
+        if (!string.IsNullOrWhiteSpace(oreDepthStr))
+        {
+            string[] od = oreDepthStr.Split(':');
+            if (od.Length < 3) problems.Add($"region {r.Key}: oredepth wants top:bottom:depth, e.g. 0.2:1.5:80");
+            else
+                foreach (var o in r.Ores)
+                {
+                    o.DepthTop = Math.Clamp(ParseD(od[0], 1), 0, 10);
+                    o.DepthBottom = Math.Clamp(ParseD(od[1], 1), 0, 10);
+                    o.DepthBelow = Math.Clamp(ParseD(od[2], 0), 0, 400);
+                    o.SeaY = job.SeaLevel;
+                    sapi.Logger.Debug("[landmassgenerator] region {0} {1}: ore threshold {2:0.000} at factor 1, {3:0.000} at sea level, {4:0.000} at the bottom",
+                        r.Key, o.Name, o.Threshold, o.ThresholdAtY(job.SeaLevel), o.ThresholdAtY(job.SeaLevel - (int)o.DepthBelow));
+                }
+        }
 
         if (r.Forest > 0)
         {
@@ -3198,6 +3254,13 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                     int gs = v.LastIndexOf('*');
                     d.GiantCode = gs > 0 ? v.Substring(0, gs) : v;
                     d.GiantCount = gs > 0 ? (int)Math.Clamp(ParseD(v.Substring(gs + 1), 1), 0, 12) : 1;
+                    break;
+                }
+                case "oredepth":
+                {
+                    string[] parts = v.Split(':');
+                    d.OreTop = Math.Clamp(ParseD(parts[0], 1), 0, 10);
+                    d.OreBottom = parts.Length > 1 ? Math.Clamp(ParseD(parts[1], 1), 0, 10) : d.OreTop;
                     break;
                 }
                 case "ores":
@@ -3605,6 +3668,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
         }
 
         long cells = 0;
+        var clutterRows = new StringBuilder("x\ty\tz\tblock\ttype\trotY\toffX\toffZ\n");
         using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write))
         using (var gz = new GZipStream(fs, CompressionLevel.Fastest))
         using (var bw = new BinaryWriter(gz))
@@ -3651,6 +3715,12 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                     var beh = ba.GetBlockEntity(pos)?.GetBehavior<BEBehaviorShapeFromAttributes>();
                     if (beh?.Type != null)
                     {
+                        // each prop's turn and push, for floating-prop checks (tools/floatcheck.py)
+                        clutterRows.Append(pos.X - x0).Append('\t').Append(y - y0).Append('\t').Append(pos.Z - z0).Append('\t')
+                            .Append(b.Code?.Path).Append('\t').Append(beh.Type).Append('\t')
+                            .Append(beh.rotateY.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)).Append('\t')
+                            .Append(beh.offsetX.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)).Append('\t')
+                            .Append(beh.offsetZ.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
                         string ckey = palette[idToIdx[b.Id]].Split('|')[0] + "|" + beh.Type;
                         if (!codeToIdx.TryGetValue(ckey, out idx))
                         {
@@ -3689,6 +3759,8 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
 
         if (File.Exists(path)) File.Delete(path);
         File.Move(tmp, path);
+        try { File.WriteAllText(Path.Combine(dir, job.DumpName + ".clutter.tsv"), clutterRows.ToString()); }
+        catch (Exception e) { sapi.Logger.Warning("[landmassgenerator] clutter list for the dump not written: {0}", e.Message); }
         string note = $"[dump] wrote {path} ({cells} cells, {palette.Count} palette entries)";
         sapi.Logger.Notification(note);
         ReportIsland(job, note);
@@ -5430,6 +5502,21 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
         var rand = new CaveRand(0x51ED2701u);
         int placed = 0;
 
+        // oredepth=: per cave, the ore chance scales with depth, from OreTop at
+        // sea level and above to OreBottom at the cave's lowest point
+        var caveBottom = new Dictionary<CaveDef, double>();
+        foreach (var st in w.Steps)
+            caveBottom[st.Def] = Math.Min(caveBottom.TryGetValue(st.Def, out double cb) ? cb : double.MaxValue, st.Y - st.V);
+        double sea = job.SeaLevel;
+        double DepthScale(CaveDef d, int y)
+        {
+            if (d.OreTop == 1 && d.OreBottom == 1) return 1;
+            double bottom = caveBottom.TryGetValue(d, out double b) ? b : sea - 1;
+            if (y >= sea || bottom >= sea) return d.OreTop;
+            double t = Math.Clamp((sea - y) / (sea - bottom), 0, 1);
+            return d.OreTop + (d.OreBottom - d.OreTop) * t;
+        }
+
         foreach ((double cx, double cy, double cz, double hr, double vr, CaveDef def) in w.Steps)
         {
             if (def.OreName == null) continue;
@@ -5449,7 +5536,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
 
                         long key = ((long)(xx - job.MinX) << 42) | ((long)(zz - job.MinZ) << 21) | (uint)yy;
                         if (!visited.Add(key)) continue;
-                        if (rand.NextDouble() >= def.OreChance) continue;
+                        if (rand.NextDouble() >= def.OreChance * DepthScale(def, yy)) continue;
 
                         pos.Set(xx, yy, zz);
                         Block b = world.GetBlock(pos);
@@ -9036,17 +9123,31 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                     .GetField("<rotateY>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
                 var namedIds = new Dictionary<string, int>();
                 var litClutter = new List<(int X, int Y, int Z, int Id)>();
-                int settleMoved = 0, settleDropped = 0;
+                int settleMoved = 0, settleDropped = 0, settleTurned = 0, settlePushed = 0;
                 var droppedKinds = new Dictionary<string, int>();
+                var spotKeys = new HashSet<long>();
+                foreach (var c in clutterSpots) spotKeys.Add(SpotKey(c.X, c.Y, c.Z));
                 foreach (var c in clutterSpots)
                 {
                     cpos.Set(c.X, c.Y, c.Z);
                     string type = c.Type, variant = null, type2 = null;
+                    float useRot = c.Rot, useOx = 0, useOz = 0;
                     // "~": settle it onto what really holds it up, or leave it out
                     if (type.Length > 0 && type[0] == '~')
                     {
                         type = type.Substring(1);
-                        int sy = ClutterSettle(wba, cpos, type);
+                        int fbar = type.IndexOf('|');
+                        string fBlock = fbar > 0 ? type.Substring(0, fbar) : type.StartsWith("coffin") ? "clutter" : "clutter-devastation";
+                        string fType = (fbar > 0 ? type.Substring(fbar + 1) : type).Split('|')[0];
+                        int sy;
+                        if (ClutterSupport.Types.ContainsKey((fBlock + "|" + fType).ToLowerInvariant()))
+                        {
+                            var fit = ClutterFit(wba, cpos, fBlock, fType, spotKeys, ref useRot, out int fy, out useOx, out useOz);
+                            sy = fit == FitResult.Fail ? int.MinValue : fy;
+                            if (fit == FitResult.Turned) settleTurned++;
+                            if (fit == FitResult.Pushed) settlePushed++;
+                        }
+                        else sy = ClutterSettle(wba, cpos, type);
                         if (sy == int.MinValue)
                         {
                             settleDropped++;
@@ -9080,7 +9181,8 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                             shelf.Variant = variant ?? "half";
                             shelf.Type2 = type2 ?? type;
                         }
-                        rotField?.SetValue(beh, c.Rot);
+                        rotField?.SetValue(beh, useRot);
+                        if (useOx != 0 || useOz != 0) { beh.offsetX = useOx; beh.offsetZ = useOz; }
                         beh.Blockentity.MarkDirty(true);
                         var hsv = wba.GetBlock(cpos).GetLightHsv(wba, cpos);
                         if (hsv != null && hsv[2] > 0)
@@ -9096,6 +9198,8 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                     QueueRelight(job.Dim, litClutter);
                     sapi.Logger.Notification("[landmassgen] {0}: {1} lit clutter lamp(s)", def.Kind, litClutter.Count);
                 }
+                if (settleTurned + settlePushed > 0)
+                    sapi.Logger.Notification("[landmassgen] {0}: clutter fitted to its support: {1} turned to their wall, {2} instruments pushed flush against a wall", def.Kind, settleTurned, settlePushed);
                 if (settleMoved + settleDropped > 0)
                 {
                     var most = new List<KeyValuePair<string, int>>(droppedKinds);

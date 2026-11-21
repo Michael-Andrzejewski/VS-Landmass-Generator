@@ -789,7 +789,7 @@ public partial class LandmassGeneratorModSystem
                 float rot = acrossX ? (sgn < 0 ? (float)(Math.PI / 2) : (float)(-Math.PI / 2)) : (sgn < 0 ? 0f : (float)Math.PI);
                 float pushX = sgn * ux * 0.34f, pushZ = sgn * uz * 0.34f;             // a pipe against the rock
                 var st = MineStanding[rnd.Next(MineStanding.Length)];
-                if (open(ex, floor, ez)) Clut(st.Block, ex, floor, ez, st.Type, rot, st.Flip, st.Flat ? pushX * 0.6f : 0, st.Flat ? pushZ * 0.6f : 0);
+                if (open(ex, floor, ez) && solid(ex, floor - 1, ez)) Clut(st.Block, ex, floor, ez, st.Type, rot, st.Flip, st.Flat ? pushX * 0.6f : 0, st.Flat ? pushZ * 0.6f : 0);
                 // a rusty pipe up the wall beside it, and a bracket over it.
                 // The game turns a mesh by rotateY with x' = x cos + z sin,
                 // z' = z cos - x sin, so rot - 90 degrees turns a pipe's west
@@ -856,7 +856,14 @@ public partial class LandmassGeneratorModSystem
                             if (Clut("clutter", rx, ceil, rz, pt, r, null, pushX, pushZ, 0.31f)) runPieces++;
                         }
                 }
-                if (height >= 4 && open(ex, floor + 2, ez)) Clut("clutter", ex, floor + 2, ez, MineWallHung[rnd.Next(MineWallHung.Length)], rot);
+                // the rack hangs two blocks up: where the round tunnel leans away
+                // from it there, rusted plate fills in behind, so it hangs on metal
+                if (height >= 4 && open(ex, floor + 2, ez))
+                {
+                    for (int y = floor; y <= floor + 2; y++)
+                        if (!solid(wx, y, wz)) Put(wx, y, wz, rustB != 0 ? rustB : rustA);
+                    Clut("clutter", ex, floor + 2, ez, MineWallHung[rnd.Next(MineWallHung.Length)], rot);
+                }
                 // scrap on the floor
                 int jx = ex - sgn * ux + ax * (rnd.Next(3) - 1), jz = ez - sgn * uz + az * (rnd.Next(3) - 1);
                 if (open(jx, floor, jz) && solid(jx, floor - 1, jz))

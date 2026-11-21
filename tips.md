@@ -1473,3 +1473,49 @@ deep shiver spawn where it can run at the player, not on "a weird platform".
   `astarcheck.py`-style checks need the game's rules, not a free box flood:
   the free flood said the first runs were open and the client showed they
   were not.
+
+## Props that hold on, and the Lens at the Machine's heart (0.73.0)
+
+Michael: no floating clutter in the Great Machine (gauges hung in the air),
+and the Lens, restored and set in its housing, in place of the Spreading
+Devastation core.
+
+- **Where a settled ("~") prop goes** is now read from the clutter catalog:
+  `src/ClutterSupport.cs` (written by `tools/clutter-catalog/gen_clutter_support.py`)
+  holds, for every type, which faces of its block the model touches and its
+  bounds. `src/ClutterFit.cs` keeps a prop where a face it touches meets a
+  floor, ceiling, wall or another prop; else turns a wall prop to its wall;
+  else pushes a small instrument flush against the nearest wall (offsetX/Z);
+  else drops a floor prop to a floor; else leaves it out. Rebuild the table
+  after a game update (after the catalog).
+- **Some instruments float inside their own block:** `gauge1`, `gauge2`,
+  `sightglass1/2`, `switch3`, `valve3` touch no face at all. They are built to
+  sit on machinery. Alone they always hang in the air unless pushed to a wall.
+- **The old settle rule took any wall or floor** for a wall prop, whichever
+  way it faced. A gauge on a floor, its back to the room, counted as held.
+- **`tools/floatcheck.py <dump>`** finds props nothing holds, from the dump
+  and the `.clutter.tsv` the dump now writes beside it (every prop's type,
+  turn and push). Great Machine: 7 floating of 26,575.
+- **The heart:** no machine core any more. The obsidian plinth holds the
+  Rustfall Great Machine mod's Lens Housing (placed ruined when that mod is
+  loaded). The conduit starts four blocks higher (a riveted collar at Yc+6)
+  so the Lens has room. The control ring is eight two-high steel panels with
+  an instrument on the face toward the Lens and a lever bank on every other
+  one; the pillars behind carry a gauge or valve on their inner face.
+- **`tools/heartview.py`** draws a cutaway of the heart from a dump (blocks as
+  cubes, props as their real models, the housing shape on the plinth).
+  `tools/clutter-catalog/render_shape.py` draws any shape, a mod's included.
+- **Tin by depth (tin mine, 0.73.0):** `oredepth=top:bottom` on a cave line
+  scales its wall ore from top times as much at sea level and above to
+  bottom times as much at the cave's lowest point. `oredepth=top:bottom:depth`
+  on a region line scales its rock ore the same way down to `depth` blocks
+  under sea level; the threshold for each factor comes from the ore's own
+  noise, sampled once, so the amount scales, not just the look. The tin
+  island uses 0.2:1.5 (and 80 for the regions). Measured in the picking code:
+  0.6 percent of rock at sea level, 2 at 50 under, 3.6 to 4.1 at the bottom.
+  Under the old sea floor the rock is the game's own, with its own tin.
+- **Loot deep in a cave:** `loot mine 4 cave=V below=30` spreads the chests
+  over the stretches of the cave at least 30 under sea level. A plain cave=
+  line spreads over the last 70 percent of the cave instead.
+- **Dumps carry other mods' ruins:** Underwater Horrors builds seabed ruins in
+  the dump area (chests, candle stubs). Don't count them as ours.

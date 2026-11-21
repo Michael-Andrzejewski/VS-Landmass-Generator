@@ -290,7 +290,7 @@ public partial class LandmassGeneratorModSystem
             List<BlockPos> spots;
             if (d.Cave != '\0')
             {
-                spots = d.CaveDef == null ? new List<BlockPos>() : CaveSpots(job, d.CaveDef, d.Count);
+                spots = d.CaveDef == null ? new List<BlockPos>() : CaveSpots(job, d.CaveDef, d.Count, d.Above, d.Below);
                 if (d.CaveDef == null) notes.Add($"no cave '{d.Cave}'");
             }
             else
@@ -416,17 +416,23 @@ public partial class LandmassGeneratorModSystem
     }
 
     // Floor spots spread evenly along a cave, from a third of the way in to the end.
-    private List<BlockPos> CaveSpots(IslandJob job, CaveDef cave, int need)
+    // above=N / below=N with cave=: only the stretches of the cave at least N
+    // blocks over / under sea level, spread over all of them (not just the
+    // last 70 percent, the way a plain cave= line spreads)
+    private List<BlockPos> CaveSpots(IslandJob job, CaveDef cave, int need, int? above = null, int? below = null)
     {
         var res = new List<BlockPos>();
         if (job.CaveSteps == null) return res;
         var steps = job.CaveSteps.Where(s => s.Def == cave).ToList();
+        bool depthCut = above != null || below != null;
+        if (above != null) steps = steps.Where(s => s.Y - s.V >= job.SeaLevel + above.Value).ToList();
+        if (below != null) steps = steps.Where(s => s.Y <= job.SeaLevel - below.Value).ToList();
         if (steps.Count == 0) return res;
         var world = sapi.World.BlockAccessor;
         var p = new BlockPos(0, 0, 0, job.Dim);
         for (int i = 0; i < need; i++)
         {
-            int idx = (int)(steps.Count * (0.3 + 0.7 * (i + 0.5) / need));
+            int idx = (int)(steps.Count * (depthCut ? (i + 0.5) / need : 0.3 + 0.7 * (i + 0.5) / need));
             for (int t = 0; t < 40; t++)
             {
                 var s = steps[Math.Clamp(idx + (t % 2 == 0 ? t / 2 : -(t / 2 + 1)), 0, steps.Count - 1)];
