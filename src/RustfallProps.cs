@@ -68,6 +68,12 @@ public partial class LandmassGeneratorModSystem
         ["the_spoils"] = new('Q', 90, "any", "collapsed2", "landmassgenerator:islandmap-greatmachine,randomlore:rfpool-jonas"),
     };
 
+    private string PlaceBerryPatchesSafe(IslandJob job)
+    {
+        try { string r = PlaceBerryPatches(job); return r.Length > 0 ? " " + r : ""; }
+        catch (Exception e) { sapi.Logger.Error(e); return " Berry patches FAILED: " + e.Message; }
+    }
+
     private bool HasRustfallProps(IslandJob job) => job.ShapeName != null
         && (HiddenChests.ContainsKey(job.ShapeName) || Bookshelves.ContainsKey(job.ShapeName) || MineTapestries.ContainsKey(job.ShapeName)
             || PlacedChests.ContainsKey(job.ShapeName));
@@ -75,6 +81,7 @@ public partial class LandmassGeneratorModSystem
     private string PlaceRustfallProps(IslandJob job)
     {
         string tw = PlaceTimewood(job);   // Temporal Growth Gears, with their own done key (TimewoodPlacements.cs)
+        tw += PlaceBerryPatchesSafe(job);   // dense berry thickets, own done key (BerryPatches.cs)
         if (job.Shape == null || !HasRustfallProps(job)) { sapi.Logger.Notification("[props] {0}: none for this island", job.ShapeName); return tw; }
         string doneKey = $"lgRustfallPropsDone:{job.ShapeName}@{job.Cx},{job.Cz}";
         if (sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false)) { sapi.Logger.Notification("[props] {0}: already done", job.ShapeName); return tw; }

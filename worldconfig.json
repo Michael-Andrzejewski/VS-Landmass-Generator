@@ -1,69 +1,117 @@
 {
-    "playStyles": [
-        {
-            "code": "rustfall",
-            "playListCode": "survival",
-            "langCode": "preset-rustfall",
-            "mods": [
-                "game",
-                "survival"
-            ],
-            "listOrder": 7,
-            "worldType": "standard",
-            "worldConfig": {
-                "worldClimate": "realistic",
-                "gameMode": "survival",
-                "temporalStability": "true",
-                "temporalStorms": "sometimes",
-                "graceTimer": "0",
-                "microblockChiseling": "stonewood",
-                "polarEquatorDistance": "100000",
-                "lungCapacity": "40000",
-                "harshWinters": "true",
-                "daysPerMonth": "9",
-                "saplingGrowthRate": "1",
-                "propickNodeSearchRadius": "6",
-                "allowUndergroundFarming": "false",
-                "allowFallingBlocks": "true",
-                "allowFireSpread": "true",
-                "temporalGearRespawnUses": "20",
-                "temporalStormSleeping": "0",
-                "clutterObtainable": "ifrepaired",
-                "landcover": "0",
-                "upheavelCommonness": "0",
-                "spawnRadius": "0",
-                "rustfallWorld": "true",
-                "rustfallNaturalIslands": "true",
-                "rustfallStarterDiameter": "150"
-            }
-        }
-    ],
-    "worldConfigAttributes": [
-        {
-            "dataType": "Bool",
-            "category": "rustfall",
-            "code": "rustfallWorld",
-            "default": "false",
-            "onCustomizeScreen": true,
-            "onlyDuringWorldCreate": true
-        },
-        {
-            "dataType": "Bool",
-            "category": "rustfall",
-            "code": "rustfallNaturalIslands",
-            "default": "true",
-            "onCustomizeScreen": true
-        },
-        {
-            "dataType": "intrange",
-            "category": "rustfall",
-            "code": "rustfallStarterDiameter",
-            "min": 100,
-            "max": 600,
-            "step": 10,
-            "default": "150",
-            "onCustomizeScreen": true,
-            "onlyDuringWorldCreate": true
-        }
-    ]
+  "playStyles": [
+    {
+      "code": "rustfall",
+      "playListCode": "survival",
+      "langCode": "preset-rustfall",
+      "mods": [
+        "game",
+        "survival"
+      ],
+      "listOrder": 7,
+      "worldType": "standard",
+      "worldConfig": {
+        "worldClimate": "realistic",
+        "gameMode": "survival",
+        "temporalStability": "true",
+        "temporalStorms": "sometimes",
+        "graceTimer": "3",
+        "microblockChiseling": "stonewood",
+        "polarEquatorDistance": "100000",
+        "lungCapacity": "40000",
+        "harshWinters": "true",
+        "daysPerMonth": "9",
+        "saplingGrowthRate": "1",
+        "propickNodeSearchRadius": "6",
+        "allowUndergroundFarming": "false",
+        "allowFallingBlocks": "true",
+        "allowFireSpread": "true",
+        "temporalGearRespawnUses": "20",
+        "temporalStormSleeping": "0",
+        "clutterObtainable": "ifrepaired",
+        "landcover": "0",
+        "upheavelCommonness": "0",
+        "spawnRadius": "0",
+        "rustfallWorld": "true",
+        "rustfallNaturalIslands": "true",
+        "rustfallStarterDiameter": "195",
+        "playerHungerSpeed": "0.7",
+        "rustfallWildOcean": "0.45",
+        "rustfallDevastationOutside": "1000"
+      }
+    }
+  ],
+  "worldConfigAttributes": [
+    {
+      "dataType": "Bool",
+      "category": "rustfall",
+      "code": "rustfallWorld",
+      "default": "false",
+      "onCustomizeScreen": true,
+      "onlyDuringWorldCreate": true
+    },
+    {
+      "dataType": "Bool",
+      "category": "rustfall",
+      "code": "rustfallNaturalIslands",
+      "default": "true",
+      "onCustomizeScreen": true
+    },
+    {
+      "dataType": "intrange",
+      "category": "rustfall",
+      "code": "rustfallStarterDiameter",
+      "min": 100,
+      "max": 600,
+      "step": 10,
+      "default": "195",
+      "onCustomizeScreen": true,
+      "onlyDuringWorldCreate": true
+    },
+    {
+      "dataType": "dropdown",
+      "category": "rustfall",
+      "code": "rustfallWildOcean",
+      "values": [
+        "1",
+        "0.8",
+        "0.65",
+        "0.5",
+        "0.45",
+        "0.4"
+      ],
+      "names": [
+        "Like the rest",
+        "A little wilder (about 1.5x the land)",
+        "Wilder (about 2x)",
+        "Much wilder (about 3x)",
+        "Very wild (about 4x)",
+        "Extremely wild (about 4.5x)"
+      ],
+      "default": "1",
+      "onlyDuringWorldCreate": true
+    },
+    {
+      "dataType": "dropdown",
+      "category": "rustfall",
+      "code": "rustfallDevastationOutside",
+      "values": [
+        "0",
+        "500",
+        "1000",
+        "1500",
+        "2000",
+        "3000"
+      ],
+      "names": [
+        "Never limited (vanilla rules)",
+        "500 blocks out",
+        "1000 blocks out",
+        "1500 blocks out",
+        "2000 blocks out",
+        "3000 blocks out"
+      ],
+      "default": "0"
+    }
+  ]
 }

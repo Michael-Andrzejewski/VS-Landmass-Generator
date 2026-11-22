@@ -35,21 +35,20 @@
 # Temple near the Ideal Home Island.
 pureocean
 clearspawn 16
-devastation off
 
 # Home waters. The starter turns 102 degrees clockwise (0.68.0), so its west
 # beach faces north, toward the Great Machine.
-island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite rotate=102
+island 0 0 shape=starter_island diameter=195 height=8 stone=rock-peridotite sand=sand-peridotite rotate=102
 # Spawn came out raining nearly all the time (rainfall 'very common').
 rain 0 0 0.4 400 150
 # Cattail isles off the reedy tip of the starter's beach, turned with it
 # (they stood at -84, -147 before 0.68.0, off the north-west shore). Plan
-# coordinates are for the 150-block starter; the starter diameter slider
+# coordinates are for the 195-block starter (0.74.0: starter, cattails and tin 30% larger); the starter diameter slider
 # slides them straight outward.
-island 161 -52 shape=cattail_isles diameter=210 height=4 water=34 rotate=102
+island 209 -68 shape=cattail_isles diameter=273 height=4 water=34 rotate=102
 island 1950 -290 shape=forester_island diameter=300 height=34
 # Harbor turned south, toward the Forest Island and home.
-island 1850 -1610 shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
+island 1850 -1610 shape=tin_island diameter=286 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
 
 # The western passage: Lazaret -> Swamplands -> Blackfen -> Salt Teeth -> Crater Lake
 island -2720 -1460 shape=dangerous_swamplands diameter=480 height=6 water=30

@@ -278,6 +278,8 @@ public partial class LandmassGeneratorModSystem : ModSystem
         // Story chests (plan `storychest` lines): filled once the game has
         // built their story structure.
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryChestWatcher);
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, () => { StartDevastationZone(); StartSafeStarter(); });   // RustfallZone.cs
+        RegisterZoneTest(api);   // ZoneTest.cs
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryTranslocatorWatcher);
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartRelightWatcher);
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
@@ -377,6 +379,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
     {
         var worldConfig = sapi.WorldManager.SaveGame.WorldConfiguration;
         if (!worldConfig.GetBool("lgPureOcean", false)) return;
+        if (worldConfig.GetBool("rustfallNaturalIslands", true)) ApplyWildOcean(mapRegion, regionX, regionZ);   // RustfallZone.cs
         // 'Natural world-gen islands' checkbox (default on): let underwater
         // landforms occasionally breach as small natural islands. When on,
         // only the spawn clear zone is flattened, so the starter island is
@@ -902,21 +905,20 @@ public partial class LandmassGeneratorModSystem : ModSystem
 # Temple near the Ideal Home Island.
 pureocean
 clearspawn 16
-devastation off
 
 # Home waters. The starter turns 102 degrees clockwise (0.68.0), so its west
 # beach faces north, toward the Great Machine.
-island 0 0 shape=starter_island diameter=150 height=8 stone=rock-peridotite sand=sand-peridotite rotate=102
+island 0 0 shape=starter_island diameter=195 height=8 stone=rock-peridotite sand=sand-peridotite rotate=102
 # Spawn came out raining nearly all the time (rainfall 'very common').
 rain 0 0 0.4 400 150
 # Cattail isles off the reedy tip of the starter's beach, turned with it
 # (they stood at -84, -147 before 0.68.0, off the north-west shore). Plan
-# coordinates are for the 150-block starter; the starter diameter slider
+# coordinates are for the 195-block starter (0.74.0: starter, cattails and tin 30% larger); the starter diameter slider
 # slides them straight outward.
-island 161 -52 shape=cattail_isles diameter=210 height=4 water=34 rotate=102
+island 209 -68 shape=cattail_isles diameter=273 height=4 water=34 rotate=102
 island 1950 -290 shape=forester_island diameter=300 height=34
 # Harbor turned south, toward the Forest Island and home.
-island 1850 -1610 shape=tin_island diameter=220 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
+island 1850 -1610 shape=tin_island diameter=286 height=14 stone=rock-basalt sand=sand-basalt climate=arid rotate=270
 
 # The western passage: Lazaret -> Swamplands -> Blackfen -> Salt Teeth -> Crater Lake
 island -2720 -1460 shape=dangerous_swamplands diameter=480 height=6 water=30
@@ -2854,7 +2856,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
     {
         var r = new Region { Key = tok[1][0] };
         string oreDepthStr = null;
-        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null, oreBitsStr = null, climateStr = null;
+        string oreStr = null, treeStr = null, rock2 = null, sandCode = null, fert = null, bushStr = null, scatterStr = null, oreBitsStr = null, climateStr = null, stoneRocks = null;
 
         for (int i = 2; i < tok.Length; i++)
         {
@@ -2897,6 +2899,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
                 case "devastation": r.Devastation = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "wildgrass": r.WildGrass = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "stones": r.Stones = Math.Clamp(ParseD(v, 0), 0, 1); break;
+                case "stonerocks": stoneRocks = v; break;   // loose stones of these rocks instead of the bedrock's (0.74.0)
                 case "sticks": r.Sticks = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "litter": r.Litter = Math.Clamp(ParseD(v, 0), 0, 1); break;
                 case "bushes": bushStr = v; break;
@@ -3115,6 +3118,16 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
             ?? sapi.World.GetBlock(new AssetLocation("game", "loosestones-peridotite-free"))?.BlockId ?? 0;
         if (rock2 != null)
             r.LooseStoneId2 = sapi.World.GetBlock(new AssetLocation("game", $"loosestones-{rock2}-free"))?.BlockId ?? 0;
+        // stonerocks=granite,peridotite: knappable loose stones whatever the bedrock (the blend noise picks
+        // between the two, as it does for the bedrock's own pair).
+        if (!string.IsNullOrWhiteSpace(stoneRocks))
+        {
+            string[] sr = stoneRocks.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            int a = sr.Length > 0 ? sapi.World.GetBlock(new AssetLocation("game", $"loosestones-{sr[0]}-free"))?.BlockId ?? 0 : 0;
+            int b = sr.Length > 1 ? sapi.World.GetBlock(new AssetLocation("game", $"loosestones-{sr[1]}-free"))?.BlockId ?? 0 : 0;
+            if (a != 0) { r.LooseStoneId = a; r.LooseStoneId2 = b != 0 ? b : a; }
+            else problems.Add($"region {r.Key}: no loose stones of '{stoneRocks}'");
+        }
         r.LooseStickId = sapi.World.GetBlock(new AssetLocation("game", "loosestick-free"))?.BlockId ?? 0;
 
         if (r.Litter > 0)
