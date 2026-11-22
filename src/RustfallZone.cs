@@ -264,15 +264,21 @@ public partial class LandmassGeneratorModSystem
     }
 
     // ── safe islands ────────────────────────────────────────────────────
-    // The starter island has no hostile creatures at all; the Ideal Home Island (the village) has no wolves
-    // or bears (0.74.2). Natural spawns there are refused, and any such creature that appears another way (a
+    // The starter island has no hostile creatures at all; the Ideal Home Island (the village) and the rock and
+    // wreck islands have no wolves or bears (0.74.2, 0.74.3). Natural spawns there are refused, and any such creature that appears another way (a
     // storm, worldgen, a lure) is removed as it spawns or loads. Everywhere else spawns as vanilla.
 
     private static readonly string[] HostilePaths = { "drifter", "bowtorn", "shiver", "bell", "locust", "wolf", "bear", "hyena", "eidolon", "erel" };
     private static readonly string[] HostileDomains = { "oversizedhorrors", "underwaterhorrors" };
     private static readonly string[] PredatorPaths = { "wolf", "bear" };
     private record SafeIsland(string Shape, bool AllHostiles);
-    private static readonly SafeIsland[] SafeIslands = { new("starter_island", true), new("ideal_house_island", false) };
+    // No wolves or bears either on the bare rock and wreck islands, where only the climate map's forest value
+    // would let them spawn (0.74.3).
+    private static readonly SafeIsland[] SafeIslands =
+    {
+        new("starter_island", true), new("ideal_house_island", false),
+        new("chainfield", false), new("wreckage_maelstrom", false), new("colossus_deep", false), new("lighthouse", false),
+    };
     private List<(IslandJob Job, bool All)> _safeJobs;
 
     private void StartSafeStarter()
@@ -330,7 +336,13 @@ public partial class LandmassGeneratorModSystem
     // knows nothing of the hand-built forests, so the Forest Island read anywhere from 0.07 to 0.89. These
     // islands get at least the given forest value across their land (fading out over 64 blocks past the
     // edge), on new map regions and on old ones as they load. Only ever raises it.
-    private static readonly Dictionary<string, float> WolfForests = new() { ["forester_island"] = 0.7f, ["blackfen_island"] = 0.7f };
+    // Climate decides which animal: Forest, Blackfen, the swamplands and Cardinals suit wolves and brown or
+    // black bears; the Volcano Ring (24 C) suits sun bears; the warm granaries (about 20 C) black bears.
+    private static readonly Dictionary<string, float> WolfForests = new()
+    {
+        ["forester_island"] = 0.7f, ["blackfen_island"] = 0.7f, ["dangerous_swamplands"] = 0.7f, ["volcano_ring"] = 0.7f,
+        ["cardinals_island"] = 0.7f, ["granary_lush"] = 0.7f, ["granary_temperate"] = 0.7f, ["granary_cold"] = 0.7f, ["granary_arid"] = 0.7f,
+    };
 
     private void ApplyWolfForests(IMapRegion region, int rx, int rz)
     {
