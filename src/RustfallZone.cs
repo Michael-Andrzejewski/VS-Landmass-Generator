@@ -263,23 +263,30 @@ public partial class LandmassGeneratorModSystem
         return false;
     }
 
-    // ── no hostile creatures on the starter island ──────────────────────
+    // ── safe islands ────────────────────────────────────────────────────
+    // The starter island has no hostile creatures at all; the Ideal Home Island (the village) has no wolves
+    // or bears (0.74.2). Natural spawns there are refused, and any such creature that appears another way (a
+    // storm, worldgen, a lure) is removed as it spawns or loads. Everywhere else spawns as vanilla.
 
     private static readonly string[] HostilePaths = { "drifter", "bowtorn", "shiver", "bell", "locust", "wolf", "bear", "hyena", "eidolon", "erel" };
     private static readonly string[] HostileDomains = { "oversizedhorrors", "underwaterhorrors" };
-    private IslandJob _starterJob;
+    private static readonly string[] PredatorPaths = { "wolf", "bear" };
+    private record SafeIsland(string Shape, bool AllHostiles);
+    private static readonly SafeIsland[] SafeIslands = { new("starter_island", true), new("ideal_house_island", false) };
+    private List<(IslandJob Job, bool All)> _safeJobs;
 
     private void StartSafeStarter()
     {
         if (!sapi.WorldManager.SaveGame.WorldConfiguration.GetBool("rustfallWorld", false)) return;
         sapi.Event.OnTrySpawnEntity += (IBlockAccessor ba, ref EntityProperties props, Vec3d at, long herdId) =>
-            !(props != null && IsHostile(props.Code) && OnStarterIsland(at.X, at.Z));
-        sapi.Event.OnEntitySpawn += e =>
+            !(props != null && Forbidden(props.Code, at.X, at.Z));
+        void Check(Entity e)
         {
-            if (e == null || e is EntityPlayer || !IsHostile(e.Code)) return;
-            if (!OnStarterIsland(e.ServerPos.X, e.ServerPos.Z)) return;
-            sapi.Event.EnqueueMainThreadTask(() => { if (e.Alive) e.Die(EnumDespawnReason.Removed); }, "lg-safestarter");
-        };
+            if (e == null || e is EntityPlayer || !Forbidden(e.Code, e.ServerPos.X, e.ServerPos.Z)) return;
+            sapi.Event.EnqueueMainThreadTask(() => { if (e.Alive) e.Die(EnumDespawnReason.Removed); }, "lg-safeisland");
+        }
+        sapi.Event.OnEntitySpawn += Check;
+        sapi.Event.OnEntityLoaded += Check;
     }
 
     internal static bool IsHostile(AssetLocation code)
@@ -291,13 +298,76 @@ public partial class LandmassGeneratorModSystem
         return false;
     }
 
-    private bool OnStarterIsland(double x, double z)
+    private static bool IsPredator(AssetLocation code)
     {
-        if (_starterJob == null && _wgIslandJobs != null)
-            _starterJob = _wgIslandJobs.FirstOrDefault(j => j.ShapeName == "starter_island");
-        if (_starterJob == null) return false;
-        double r = Math.Max(_starterJob.Diameter / 2.0, _starterJob.LandRadius) + 24;
-        double dx = x - _starterJob.Cx, dz = z - _starterJob.Cz;
-        return dx * dx + dz * dz <= r * r;
+        if (code == null || code.Domain != "game") return false;
+        foreach (string h in PredatorPaths) if (code.Path.StartsWith(h + "-")) return true;
+        return false;
     }
+
+    /// <summary>True when a creature of this code may not be at this spot (a safe island's rule).</summary>
+    private bool Forbidden(AssetLocation code, double x, double z)
+    {
+        if (code == null) return false;
+        bool hostile = IsHostile(code), predator = IsPredator(code);
+        if (!hostile && !predator) return false;
+        if (_safeJobs == null && _wgIslandJobs != null)
+            _safeJobs = _wgIslandJobs.Where(j => SafeIslands.Any(s => s.Shape == j.ShapeName))
+                .Select(j => (j, SafeIslands.First(s => s.Shape == j.ShapeName).AllHostiles)).ToList();
+        if (_safeJobs == null) return false;
+        foreach (var (job, all) in _safeJobs)
+        {
+            if (!(all ? hostile : predator)) continue;
+            double r = Math.Max(job.Diameter / 2.0, job.LandRadius) + 24;
+            double dx = x - job.Cx, dz = z - job.Cz;
+            if (dx * dx + dz * dz <= r * r) return true;
+        }
+        return false;
+    }
+
+    // ── wolf forests (0.74.2) ───────────────────────────────────────────
+    // Wolves and bears only spawn where the climate's forest value is high enough (wolves 0.5+), and that map
+    // knows nothing of the hand-built forests, so the Forest Island read anywhere from 0.07 to 0.89. These
+    // islands get at least the given forest value across their land (fading out over 64 blocks past the
+    // edge), on new map regions and on old ones as they load. Only ever raises it.
+    private static readonly Dictionary<string, float> WolfForests = new() { ["forester_island"] = 0.7f, ["blackfen_island"] = 0.7f };
+
+    private void ApplyWolfForests(IMapRegion region, int rx, int rz)
+    {
+        if (_wgIslandJobs == null || region?.ForestMap?.Data == null) return;
+        var wc = sapi.WorldManager.SaveGame?.WorldConfiguration;
+        if (wc == null || !wc.GetBool("rustfallWorld", false)) return;
+        var map = region.ForestMap;
+        if (map.InnerSize <= 0) return;
+        int regionSize = sapi.WorldManager.RegionSize;
+        double span = regionSize / (double)map.InnerSize;
+        int pad = map.TopLeftPadding;
+        foreach (var job in _wgIslandJobs)
+        {
+            if (job.ShapeName == null || !WolfForests.TryGetValue(job.ShapeName, out float want)) continue;
+            string key = $"lgWolfForest|{job.ShapeName}|{job.Cx},{job.Cz}";
+            if (region.GetModdata(key) != null) continue;
+            double radius = Math.Max(job.Diameter / 2.0, job.LandRadius), fade = 64;
+            if (Math.Abs(rx * regionSize + regionSize / 2.0 - job.Cx) > regionSize + radius + fade
+                || Math.Abs(rz * regionSize + regionSize / 2.0 - job.Cz) > regionSize + radius + fade) continue;
+            int target = (int)Math.Round(want * 255);
+            for (int py = 0; py < map.Size; py++)
+                for (int px = 0; px < map.Size; px++)
+                {
+                    double wx = (rx * map.InnerSize + (px - pad) + 0.5) * span;
+                    double wz = (rz * map.InnerSize + (py - pad) + 0.5) * span;
+                    double d = Math.Sqrt((wx - job.Cx) * (wx - job.Cx) + (wz - job.Cz) * (wz - job.Cz));
+                    double w = 1.0 - Smooth((d - radius) / fade);
+                    if (w <= 0) continue;
+                    int idx = py * map.Size + px, v = map.Data[idx];
+                    if (v >= target) continue;
+                    map.Data[idx] = (int)Math.Round(v + (target - v) * w);
+                }
+            region.SetModdata(key, new byte[] { 1 });
+            region.DirtyForSaving = true;
+        }
+    }
+
+    /// <summary>On the starter island (the all-hostiles safe island).</summary>
+    private bool OnStarterIsland(double x, double z) => Forbidden(new AssetLocation("game", "drifter-normal"), x, z);
 }

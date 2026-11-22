@@ -78,17 +78,26 @@ public partial class LandmassGeneratorModSystem
                             }
                         return TextCommandResult.Success($"soil pad r={r} at HUD {(int)args[1]}, {(int)args[2]}, top y {sea + 1}");
                     }
-                    case "spawn":
+                    case "climate":
                     {
-                        var type = sapi.World.GetEntityType(new AssetLocation("game", "drifter-normal"));
-                        if (type == null) return TextCommandResult.Error("no drifter-normal");
+                        var c = sapi.World.BlockAccessor.GetClimateAt(new BlockPos(x, y + 1, z, 0), EnumGetClimateMode.WorldGenValues);
+                        return TextCommandResult.Success(c == null ? "no climate" : $"climate at HUD {(int)args[1]}, {y + 1}, {(int)args[2]}: temperature {c.Temperature:0.0} C, rainfall {c.WorldgenRainfall:0.00}, forest {c.ForestDensity:0.00}, shrubs {c.ShrubDensity:0.00} (wolves want -15..15 C, rain 0.25+, forest 0.5+)");
+                    }
+                    case "spawn":
+                    case "wolf":
+                    case "bear":
+                    {
+                        string code = action == "wolf" ? "wolf-eurasian-adult-male" : action == "bear" ? "bear-brown-adult-male" : "drifter-normal";
+                        var type = sapi.World.GetEntityType(new AssetLocation("game", code));
+                        if (type == null) return TextCommandResult.Error("no " + code);
                         Entity e = sapi.World.ClassRegistry.CreateEntity(type);
                         e.ServerPos.SetPos(x + 0.5, y + 1, z + 0.5); e.Pos.SetFrom(e.ServerPos);
                         sapi.World.SpawnEntity(e);
                         long id = e.EntityId;
-                        sapi.Event.RegisterCallback(_ => sapi.Logger.Notification("[zonetest] drifter {0} at HUD {1}, {2} after 2 s: {3}", id, (int)args[1], (int)args[2],
+                        int hx = (int)args[1], hz = (int)args[2];
+                        sapi.Event.RegisterCallback(_ => sapi.Logger.Notification("[zonetest] {0} {1} at HUD {2}, {3} after 2 s: {4}", code, id, hx, hz,
                             sapi.World.GetEntityById(id)?.Alive == true ? "still alive" : "gone"), 2000);
-                        return TextCommandResult.Success($"spawned drifter {id} at HUD {(int)args[1]}, {y + 1}, {(int)args[2]}; result in the log in 2 s");
+                        return TextCommandResult.Success($"spawned {code} {id} at HUD {(int)args[1]}, {y + 1}, {(int)args[2]}; result in the log in 2 s");
                     }
                     case "seed":
                     {

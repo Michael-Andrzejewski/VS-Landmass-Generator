@@ -94,7 +94,7 @@ public partial class LandmassGeneratorModSystem
     private void StartRainZones(ICoreServerAPI api)
     {
         api.Event.MapRegionGeneration(OnMapRegionGenRain, "standard");
-        api.Event.MapRegionLoaded += (Vec2i pos, IMapRegion region) => ApplyZoneRain(region, pos.X, pos.Y);   // old regions too
+        api.Event.MapRegionLoaded += (Vec2i pos, IMapRegion region) => { ApplyZoneRain(region, pos.X, pos.Y); ApplyWolfForests(region, pos.X, pos.Y); };   // old regions too
 
         var p = api.ChatCommands.Parsers;
         RegisterCmd(api, "genrain", name =>
@@ -284,6 +284,7 @@ public partial class LandmassGeneratorModSystem
         foreach (var z in _planRainZones) ApplyRainZone(region, regionX, regionZ, z);
         foreach (var z in SavedRainZones()) ApplyRainZone(region, regionX, regionZ, z);
         ApplyZoneRain(region, regionX, regionZ);
+        ApplyWolfForests(region, regionX, regionZ);   // RustfallZone.cs
     }
 
     // ── Uncommon rain over the Rustfall zone (0.74.1) ──
