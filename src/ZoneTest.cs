@@ -78,6 +78,16 @@ public partial class LandmassGeneratorModSystem
                             }
                         return TextCommandResult.Success($"soil pad r={r} at HUD {(int)args[1]}, {(int)args[2]}, top y {sea + 1}");
                     }
+                    case "block":
+                    {
+                        // what is at an exact spot (y = r), and a container's first stacks
+                        var bp = new BlockPos(x, r, z, 0);
+                        var be = sapi.World.BlockAccessor.GetBlockEntity(bp);
+                        string inv = "";
+                        if (be is Vintagestory.API.Common.IBlockEntityContainer ct)
+                            inv = string.Join(", ", ct.Inventory.Where(sl => !sl.Empty).Take(4).Select(sl => sl.Itemstack.Collectible.Code.ToShortString()));
+                        return TextCommandResult.Success($"{sapi.World.BlockAccessor.GetBlock(bp).Code} {(be == null ? "" : be.GetType().Name)} [{inv}]");
+                    }
                     case "climate":
                     {
                         var c = sapi.World.BlockAccessor.GetClimateAt(new BlockPos(x, y + 1, z, 0), EnumGetClimateMode.WorldGenValues);

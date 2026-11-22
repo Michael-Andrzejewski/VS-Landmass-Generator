@@ -132,7 +132,7 @@ storyloc mansion 660 -3550
 
 # Just inside the Resonance Archives' top entrance: the way to Jonas' dream,
 # and the next arrow, the Lazaret (0.70.0).
-storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal,landmassgenerator:islandmap-lazaret,randomlore:rfpool-lab
+storychest resonancearchive lore:ideal_island_dream,landmassgenerator:islandmap-ideal,randomlore:rfpool-lab
 # In the smithy of Nadiya's village: the old blacksmith's musings (0.69.0),
 # and the way on to the Iron Mine.
 storychest village lore:nadiya_blacksmith,landmassgenerator:islandmap-ironmine,randomlore:rfpool-village,randomlore:rfpool-village,game:hammer-iron,game:ingot-iron*2 near=anvil

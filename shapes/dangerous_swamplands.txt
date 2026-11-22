@@ -34,7 +34,7 @@ deposits natural
 
 loot swamp 2 cave=V with=landmassgenerator:islandmap-blackfen,randomlore:rfpool-sea
 loot sunken 1 near=Z radius=50 where=underwater
-loot swamp 1 near=T radius=30 where=surface
+loot swamp 1 near=T radius=30 where=surface with=landmassgenerator:islandmap-saltteeth,randomlore:rfpool-sea
 map
 ................................................................................................................................................................
 ................................................................................................................................................................

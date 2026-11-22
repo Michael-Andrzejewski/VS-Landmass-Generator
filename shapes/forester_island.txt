@@ -30,6 +30,8 @@ deposits natural
 
 chest Z collapsed3 lore:forest_ticking,landmassgenerator:islandmap-archives,randomlore:rfpool-jonas,game:ore-bituminouscoal*12 cave=V
 struct U kind=treasurehunter seed=3 chest=landmassgenerator:islandmap-tinmine
+loot ruin 1 where=surface with=landmassgenerator:islandmap-blackfen,randomlore:rfpool-sea
+loot mine 1 cave=V with=landmassgenerator:islandmap-swamplands
 loot mine 2 cave=V with=lore:trader_post,game:gear-temporal,game:gear-rusty*8,randomlore:rfpool-trade,randomlore:rfpool-trade
 map
 ........................................................................................................................
