@@ -39,7 +39,7 @@ public partial class LandmassGeneratorModSystem
 {
     private sealed class GardenSpire
     {
-        public int X, Z, Base, Top, F, K0;
+        public int X, Z, Base, Top, F, K0, Links;   // Links: rope bridges that reach it
         public double Rb, Rt, Ph1, Ph2;
         public readonly List<(int Y, double A, double Span, double Out)> Ledges = new();
     }
@@ -932,8 +932,10 @@ public partial class LandmassGeneratorModSystem
         }
         foreach (var (a, b) in chosen)
         {
+            int before = g.Bridges;
             if (b == n) GardensBridgeToTerrace(g, g.Spires[a], edge);
             else GardensBridgeBetween(g, g.Spires[a], g.Spires[b]);
+            if (g.Bridges > before) { g.Spires[a].Links++; if (b < n) g.Spires[b].Links++; }
         }
     }
 
@@ -1503,8 +1505,53 @@ public partial class LandmassGeneratorModSystem
         }
         int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
         foreach (var s in g.Spires)
-            sapi.Logger.Notification("[landmassgenerator] gardens spire at HUD {0}, {1}: foot {2}, top {3}, door {4}", s.X - mx, s.Z - mz, s.Base, s.Top, s.F);
+            sapi.Logger.Notification("[landmassgenerator] gardens spire at HUD {0}, {1}: foot {2}, top {3}, door {4}, bridges {5}", s.X - mx, s.Z - mz, s.Base, s.Top, s.F, s.Links);
+        GardensCrownMaps(g);
         sapi.Logger.Notification("[landmassgenerator] hanging gardens temple at HUD {0}, {1} (terrace {2}): {3} spires, {4} hanging gardens, {5} bridges, {6} buildings, {7} market stalls, {8} booths, {9} fields, {10} of {11} traders, {12} trees, {13} bamboo groves, {14} vines, {15} lanterns",
             g.Cx - mx, g.Cz - mz, g.T0, g.Spires.Count, g.Gardens, g.Bridges, g.Buildings, g.Stalls, g.Booths, g.Fields, traders, g.Traders.Count, trees, g.Groves, g.Vines, g.Lanterns);
+    }
+
+    // ── maps on the crowns (0.74.6) ───────────────────────────────────────
+    // crownmaps=<map>:<case|ground>,...: one map each on the crowns of the tallest spires that rope
+    // bridges reach (two or more bridges first), under the pavilion roof just outside the stair rail.
+    private void GardensCrownMaps(GardensCtx g)
+    {
+        var k = g.K;
+        string spec = k.Opt("crownmaps", "");
+        if (spec.Length == 0) return;
+        string key = $"lgGardensCrownMaps:{g.Cx},{g.Cz}";
+        if (sapi.WorldManager.SaveGame.GetData<bool>(key, false)) return;
+        var items = spec.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Split(':')).Select(t => (Map: t[0].Trim(), Style: t.Length > 1 ? t[1].Trim() : "ground")).ToList();
+        var spires = g.Spires.Where(s => s.Links >= 2).OrderByDescending(s => s.Top)
+            .Concat(g.Spires.Where(s => s.Links == 1).OrderByDescending(s => s.Top)).ToList();
+        var ba = sapi.World.BlockAccessor;
+        bool Free(BlockPos p)
+        {
+            Block b = ba.GetBlock(p);
+            return (b.Id == 0 || (b.Replaceable >= 6000 && !b.IsLiquid())) && ba.GetBlock(p, BlockLayersAccess.Fluid).Id == 0;
+        }
+        int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
+        var rand = new CaveRand((uint)(sapi.World.Seed * 13 + g.Cx * 7 + g.Cz));
+        var notes = new List<string>();
+        int si = 0;
+        foreach (var (map, style) in items)
+        {
+            BlockPos at = null;
+            for (; si < spires.Count && at == null; si++)
+            {
+                var s = spires[si];
+                foreach (var (dx, dz) in new[] { (4, 0), (-4, 0), (0, 4), (0, -4), (4, 1), (-4, -1), (1, -4), (-1, 4), (4, -1), (-4, 1), (-1, -4), (1, 4) })
+                {
+                    var c = new BlockPos(s.X + dx, s.Top + 1, s.Z + dz, k.Job.Dim);
+                    if (Free(c) && Free(c.UpCopy()) && ba.GetBlock(c.DownCopy()).SideSolid[BlockFacing.UP.Index]) { at = c; break; }
+                }
+            }
+            if (at == null) { sapi.Logger.Warning("[landmassgenerator] gardens: no spire crown left for the {0} map", map); continue; }
+            if (ShowItem(at, style, "landmassgenerator:islandmap-" + map, rand))
+                notes.Add($"{map} ({style}) at HUD {at.X - mx}, {at.Y}, {at.Z - mz}");
+        }
+        sapi.WorldManager.SaveGame.StoreData(key, true);
+        sapi.Logger.Notification("[maps] hanging gardens spire crowns: {0}", string.Join("; ", notes));
     }
 }

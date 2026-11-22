@@ -105,6 +105,13 @@ island -270 -7240 shape=the_spoils diameter=560 height=20 water=36 climate=arid 
 island -2070 -6510 shape=cardinals_island diameter=460 height=22 water=34 climate=cold stone=rock-andesite sand=sand-andesite
 island 1970 -6670 shape=alchemist_lair diameter=600 height=50 water=34 climate=temperate stone=rock-andesite sand=sand-andesite
 island 2010 -4880 shape=granary_lush diameter=150 height=26 stone=rock-claystone sand=sand-limestone
+# The other three granaries (0.74.6), in open water inside the zone: the
+# Meadow Granary between the start and the Hanging Gardens, the Arid Granary
+# between the Iron Mine and the Swamplands, the Cold Granary between the
+# Wreckage and Nadiya's village.
+island -150 -1500 shape=granary_temperate diameter=150 height=26 stone=rock-granite sand=sand-granite
+island -4150 -1650 shape=granary_arid diameter=150 height=26 stone=rock-sandstone sand=sand-sandstone
+island -4650 -6350 shape=granary_cold diameter=150 height=26 stone=rock-slate sand=sand-slate
 island 660 -3550 shape=mansion_island diameter=380 height=18 water=32 climate=temperate stone=rock-granite sand=sand-granite
 
 # The other Better Ruins megastructures, each on its own small island at

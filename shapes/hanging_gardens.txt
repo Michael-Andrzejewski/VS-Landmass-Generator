@@ -15,7 +15,7 @@ region W rock=limestone fertility=high surface=grass pond=4 pondslope=5 lilies=0
 region B rock=limestone surface=sand shells=0.02 height=0.04 shore=26 rough=0.03
 region C rock=limestone surface=rock boulders=0.01 height=0.3 shore=5 rough=0.18
 region k rock=limestone surface=rock height=0.45 shore=3 rough=0.45
-struct Q kind=gardens size=160 radius=230 seed=21 spires=12
+struct Q kind=gardens size=160 radius=230 seed=21 spires=12 crownmaps=granarytemperate:case,granarycold:ground,granaryarid:case,granary:ground
 loot temple 1 near=Q radius=160 where=inside show=case with=landmassgenerator:islandmap-fortress
 deposits natural
 map

@@ -45,6 +45,9 @@ public partial class LandmassGeneratorModSystem
         ["forge_volcano"] = (42, 67),            // the foot of the cone, below the catwalk to the crucible
         ["giant_serpent_skeleton"] = (16, 43),   // the west islet's lagoon edge, facing the skull
         ["granary_lush"] = (68, 77),             // the summit's south edge, at a gap in the yard wall
+        ["granary_arid"] = (68, 77),             // the same island layout as the lush one
+        ["granary_cold"] = (68, 77),
+        ["granary_temperate"] = (68, 77),
         ["great_machine"] = (155, 229),          // where the south landing ramp meets the plateau, on the way to the gate
         ["hanging_gardens"] = (106, 141),        // the foot of the temple's grand stair
         ["ideal_house_island"] = (97, 136),      // the prairie between the south-west beach and the pond

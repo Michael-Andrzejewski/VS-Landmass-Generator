@@ -16,10 +16,10 @@ region B rock=sandstone rock2=limestone climate=arid fertility=high surface=gras
 region q rock=sandstone rock2=limestone climate=arid surface=rock stones=0.06 boulders=0.012 height=0.62 shore=6 rough=0.08
 region C rock=sandstone rock2=limestone climate=arid fertility=high surface=grass wildgrass=0.32 scatter=crop-licorice-6:0.07,crop-fennel-5:0.06,crop-onion-7:0.04,goldenpoppy:0.012,mugwort:0.008,orangemallow:0.008,westerngorse:0.005 bushes=blackcurrant:0.005 height=0.40 shore=14 rough=0.05
 region s rock=sandstone rock2=limestone climate=arid surface=rock stones=0.06 boulders=0.012 height=0.40 shore=6 rough=0.08
-region o rock=sandstone rock2=limestone climate=arid fertility=medium surface=grass forest=0.014 trees=acacia litter=0.6 sticks=0.03 wildgrass=0.42 bushes=blackcurrant:0.005 scatter=crop-amaranth-5:0.06,crop-fennel-7:0.04,goldenpoppy:0.012,mugwort:0.008,orangemallow:0.008,westerngorse:0.005,barrelcactus-normal:0.010 height=0.18 shore=18 rough=0.09
+region o rock=sandstone rock2=limestone climate=arid fertility=medium surface=grass forest=0.014 trees=acacia litter=0.6 sticks=0.03 wildgrass=0.42 bushes=blackcurrant:0.005 scatter=fieldmushroom:0.004,puffball:0.003,crop-amaranth-5:0.06,crop-fennel-7:0.04,goldenpoppy:0.012,mugwort:0.008,orangemallow:0.008,westerngorse:0.005,barrelcactus-normal:0.010 height=0.18 shore=18 rough=0.09
 region e rock=sandstone rock2=limestone climate=arid sand=sand-sandstone surface=sand shells=0.02 height=0.08 shore=30 rough=0.03 cattails=0.20
-region T rock=sandstone rock2=limestone climate=arid fertility=high surface=grass forest=0.060 trees=acacia,truemulga litter=0.9 sticks=0.06 wildgrass=0.55 bushes=blackcurrant:0.014 scatter=barrelcactus-normal:0.010,goldenpoppy:0.012,mugwort:0.008,orangemallow:0.008,westerngorse:0.005 height=0.62 shore=14 rough=0.07
-region U rock=sandstone rock2=limestone climate=arid fertility=high surface=grass forest=0.055 trees=acacia,truemulga litter=0.9 sticks=0.06 wildgrass=0.55 bushes=blackcurrant:0.014 scatter=barrelcactus-normal:0.010,goldenpoppy:0.012,mugwort:0.008,orangemallow:0.008,westerngorse:0.005 height=0.40 shore=14 rough=0.07
+region T rock=sandstone rock2=limestone climate=arid fertility=high surface=grass forest=0.060 trees=acacia,truemulga litter=0.9 sticks=0.06 wildgrass=0.55 bushes=blackcurrant:0.014 scatter=fieldmushroom:0.004,puffball:0.003,barrelcactus-normal:0.010,goldenpoppy:0.012,mugwort:0.008,orangemallow:0.008,westerngorse:0.005 height=0.62 shore=14 rough=0.07
+region U rock=sandstone rock2=limestone climate=arid fertility=high surface=grass forest=0.055 trees=acacia,truemulga litter=0.9 sticks=0.06 wildgrass=0.55 bushes=blackcurrant:0.014 scatter=fieldmushroom:0.004,puffball:0.003,barrelcactus-normal:0.010,goldenpoppy:0.012,mugwort:0.008,orangemallow:0.008,westerngorse:0.005 height=0.40 shore=14 rough=0.07
 region x rock=sandstone rock2=limestone climate=arid fertility=verylow surface=barren devastation=0.10 wildgrass=0.05 stones=0.05 scatter=deadcrop:0.15 height=0.40 shore=14 rough=0.11
 region X rock=sandstone rock2=limestone climate=arid fertility=verylow surface=barren devastation=0.10 wildgrass=0.05 stones=0.05 scatter=deadcrop:0.15 height=0.84 shore=14 rough=0.11
 region w rock=sandstone rock2=limestone climate=arid fertility=high surface=grass height=0.62 shore=14 pond=3 cattails=0.30 lilies=0.06 clay=0.5
@@ -29,6 +29,7 @@ struct G kind=granary size=20 seed=4
 chest R normal-aged randomlore:rfpool-village:game:lore-paper,randomlore:rfpool-jonas:game:lore-paper,landmassgenerator:islandmap-random near=O
 loot granary 2 near=G radius=25 where=inside
 loot granary 1 near=G radius=25 where=inside show=ground with=landmassgenerator:islandmap-fortress
+loot granary 1 near=G radius=25 where=inside show=case with=landmassgenerator:islandmap-granary
 map
 ............................................................................................................................................
 ............................................................................................................................................

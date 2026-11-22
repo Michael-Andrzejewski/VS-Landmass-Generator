@@ -16,10 +16,10 @@ region B rock=slate rock2=andesite climate=cold fertility=high surface=grass wil
 region q rock=slate rock2=andesite climate=cold surface=rock stones=0.06 boulders=0.012 height=0.62 shore=6 rough=0.08
 region C rock=slate rock2=andesite climate=cold fertility=high surface=grass wildgrass=0.32 scatter=crop-carrot-7:0.07,crop-parsnip-5:0.06,crop-turnip-3:0.05,edelweiss:0.010,heather:0.012,bluebell:0.008,lilyofthevalley:0.006 bushes=cranberry:0.012,cloudberry:0.008,birch:0.006 height=0.40 shore=14 rough=0.05
 region s rock=slate rock2=andesite climate=cold surface=rock stones=0.06 boulders=0.012 height=0.40 shore=6 rough=0.08
-region o rock=slate rock2=andesite climate=cold fertility=medium surface=grass forest=0.014 trees=silverbirch litter=0.6 sticks=0.03 wildgrass=0.42 bushes=cranberry:0.012,cloudberry:0.008,birch:0.006 scatter=crop-rye-5:0.06,crop-carrot-4:0.04,edelweiss:0.010,heather:0.012,bluebell:0.008,lilyofthevalley:0.006,hartstongue:0.014,horsetail:0.012 height=0.18 shore=18 rough=0.09
+region o rock=slate rock2=andesite climate=cold fertility=medium surface=grass forest=0.014 trees=silverbirch litter=0.6 sticks=0.03 wildgrass=0.42 bushes=cranberry:0.012,cloudberry:0.008,birch:0.006 scatter=bolete:0.005,flyagaric:0.004,crop-rye-5:0.06,crop-carrot-4:0.04,edelweiss:0.010,heather:0.012,bluebell:0.008,lilyofthevalley:0.006,hartstongue:0.014,horsetail:0.012 height=0.18 shore=18 rough=0.09
 region e rock=slate rock2=andesite climate=cold sand=sand-slate surface=sand shells=0.02 height=0.08 shore=30 rough=0.03 cattails=0.20
-region T rock=slate rock2=andesite climate=cold fertility=high surface=grass forest=0.060 trees=fir,scotspine litter=0.9 sticks=0.06 wildgrass=0.55 bushes=cranberry:0.028,cloudberry:0.018,birch:0.014 scatter=hartstongue:0.014,horsetail:0.012,edelweiss:0.010,heather:0.012,bluebell:0.008,lilyofthevalley:0.006 height=0.62 shore=14 rough=0.07
-region U rock=slate rock2=andesite climate=cold fertility=high surface=grass forest=0.055 trees=fir,scotspine litter=0.9 sticks=0.06 wildgrass=0.55 bushes=cranberry:0.028,cloudberry:0.018,birch:0.014 scatter=hartstongue:0.014,horsetail:0.012,edelweiss:0.010,heather:0.012,bluebell:0.008,lilyofthevalley:0.006 height=0.40 shore=14 rough=0.07
+region T rock=slate rock2=andesite climate=cold fertility=high surface=grass forest=0.060 trees=fir,scotspine litter=0.9 sticks=0.06 wildgrass=0.55 bushes=cranberry:0.028,cloudberry:0.018,birch:0.014 scatter=bolete:0.005,flyagaric:0.004,hartstongue:0.014,horsetail:0.012,edelweiss:0.010,heather:0.012,bluebell:0.008,lilyofthevalley:0.006 height=0.62 shore=14 rough=0.07
+region U rock=slate rock2=andesite climate=cold fertility=high surface=grass forest=0.055 trees=fir,scotspine litter=0.9 sticks=0.06 wildgrass=0.55 bushes=cranberry:0.028,cloudberry:0.018,birch:0.014 scatter=bolete:0.005,flyagaric:0.004,hartstongue:0.014,horsetail:0.012,edelweiss:0.010,heather:0.012,bluebell:0.008,lilyofthevalley:0.006 height=0.40 shore=14 rough=0.07
 region x rock=slate rock2=andesite climate=cold fertility=verylow surface=barren devastation=0.10 wildgrass=0.05 stones=0.05 scatter=deadcrop:0.15 height=0.40 shore=14 rough=0.11
 region X rock=slate rock2=andesite climate=cold fertility=verylow surface=barren devastation=0.10 wildgrass=0.05 stones=0.05 scatter=deadcrop:0.15 height=0.84 shore=14 rough=0.11
 region w rock=slate rock2=andesite climate=cold fertility=high surface=grass height=0.62 shore=14 pond=3 cattails=0.35 lilies=0.08 clay=0.5
@@ -29,6 +29,7 @@ struct G kind=granary size=20 seed=4
 chest R normal-aged randomlore:rfpool-village:game:lore-paper,randomlore:rfpool-jonas:game:lore-paper,landmassgenerator:islandmap-random near=O
 loot granary 2 near=G radius=25 where=inside
 loot granary 1 near=G radius=25 where=inside show=ground with=landmassgenerator:islandmap-fortress
+loot granary 1 near=G radius=25 where=inside with=landmassgenerator:islandmap-granaryarid
 map
 ............................................................................................................................................
 ............................................................................................................................................

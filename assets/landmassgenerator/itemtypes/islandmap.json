@@ -39,6 +39,9 @@
 				"gardens",
 				"eerie",
 				"granary",
+				"granaryarid",
+				"granarycold",
+				"granarytemperate",
 				"random"
 			]
 		}
@@ -214,6 +217,21 @@
 		"*-granary": {
 			"islandShape": "granary_lush",
 			"waypointText": "landmassgenerator:waypoint-granary",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-granaryarid": {
+			"islandShape": "granary_arid",
+			"waypointText": "landmassgenerator:waypoint-granaryarid",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-granarycold": {
+			"islandShape": "granary_cold",
+			"waypointText": "landmassgenerator:waypoint-granarycold",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-granarytemperate": {
+			"islandShape": "granary_temperate",
+			"waypointText": "landmassgenerator:waypoint-granarytemperate",
 			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
 		},
 		"*-random": {

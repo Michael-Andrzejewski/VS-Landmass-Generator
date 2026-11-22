@@ -31,12 +31,13 @@ public partial class LandmassGeneratorModSystem
         }),
         new("lazaret", "inside", "ruin", "normal-aged", new[]
         {
-            ("blackfen", "chest"), ("saltteeth", "ground"), ("swamplands", "case"),
+            ("blackfen", "chest"), ("saltteeth", "ground"), ("swamplands", "case"), ("granarytemperate", "chest"),
         }),
         new("village", "outskirts", "ruin", "collapsed", new[]
         {
             ("fortress", "chest"), ("lighthouse", "chest"), ("forge", "chest"), ("wreckage", "chest"), ("chainfield", "chest"),
             ("granary", "chest"), ("divingbell", "chest"), ("tobiascave", "chest"),
+            ("granaryarid", "chest"), ("granarycold", "chest"), ("granarytemperate", "chest"),
         }),
     };
     private readonly HashSet<string> _cacheLoading = new();

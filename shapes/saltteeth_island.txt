@@ -30,6 +30,7 @@ cave V heading=126 dip=24 length=180 radius=2.6 squash=0.8 weave=0.55 scale=1.4 
 deposits natural
 
 loot mine 2 cave=V with=landmassgenerator:islandmap-craterlake,randomlore:rfpool-jonas
+loot mine 1 cave=V with=landmassgenerator:islandmap-granaryarid
 loot sunken 1 where=underwater
 map
 ..................................................................................................................................
