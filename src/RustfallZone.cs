@@ -29,7 +29,6 @@ namespace LandmassGenerator;
 public partial class LandmassGeneratorModSystem
 {
     private List<Vec2d> _zoneHull;
-    private bool _zoneHullFromStories;
     private double _devaOutside;
     private readonly ConcurrentDictionary<long, double> _devaChunkDist = new();
     private readonly object _zoneLock = new();
@@ -47,9 +46,7 @@ public partial class LandmassGeneratorModSystem
 
     private List<Vec2d> ZoneHullLocked()
     {
-        var gs = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.GenStoryStructures>();
-        bool haveStories = gs?.Structures != null && gs.Structures.Count() > 0;
-        if (_zoneHull != null && (_zoneHullFromStories || !haveStories)) return _zoneHull;
+        if (_zoneHull != null) return _zoneHull;
         if (_wgIslandJobs == null || _wgIslandJobs.Count == 0) return null;
         var pts = new List<Vec2d>();
         void Ring(double cx, double cz, double r)
@@ -65,19 +62,30 @@ public partial class LandmassGeneratorModSystem
             if (job.Opt != null && job.Opt.ContainsKey("ruin")) continue;
             Ring(job.Cx, job.Cz, Math.Max(job.Diameter / 2.0, job.LandRadius));
         }
-        // Only the story locations the plan pins: the game places the rest wherever it likes, sometimes
-        // kilometres out, and they must not stretch the zone.
-        var pinned = haveStories ? PlanStoryCodes() : null;
-        if (haveStories)
-            foreach (var pair in gs.Structures)
-                if (pinned.Contains(pair.Key)) Ring(pair.Value.CenterPos.X, pair.Value.CenterPos.Z, StoryEdge(pair.Value.LandformRadius));
-        _zoneHull = ConvexHull(pts);
-        _zoneHullFromStories = haveStories;
-        _devaChunkDist.Clear();
-        double minX = _zoneHull.Min(p => p.X), maxX = _zoneHull.Max(p => p.X), minZ = _zoneHull.Min(p => p.Y), maxZ = _zoneHull.Max(p => p.Y);
+        // The story locations the plan pins, at their PLANNED spots (read from the plan, so the zone is the
+        // same before and after setup moves them there). Unpinned stories, which the game places wherever it
+        // likes, never stretch the zone.
+        string[] lines = StoredWorldPlanLines();
+        if (lines == null)
+        {
+            string planName = sapi.WorldManager.SaveGame.GetData<string>("lgWorldPlanName", null) ?? "worldplan";
+            string planPath = System.IO.Path.Combine(shapeFolder, planName + ".txt");
+            if (System.IO.File.Exists(planPath)) lines = System.IO.File.ReadAllLines(planPath);
+        }
+        var radii = StoryLandformRadii();
         int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
-        sapi.Logger.Notification("[zone] Rustfall zone hull: {0} corners, HUD x {1:0} to {2:0}, z {3:0} to {4:0}{5}",
-            _zoneHull.Count, minX - mx, maxX - mx, minZ - mz, maxZ - mz, haveStories ? "" : " (story locations not known yet)");
+        foreach (string raw in lines ?? Array.Empty<string>())
+        {
+            string[] p = raw.Trim().Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            if (p.Length < 4 || !p[0].Equals("storyloc", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!int.TryParse(p[2], out int sx) || !int.TryParse(p[3], out int sz)) continue;
+            Ring(mx + sx, mz + sz, StoryEdge(radii.TryGetValue(p[1], out int lr) ? lr : 300));
+        }
+        _zoneHull = ConvexHull(pts);
+        _devaChunkDist.Clear();
+        double minX = _zoneHull.Min(v => v.X), maxX = _zoneHull.Max(v => v.X), minZ = _zoneHull.Min(v => v.Y), maxZ = _zoneHull.Max(v => v.Y);
+        sapi.Logger.Notification("[zone] Rustfall zone hull: {0} corners, HUD x {1:0} to {2:0}, z {3:0} to {4:0}",
+            _zoneHull.Count, minX - mx, maxX - mx, minZ - mz, maxZ - mz);
         return _zoneHull;
     }
 
