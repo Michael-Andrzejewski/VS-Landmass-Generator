@@ -55,7 +55,10 @@ public partial class LandmassGeneratorModSystem
                 ground.Add(new BlockPos(x, top + 1, z, job.Dim));
             }
         int existing = bushes.Count;
-        int want = Math.Max(d.MinAdd, (int)Math.Round(existing * (d.Mult - 1)));
+        // Players (0.74.1): 50% more berry bushes per player on top of what the regions grew (4 players: 3x).
+        int players = RustfallPlayers();
+        double mult = players > 0 ? 1 + 0.5 * players : d.Mult;
+        int want = Math.Max((int)Math.Round(d.MinAdd * mult / 3), (int)Math.Round(existing * (mult - 1)));
 
         // Patch centres: open ground, well apart, not on the beach (soil only) and not next to the landmarks.
         var free = new HashSet<long>(ground.Select(g => ((long)g.X << 32) ^ (uint)g.Z));

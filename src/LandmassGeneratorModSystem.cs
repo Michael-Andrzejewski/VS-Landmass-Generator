@@ -280,6 +280,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryChestWatcher);
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, () => { StartDevastationZone(); StartSafeStarter(); });   // RustfallZone.cs
         RegisterZoneTest(api);   // ZoneTest.cs
+        api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartClearStartRain);   // RainZones.cs
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryTranslocatorWatcher);
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartRelightWatcher);
         api.Event.PlayerJoin += _ => TryAutoRustfallSetup();
@@ -2043,6 +2044,7 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
         // Shape mode
         public ShapeDef Shape;
         public string ShapeName;
+        public List<(BlockPos Pos, int BlockId)> Mycelium = new();   // mushroom spots that get a mycelium (Mycelium.cs)
         // Cave walk steps of the last carve (or dry run): where cave chests go.
         public List<(double X, double Y, double Z, double R, double V, CaveDef Def)> CaveSteps;
         // Chests a structure asked for (exact spots: the buried machine's
@@ -2222,7 +2224,13 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
     {
         var wc = sapi.WorldManager.SaveGame?.WorldConfiguration;
         string raw = wc?.GetAsString("rustfallStarterDiameter", null);
-        if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out int d) || d <= 0) return islands;
+        int d = 0;
+        // "Players" (0.74.1): each player past the first makes the starter 10% bigger than the 150-block
+        // one-player island (4 players: 195). It decides the size when set; the older diameter slider only
+        // counts for worlds made before it.
+        int players = RustfallPlayers();
+        if (players > 0) d = (int)Math.Round(150 * (1 + 0.1 * (players - 1)));
+        else if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out d) || d <= 0) return islands;
         d = GameMath.Clamp(d, 8, 1024);
 
         int starterIdx = islands.FindIndex(i => i.MapX == 0 && i.MapZ == 0);
@@ -2248,6 +2256,13 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
         }
         sapi.Logger.Notification("[landmassgenerator] Starter island diameter {0} from the world creation screen (plan file said {1}).", d, planned);
         return result;
+    }
+
+    /// <summary>World config rustfallPlayers (1 to 8), or 0 when the world has none.</summary>
+    private int RustfallPlayers()
+    {
+        string s = sapi.WorldManager.SaveGame?.WorldConfiguration?.GetAsString("rustfallPlayers", null);
+        return int.TryParse(s, out int n) && n > 0 ? Math.Min(n, 16) : 0;
     }
 
     private static Dictionary<string, string> ParseIslandOptions(string all)
@@ -9922,6 +9937,10 @@ storychest tobiascave landmassgenerator:islandmap-spoils,randomlore:rfpool-tobia
             if (job.Rand.NextDouble() >= decor.Chance) continue;
             pos.Set(x, topY + 1, z);
             ba.SetBlock(decor.BlockId, pos);
+            // A share of the wild mushrooms get a mycelium in the soil under them, as vanilla worldgen does:
+            // it regrows a patch of them round it every few weeks (0.74.1).
+            if (sapi.World.Blocks[decor.BlockId] is Vintagestory.GameContent.BlockMushroom && job.Rand.NextDouble() < MyceliumShare)
+                job.Mycelium.Add((new BlockPos(x, topY, z, job.Dim), decor.BlockId));
             return true;
         }
 

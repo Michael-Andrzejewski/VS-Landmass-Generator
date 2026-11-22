@@ -12,5 +12,7 @@
     "worldattribute-rustfallWildOcean": "Wild sea outside Rustfall",
     "worldattribute-rustfallWildOcean-desc": "Beyond the outline round the Rustfall islands, natural islands come up more often and larger. Inside the outline nothing changes.",
     "worldattribute-rustfallDevastationOutside": "Devastation only far out",
-    "worldattribute-rustfallDevastationOutside-desc": "Spreading Devastation appears and spreads only this far or further outside the outline round the Rustfall islands, and never comes closer. Never limited keeps Spreading Devastation's own rules."
+    "worldattribute-rustfallDevastationOutside-desc": "Spreading Devastation appears and spreads only this far or further outside the outline round the Rustfall islands, and never comes closer. Never limited keeps Spreading Devastation's own rules.",
+    "worldattribute-rustfallPlayers": "Players",
+    "worldattribute-rustfallPlayers-desc": "How many players will share the world. Each player past the first makes the starter island 10% bigger (1 player: 150 blocks, 4 players: 195) and adds half again as many wild berry bushes to its berry patches."
 }

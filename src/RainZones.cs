@@ -94,6 +94,7 @@ public partial class LandmassGeneratorModSystem
     private void StartRainZones(ICoreServerAPI api)
     {
         api.Event.MapRegionGeneration(OnMapRegionGenRain, "standard");
+        api.Event.MapRegionLoaded += (Vec2i pos, IMapRegion region) => ApplyZoneRain(region, pos.X, pos.Y);   // old regions too
 
         var p = api.ChatCommands.Parsers;
         RegisterCmd(api, "genrain", name =>
@@ -127,6 +128,7 @@ public partial class LandmassGeneratorModSystem
         }
 
         if (arg == "survey") return RainSurvey();
+        if (arg == "clearstart") { string r = ClearStartRain(true); return TextCommandResult.Success(r.Length > 0 ? r : "nothing to do"); }
 
         if (arg == "cap")
         {
@@ -281,6 +283,102 @@ public partial class LandmassGeneratorModSystem
     {
         foreach (var z in _planRainZones) ApplyRainZone(region, regionX, regionZ, z);
         foreach (var z in SavedRainZones()) ApplyRainZone(region, regionX, regionZ, z);
+        ApplyZoneRain(region, regionX, regionZ);
+    }
+
+    // ── Uncommon rain over the Rustfall zone (0.74.1) ──
+    // Off unless the world config sets it (Rustfall leaves it off: its weather cap already keeps rain
+    // uncommon, and lowering the climate map browns the grass and fights the islands own climates).
+    // World config rustfallZoneRain (e.g. 0.35, the character screen's "uncommon") is the most rainfall any
+    // climate pixel may have inside the Rustfall zone and out to rustfallZoneRainReach blocks past it (default
+    // 1000), easing back to the climate's own over 300 blocks further out. Only ever lowers rainfall. The
+    // climate map goes to the players with the region, so the rain they see and the rain the server counts
+    // agree. Applied to regions as they are born and as old ones load (region moddata marks it done).
+    private void ApplyZoneRain(IMapRegion region, int rx, int rz)
+    {
+        var wc = sapi.WorldManager.SaveGame?.WorldConfiguration;
+        if (wc == null || !wc.GetBool("rustfallWorld", false)) return;
+        float target = (float)ParseD(wc.GetString("rustfallZoneRain", "1"), 1);
+        if (target >= 0.999f) return;
+        double reach = ParseD(wc.GetString("rustfallZoneRainReach", "1000"), 1000);
+        const double Fade = 300;
+        var map = region?.ClimateMap;
+        if (map?.Data == null || map.InnerSize <= 0) return;
+        string key = "lgZoneRain|" + target.ToString("0.###", CultureInfo.InvariantCulture) + "|" + (int)reach;
+        if (region.GetModdata(key) != null) return;
+        if (ZoneHull() == null) { if (_zoneRainLog++ < 5) sapi.Logger.Notification("[rain] zone rain: no zone yet for region {0},{1}", rx, rz); return; }
+        int regionSize = sapi.WorldManager.RegionSize;
+        // skip regions wholly beyond the fade
+        if (ZoneDistance(rx * regionSize + regionSize / 2.0, rz * regionSize + regionSize / 2.0) > reach + Fade + regionSize) return;
+        double span = regionSize / (double)map.InnerSize;
+        int pad = map.TopLeftPadding, cap = (int)Math.Round(target * 255);
+        for (int py = 0; py < map.Size; py++)
+            for (int px = 0; px < map.Size; px++)
+            {
+                double wx = (rx * map.InnerSize + (px - pad) + 0.5) * span;
+                double wz = (rz * map.InnerSize + (py - pad) + 0.5) * span;
+                double w = 1.0 - Smooth((ZoneDistance(wx, wz) - reach) / Fade);
+                if (w <= 0) continue;
+                int idx = py * map.Size + px, old = map.Data[idx];
+                int rain = (old >> 8) & 0xff;
+                if (rain <= cap) continue;
+                rain = (int)Math.Round(rain - (rain - cap) * w);
+                map.Data[idx] = (old & ~0xff00) | (rain << 8);
+            }
+        region.SetModdata(key, new byte[] { 1 });
+        region.DirtyForSaving = true;
+        if (_zoneRainLog++ < 5) sapi.Logger.Notification("[rain] zone rain {0} applied to region {1},{2}", target, rx, rz);
+    }
+    private int _zoneRainLog;
+
+    // ── Never raining when a new world starts (0.74.1) ──
+    // The rain pattern is a noise in space and time, seeded by the world seed, so every rebuild of the same
+    // world started at the same weather, and Rustfall's spawn started in a wet spell. The game keeps a saved
+    // offset into that pattern (its /weather stoprain moves it); a new Rustfall world moves it once to a
+    // stretch that stays dry at spawn for the first two days. /genrain clearstart does it again now.
+    private string ClearStartRain(bool force)
+    {
+        var wc = sapi.WorldManager.SaveGame.WorldConfiguration;
+        if (!force && (!wc.GetBool("rustfallWorld", false) || sapi.WorldManager.SaveGame.GetData<bool>("lgClearStartDone", false))) return "";
+        var ws = sapi.ModLoader.GetModSystem<Vintagestory.GameContent.WeatherSystemServer>();
+        if (ws == null) return "no weather system";
+        double x = sapi.WorldManager.MapSizeX / 2 + 0.5, z = sapi.WorldManager.MapSizeZ / 2 + 0.5;
+        var bp = new BlockPos((int)x, 0, (int)z, 0);
+        if (sapi.World.BlockAccessor.GetChunkAtBlockPos(new BlockPos((int)x, sapi.World.SeaLevel, (int)z, 0)) == null) return "spawn not loaded yet";
+        double y = Math.Max(sapi.World.SeaLevel, sapi.World.BlockAccessor.GetTerrainMapheightAt(bp)) + 1;
+        double now = sapi.World.Calendar.TotalDays;
+        int Wet(double shift)
+        {
+            int n = 0;
+            for (int h = 0; h < 48; h++) if (ws.GetPrecipitation(x, y, z, now + shift + h / 24.0) > 0.02f) n++;
+            return n;
+        }
+        int before = Wet(0);
+        double best = 0; int bestWet = before;
+        for (double d = 0; d <= 60 && bestWet > 0; d += 0.25)
+        {
+            int w = Wet(d);
+            if (w < bestWet) { bestWet = w; best = d; }
+        }
+        if (best > 0)
+        {
+            ws.RainCloudDaysOffset += best;
+            ws.broadCastConfigUpdate();
+        }
+        sapi.WorldManager.SaveGame.StoreData("lgClearStartDone", true);
+        string r = $"rain at spawn over the next 2 days: {before} wet hour(s) before, {bestWet} after (rain pattern moved {best:0.##} days on)";
+        sapi.Logger.Notification("[rain] {0}", r);
+        return r;
+    }
+
+    private void StartClearStartRain()
+    {
+        long id = 0;
+        id = sapi.Event.RegisterGameTickListener(_ =>
+        {
+            string r = ClearStartRain(false);
+            if (r != "spawn not loaded yet") sapi.Event.UnregisterGameTickListener(id);
+        }, 2000);
     }
 
     // Rewrites the rainfall of every climate pixel the zone reaches, the

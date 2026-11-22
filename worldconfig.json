@@ -34,10 +34,10 @@
         "spawnRadius": "0",
         "rustfallWorld": "true",
         "rustfallNaturalIslands": "true",
-        "rustfallStarterDiameter": "195",
         "playerHungerSpeed": "0.7",
         "rustfallWildOcean": "0.45",
-        "rustfallDevastationOutside": "1000"
+        "rustfallDevastationOutside": "1000",
+        "rustfallPlayers": "4"
       }
     }
   ],
@@ -56,17 +56,6 @@
       "code": "rustfallNaturalIslands",
       "default": "true",
       "onCustomizeScreen": true
-    },
-    {
-      "dataType": "intrange",
-      "category": "rustfall",
-      "code": "rustfallStarterDiameter",
-      "min": 100,
-      "max": 600,
-      "step": 10,
-      "default": "195",
-      "onCustomizeScreen": true,
-      "onlyDuringWorldCreate": true
     },
     {
       "dataType": "dropdown",
@@ -112,6 +101,33 @@
         "3000 blocks out"
       ],
       "default": "0"
+    },
+    {
+      "dataType": "dropdown",
+      "category": "rustfall",
+      "code": "rustfallPlayers",
+      "values": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ],
+      "names": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ],
+      "default": "4",
+      "onlyDuringWorldCreate": true
     }
   ]
 }

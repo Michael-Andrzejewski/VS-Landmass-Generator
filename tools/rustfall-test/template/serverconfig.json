@@ -373,10 +373,10 @@
       "spawnRadius": "0",
       "rustfallWorld": "true",
       "rustfallNaturalIslands": "true",
-      "rustfallStarterDiameter": "195",
       "playerHungerSpeed": "0.7",
       "rustfallWildOcean": "0.45",
-      "rustfallDevastationOutside": "1000"
+      "rustfallDevastationOutside": "1000",
+      "rustfallPlayers": "4"
     },
     "MapSizeY": null,
     "CreatedByPlayerName": null,
