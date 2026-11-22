@@ -8,6 +8,7 @@ ocean plunge=20 basin=75 depth=55
 struct C kind=chains size=60 seed=11
 
 loot sunken 2 near=C radius=60 where=underwater with=lore:chained_sphere,randomlore:rfpool-sea,landmassgenerator:islandmap-random,game:metalchain-iron*4
+loot sunken 1 near=C radius=60 where=surface show=ground with=landmassgenerator:islandmap-wreckage
 map
 ....................................................................................................
 ....................................................................................................

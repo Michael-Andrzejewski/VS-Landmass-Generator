@@ -11,6 +11,7 @@ region B rock=basalt surface=sand height=0.12 shore=20 rough=0.04
 struct Q kind=powerplant size=84 seed=3
 struct K kind=pylons seed=41 count=4 spacing=42 heading=350 height=44 above=10 reach=60
 struct L kind=pylons seed=42 count=4 spacing=42 heading=265 height=44 above=10 reach=60
+loot ruin 1 near=Q radius=84 where=inside show=case with=landmassgenerator:islandmap-devastation
 map
 ................................................................................................................................................................
 ................................................................................................................................................................

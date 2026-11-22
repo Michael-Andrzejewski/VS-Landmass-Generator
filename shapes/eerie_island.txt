@@ -13,6 +13,7 @@ region e rock=andesite fertility=high surface=grass climate=lush wildgrass=0.42 
 region B rock=andesite sand=sand-basalt surface=sand stones=0.01 height=0.12 shore=30 rough=0.04
 region k rock=basalt surface=rock height=0.45 shore=3 rough=0.5
 struct Q kind=graveyard size=150 seed=13 monoliths=44 pillars=40 graves=700 plots=12 mausoleums=4 great=34 ring=9 catacombs=4 vaults=14 trenches=6 wells=4 robbers=3
+loot ruin 1 near=Q radius=150 where=surface show=ground with=landmassgenerator:islandmap-devastation
 map
 ................................................................................................kkkkk...................................................................
 ................................................................................................kkkkk...................................................................

@@ -28,6 +28,7 @@ struct G kind=granary size=20 seed=4
 
 chest R normal-aged randomlore:rfpool-village:game:lore-paper,randomlore:rfpool-jonas:game:lore-paper,landmassgenerator:islandmap-random near=O
 loot granary 2 near=G radius=25 where=inside
+loot granary 1 near=G radius=25 where=inside show=ground with=landmassgenerator:islandmap-fortress
 map
 ............................................................................................................................................
 ............................................................................................................................................

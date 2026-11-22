@@ -910,7 +910,7 @@ public partial class LandmassGeneratorModSystem
 
     private void StoryChestTick(float dt)
     {
-        try { ArchiveLibraryTick(_storyChestForce); } catch (Exception e) { sapi.Logger.Error(e); }   // ArchiveLibrary.cs
+        try { StoryCachesTick(_storyChestForce); } catch (Exception e) { sapi.Logger.Error(e); }   // MapCaches.cs
         if (_storyChests == null)
         {
             var saved = sapi.WorldManager.SaveGame.GetData<List<string>>("lgStoryChests", null) ?? new List<string>();

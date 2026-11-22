@@ -13,6 +13,7 @@ loot sunken 3 near=S radius=120 where=underwater with=randomlore:rfpool-sea,land
 # The serpent's nest: gold and silver from the ships it sank, and a start
 # on the rare things (the captain's chart at the Hanging Gardens pier leads here)
 loot serpentnest 3 near=S radius=60 where=underwater with=game:gear-temporal,game:ingot-meteoriciron*2,game:gem-diamond-rough,game:jonasparts-tank01,game:clearquartz*4
+loot sunken 1 near=S radius=120 where=surface show=ground with=landmassgenerator:islandmap-wreckage
 map
 ..............................................................................................................
 ..............................................................................................................

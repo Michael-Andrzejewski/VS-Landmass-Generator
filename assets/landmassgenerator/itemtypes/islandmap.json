@@ -38,6 +38,7 @@
 				"mansion",
 				"gardens",
 				"eerie",
+				"granary",
 				"random"
 			]
 		}
@@ -208,6 +209,11 @@
 		"*-eerie": {
 			"islandShape": "eerie_island",
 			"waypointText": "landmassgenerator:waypoint-eerie",
+			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
+		},
+		"*-granary": {
+			"islandShape": "granary_lush",
+			"waypointText": "landmassgenerator:waypoint-granary",
 			"groundStorageTransform": {"translation": {"x": 0, "y": -0.02, "z": 0.255}, "rotation": {"x": -67, "y": 0, "z": 0}, "origin": {"x": 0.5, "y": 0, "z": 0.5}, "scale": 0.48}
 		},
 		"*-random": {

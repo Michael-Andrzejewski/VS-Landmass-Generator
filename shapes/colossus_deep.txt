@@ -9,6 +9,7 @@ struct M kind=colossus size=60 seed=7
 
 loot sunken 2 near=M radius=60 where=underwater with=lore:great_eidolon,randomlore:rfpool-jonas,landmassgenerator:islandmap-random,game:metalchain-iron*3
 loot treasury 1 near=M radius=40 where=underwater
+loot sunken 1 near=M radius=60 where=underwater with=landmassgenerator:islandmap-tobiascave
 map
 ................................................................................
 ................................................................................

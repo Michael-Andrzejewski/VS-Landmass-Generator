@@ -12,6 +12,7 @@ region w rock=andesite fertility=low surface=grass wildgrass=0.3 litter=0.4 stic
 region B rock=andesite surface=sand shells=0.01 height=0.1 shore=24 rough=0.03
 region C rock=andesite surface=rock boulders=0.008 height=0.34 shore=5 rough=0.18
 struct Q kind=alchemist radius=290
+loot alchemist 1 near=Q radius=200 where=inside with=landmassgenerator:islandmap-spoils
 map
 ........................................................................................................................................................................................................
 ........................................................................................................................................................................................................

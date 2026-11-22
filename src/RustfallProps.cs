@@ -34,7 +34,7 @@ public partial class LandmassGeneratorModSystem
         ["volcano_ring"] = new(2, "ruin", "lore:hunter_wolves"),
         ["ironmine_island"] = new(2, "ruin", "lore:hunter_wolves"),
         ["saltteeth_island"] = new(1, "ruin", "lore:hunter_wolves"),
-        ["ideal_house_island"] = new(2, "ruin", "lore:hunter_wolves"),
+        ["ideal_house_island"] = new(2, "ruin", "lore:hunter_wolves", "landmassgenerator:islandmap-village"),   // the second one: the way to Nadiya
     };
 
     // Rooms with old bookshelves: the shape's structure marker and how far round it to look.

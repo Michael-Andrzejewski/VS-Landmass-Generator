@@ -41,6 +41,7 @@ public partial class LandmassGeneratorModSystem
         public CaveDef CaveDef;   // cave=, resolved when the shape is read
         public int? Above, Below;  // above=N / below=N: only floors at least N over / under sea level
         public List<string> With;  // with=: into the first chest, ahead of the roll
+        public string Show;        // show=case|ground: the with= item in a display case, or lying on the floor, instead of a chest
     }
 
     private static LootDef ParseLoot(string[] tok, bool stand, List<string> problems)
@@ -62,6 +63,7 @@ public partial class LandmassGeneratorModSystem
                 case "above": d.Above = (int)ParseD(v, 0); break;
                 case "below": d.Below = (int)ParseD(v, 0); break;
                 case "with": d.With = v.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(); break;
+                case "show": d.Show = v.ToLowerInvariant(); break;
                 default: problems.Add($"{tok[0]}: unknown key '{k}'"); break;
             }
         }
@@ -312,6 +314,12 @@ public partial class LandmassGeneratorModSystem
                 {
                     try { if (PlaceArmorStand(at, d.Table, rand)) stands++; }
                     catch (Exception e) { notes.Add("armor stand failed: " + e.Message); sapi.Logger.Error(e); }
+                    continue;
+                }
+                if (d.Show != null && d.With != null && !withPut)
+                {
+                    // show=: the first with= item on show instead of in a chest (0.74.5)
+                    if (ShowItem(at, d.Show, d.With[0], rand)) { withPut = true; chests++; }
                     continue;
                 }
                 if (chestBlock == null || HasChestNear(sapi.World.BlockAccessor, at)) continue;

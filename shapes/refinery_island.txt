@@ -10,6 +10,7 @@ region w rock=basalt surface=grass flood=1 cattails=0.3 height=0.2 shore=4 rough
 region B rock=basalt surface=sand shells=0.01 height=0.12 shore=20 rough=0.03
 struct Q kind=refinery size=72 seed=21
 struct L kind=pylons seed=8 count=5 spacing=42 heading=45 height=40 above=10 reach=70
+loot ruin 1 near=Q radius=72 where=surface show=ground with=landmassgenerator:islandmap-tobiascave
 map
 ............................................................................................................................................
 ............................................................................................................................................

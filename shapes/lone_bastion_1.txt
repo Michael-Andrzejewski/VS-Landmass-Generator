@@ -28,6 +28,9 @@ armorstand guard 2 near=Q radius=30 where=inside above=15
 armorstand guard 1 near=Q radius=30 where=inside below=0
 armorstand knight 1 near=Q radius=30 where=inside above=15
 loot fortress 1 cave=K
+loot fortress 1 near=Q radius=30 where=inside with=landmassgenerator:islandmap-cardinals,randomlore:rfpool-war
+loot fortress 1 near=Q radius=30 where=inside show=case with=landmassgenerator:islandmap-colossus
+loot fortress 1 near=Q radius=45 where=surface show=ground with=landmassgenerator:islandmap-lighthouse
 map
 ....................................................................................................
 ....................................................................................................
