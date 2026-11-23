@@ -280,6 +280,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryChestWatcher);
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, () => { StartDevastationZone(); StartSafeStarter(); });   // RustfallZone.cs
         RegisterZoneTest(api);   // ZoneTest.cs
+        RegisterLootTest(api);   // LootTest.cs
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartClearStartRain);   // RainZones.cs
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryTranslocatorWatcher);
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartRelightWatcher);
