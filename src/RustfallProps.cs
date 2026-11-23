@@ -84,6 +84,7 @@ public partial class LandmassGeneratorModSystem
         tw += PlaceBerryPatchesSafe(job);   // dense berry thickets, own done key (BerryPatches.cs)
         try { string myc = PlaceMycelium(job); if (myc.Length > 0) { tw += " " + myc; sapi.Logger.Notification("[mycelium] {0}: {1}", job.ShapeName, myc); } }
         catch (Exception e) { sapi.Logger.Error(e); }
+        try { tw += PlaceFireClay(job); } catch (Exception e) { sapi.Logger.Error(e); }   // FireClay.cs, own done key
         if (job.Shape == null || !HasRustfallProps(job)) { sapi.Logger.Notification("[props] {0}: none for this island", job.ShapeName); return tw; }
         string doneKey = $"lgRustfallPropsDone:{job.ShapeName}@{job.Cx},{job.Cz}";
         if (sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false)) { sapi.Logger.Notification("[props] {0}: already done", job.ShapeName); return tw; }

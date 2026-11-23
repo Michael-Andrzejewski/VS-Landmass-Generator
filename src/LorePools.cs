@@ -59,6 +59,7 @@ public partial class LandmassGeneratorModSystem
         // Ahead of the journal's own listener (priority 0.5).
         api.Event.RegisterEventBusListener(OnLorePoolBook, 1.0, "loreDiscovery");
         StartLoreRemoval(api);
+        StartFireClay(api);
 
         var p = api.ChatCommands.Parsers;
         RegisterCmd(api, "genlorebook", name =>
