@@ -58,6 +58,7 @@ public partial class LandmassGeneratorModSystem
     {
         // Ahead of the journal's own listener (priority 0.5).
         api.Event.RegisterEventBusListener(OnLorePoolBook, 1.0, "loreDiscovery");
+        StartLoreRemoval(api);
 
         var p = api.ChatCommands.Parsers;
         RegisterCmd(api, "genlorebook", name =>
@@ -118,6 +119,7 @@ public partial class LandmassGeneratorModSystem
     private void OnLorePoolBook(string eventName, ref EnumHandling handling, IAttribute data)
     {
         if (data is not TreeAttribute tree) return;
+        ConvertRemovedLoreInHand(tree);   // a removed record reads as a random book of its pool (LoreRemoval.cs)
         string pool = tree.GetString("category");
         if (pool == null || !LorePoolChains.TryGetValue(pool, out string[] chain)) return;
         if (sapi.World.PlayerByUid(tree.GetString("playeruid")) is not IServerPlayer plr) return;

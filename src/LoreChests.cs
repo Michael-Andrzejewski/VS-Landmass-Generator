@@ -368,6 +368,7 @@ public partial class LandmassGeneratorModSystem
 
     private ItemStack MakeLoreBook(string id, List<string> notes)
     {
+        if (RemovedLore.TryGetValue(id, out string removedPool)) return MakeChestStack("randomlore:" + removedPool, notes);
         string file = Path.Combine(shapeFolder, "lore", id + ".txt");
         if (!File.Exists(file)) { notes.Add($"no lore file lore/{id}.txt"); return null; }
         string title = id, by = null, color = "aged-orangebrown";

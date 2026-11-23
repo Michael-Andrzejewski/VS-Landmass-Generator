@@ -329,9 +329,8 @@ public partial class LandmassGeneratorModSystem
         if (pits)
         {
             EerieDigPit(e, cx, cz, 0, 0, true);
-            int letter = lone.Count > 3 ? 3 : 0;
             for (int i = 0; i < lone.Count; i++)
-                EerieDigPit(e, lone[i].X, lone[i].Z, lone[i].Yaw, lone[i].Size, false, i == letter ? "eerie_letter" : null);
+                EerieDigPit(e, lone[i].X, lone[i].Z, lone[i].Yaw, lone[i].Size, false, null);
         }
 
         // 5. Stone pillars: square, weathered, some fallen.
@@ -1007,7 +1006,7 @@ public partial class LandmassGeneratorModSystem
                             double d = Math.Sqrt(dx * dx + dz * dz);
                             if (d > 2.4 && d <= 3.3) k.Set(X + dx, Y, Z + dz, e.Polished);
                         }
-                    e.Chest(X + 4, Y, Z - 1, "normal-aged", new List<string> { "lore:eerie_decree" }.Concat(RollLoot(k.Rand, VaultLoot, 3)).ToList(), "rotunda");
+                    e.Chest(X + 4, Y, Z - 1, "normal-aged", new List<string> { "randomlore:rfpool-village" }.Concat(RollLoot(k.Rand, VaultLoot, 3)).ToList(), "rotunda");
                     for (int i = 0; i < 5; i++)
                     {
                         double ang = k.R() * Math.PI * 2, d = 3.6 + k.R() * 3;
@@ -1042,7 +1041,7 @@ public partial class LandmassGeneratorModSystem
                 case "gate":
                 {
                     WallLights(Y + 2);
-                    FloorChest(-Hl + 1, Hw - 1, "normal-aged", new List<string> { "lore:eerie_marking" }.Concat(RollLoot(k.Rand, WardenLoot, 2)).ToList(), "warden's gate");
+                    FloorChest(-Hl + 1, Hw - 1, "normal-aged", new List<string> { "randomlore:rfpool-village" }.Concat(RollLoot(k.Rand, WardenLoot, 2)).ToList(), "warden's gate");
                     var lp = P(Hl - 1, -(Hw - 1));
                     e.Prop(lp.X, Y, lp.Z, "lantern/ground1", 0);
                     var dp = P(-Hl + 1, -(Hw - 1));
@@ -1061,7 +1060,7 @@ public partial class LandmassGeneratorModSystem
                     var pp = P(-1, Hw - 1); e.Prop(pp.X, Y, pp.Z, "bookshelves/bookpile-aged" + k.RI(1, 5), 0);
                     var kp = P(2, Hw - 1); e.Candles(kp.X, Y, kp.Z);
                     FloorChest(Hl - 1, Hw - 1, "normal-aged",
-                        new List<string> { "lore:eerie_ledger", "randomlore:rfpool-tobias", "landmassgenerator:islandmap-random" }.Concat(RollLoot(k.Rand, WardenLoot, 3)).ToList(), "wardens' room");
+                        new List<string> { "randomlore:rfpool-tobias", "landmassgenerator:islandmap-random" }.Concat(RollLoot(k.Rand, WardenLoot, 3)).ToList(), "wardens' room");
                     break;
                 }
                 case "cell":
@@ -1073,7 +1072,7 @@ public partial class LandmassGeneratorModSystem
                     var kp = P(0, Hw - 1); e.Candles(kp.X, Y, kp.Z);
                     var gp = P(Hl, 0);
                     if (Solid(gp.X + (lx ? 1 : 0), Y + 2, gp.Z + (lx ? 0 : 1))) e.Light(gp.X + (lx ? 1 : 0), Y + 2, gp.Z + (lx ? 0 : 1));
-                    FloorChest(Hl - 1, Hw - 1, "normal-aged", new List<string> { "lore:eerie_last_warden" }.Concat(RollLoot(k.Rand, WardenLoot, 2)).ToList(), "last warden");
+                    FloorChest(Hl - 1, Hw - 1, "normal-aged", new List<string> { "randomlore:rfpool-sea" }.Concat(RollLoot(k.Rand, WardenLoot, 2)).ToList(), "last warden");
                     break;
                 }
                 case "ossuary":
@@ -1578,7 +1577,7 @@ public partial class LandmassGeneratorModSystem
             e.Prop(camp.X, camp.Y, camp.Z - 2, "lantern/ground2", 0);
             var loot = RollLoot(k.Rand, PitLoot, 3);
             loot.Add("game:metalbit-gold*" + (2 + k.RI(0, 3)));
-            if (!noteLeft) { loot.Insert(0, "lore:eerie_robber"); noteLeft = true; }
+            if (!noteLeft) { loot.Insert(0, "randomlore:rfpool-trade"); noteLeft = true; }
             e.Chest(camp.X + 2, camp.Y, camp.Z - 2, "normal-aged", loot, "robbers' camp");
             // the one who went ahead, with the lantern, in the last pit
             var last = chain[chain.Count - 1];

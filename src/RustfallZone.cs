@@ -264,9 +264,10 @@ public partial class LandmassGeneratorModSystem
     }
 
     // ── safe islands ────────────────────────────────────────────────────
-    // The starter island has no hostile creatures at all; the Ideal Home Island (the village) and the rock and
-    // wreck islands have no wolves or bears (0.74.2, 0.74.3). Natural spawns there are refused, and any such creature that appears another way (a
-    // storm, worldgen, a lure) is removed as it spawns or loads. Everywhere else spawns as vanilla.
+    // No wolves or bears on the starter island, the Ideal Home Island (the village) and the rock and wreck
+    // islands (0.74.2, 0.74.3). Drifters, bowtorns and the rest spawn there as anywhere (the starter island
+    // kept every hostile off until 0.74.7). Natural spawns are refused, and a wolf or bear that appears another
+    // way (worldgen, a lure) is removed as it spawns or loads. Everywhere else spawns as vanilla.
 
     private static readonly string[] HostilePaths = { "drifter", "bowtorn", "shiver", "bell", "locust", "wolf", "bear", "hyena", "eidolon", "erel" };
     private static readonly string[] HostileDomains = { "oversizedhorrors", "underwaterhorrors" };
@@ -276,7 +277,7 @@ public partial class LandmassGeneratorModSystem
     // would let them spawn (0.74.3).
     private static readonly SafeIsland[] SafeIslands =
     {
-        new("starter_island", true), new("ideal_house_island", false),
+        new("starter_island", false), new("ideal_house_island", false),
         new("chainfield", false), new("wreckage_maelstrom", false), new("colossus_deep", false), new("lighthouse", false),
     };
     private List<(IslandJob Job, bool All)> _safeJobs;
@@ -380,6 +381,4 @@ public partial class LandmassGeneratorModSystem
         }
     }
 
-    /// <summary>On the starter island (the all-hostiles safe island).</summary>
-    private bool OnStarterIsland(double x, double z) => Forbidden(new AssetLocation("game", "drifter-normal"), x, z);
 }

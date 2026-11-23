@@ -635,7 +635,7 @@ public partial class LandmassGeneratorModSystem
                 // the halls: two on the north side, two on the south (the gate
                 // between them), one each side
                 int fN = great ? 4 : k.RI(3, 4), fS = k.RI(2, 3), fW = k.RI(2, 3), fE = k.RI(2, 3);
-                LairHall(L, qx - Q, qz - Q, qx - 4, qz - 16, y, fN, great ? "library" : Deal(), 0, ruin, true, great ? "lore:alchemist_register" : null);
+                LairHall(L, qx - Q, qz - Q, qx - 4, qz - 16, y, fN, great ? "library" : Deal(), 0, ruin, true, great ? "randomlore:rfpool-lab" : null);
                 LairHall(L, qx + 4, qz - Q, qx + Q, qz - 16, y, fN, great ? "library" : Deal(), 0, ruin, true);
                 LairHall(L, qx - Q, qz + 16, qx - 4, qz + Q, y, fS, Deal(), 2, ruin, k.R() < 0.3);
                 LairHall(L, qx + 4, qz + 16, qx + Q, qz + Q, y, fS, Deal(), 2, ruin, k.R() < 0.3);
@@ -1120,7 +1120,7 @@ public partial class LandmassGeneratorModSystem
         LairClut(L, cx - 1, cg + 1, gz, "chair-aged", 0);
         LairClut(L, cx - 1, cg + 1, gz + 2, "pile-writing", 0);
         k.Job.StructChests.Add((new BlockPos(cx - 2, cg + 1, gz - 3, k.Job.Dim), "normal-aged",
-            new List<string>(RollTable("alchemist", k.Rand, 4)) { "lore:alchemist_last_entry", "randomlore:rfpool-lab", "landmassgenerator:islandmap-random" }, "the gatekeeper's chest"));
+            new List<string>(RollTable("alchemist", k.Rand, 4)) { "randomlore:rfpool-lab", "landmassgenerator:islandmap-random" }, "the gatekeeper's chest"));
         L.Chests++;
         // the road from the campus down to the bowl, and the pipe beside it
         int x0 = L.Cx + LairQuadStep + LairQuadHalf + 4;
