@@ -4,6 +4,7 @@ using Vintagestory.API.Common;
 using System.Linq;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
+using Vintagestory.API.Server;
 using Vintagestory.GameContent;
 
 namespace LandmassGenerator;
@@ -18,8 +19,8 @@ namespace LandmassGenerator;
 // above (so never inside a building or on a roof), the 3x3 around it within a
 // block of the same height, above the sea, two clear blocks on top. The
 // search widens ring by ring up to twice the radius before it gives up with a
-// note. The starter and tin islands carry theirs as `block` markers in their
-// shapes; the pylon lines are open sea and get none.
+// note. The starter island carries its own as a `block` marker beside its oak (the tin island's marker
+// went missing in the server world, so it moved into this table in 0.74.10); the pylon lines are open sea and get none.
 //
 // /genchests places them into a world built before 0.72.0, skipping any
 // island that already has a static translocator (broken or repaired) near
@@ -60,7 +61,8 @@ public partial class LandmassGeneratorModSystem
         ["ruin_isle"] = (50, 84),                // the south shore below the ruin
         ["ruin_isle_cold"] = (50, 84),
         ["ruin_isle_arid"] = (50, 84),
-        ["saltteeth_island"] = (54, 70),         // the salt saddle east of the halite spire
+        ["saltteeth_island"] = (54, 70),
+        ["tin_island"] = (61, 24),                // north of the lab, where its old shape marker stood (0.74.10)         // the salt saddle east of the halite spire
         ["the_spoils"] = (84, 148),              // the sand shelf at the foot of the heap
         ["volcano_ring"] = (118, 236),           // the rim crest above the south cove, over the crater lake
         ["wreckage_maelstrom"] = (35, 85),       // the highest spire top that is open ground
@@ -94,6 +96,36 @@ public partial class LandmassGeneratorModSystem
         if (job.Shape == null || job.ShapeName == null || !TranslocatorSpots.TryGetValue(job.ShapeName, out var spot)) return false;
         MarkerWorld(job, spot.Gx, spot.Gz, out x, out z);
         return true;
+    }
+
+    // /gentranslocator <island>: place that one island's translocator if it has none (0.74.10).
+    private void RegisterGenTranslocator(ICoreServerAPI api)
+    {
+        RegisterCmd(api, "gentranslocator", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Place one island's broken translocator at its spot if none stands there (for example tin_island). Touches nothing else.")
+                .RequiresPrivilege(Privilege.controlserver)
+                .WithArgs(api.ChatCommands.Parsers.Word("island"))
+                .HandleWith(args =>
+                {
+                    string island = (string)args[0];
+                    var job = _wgIslandJobs?.FirstOrDefault(j => string.Equals(j.ShapeName, island, StringComparison.OrdinalIgnoreCase));
+                    if (job == null) return TextCommandResult.Error("No plan island '" + island + "' in this world.");
+                    if (!TranslocatorTarget(job, out int tx, out int tz)) return TextCommandResult.Error(island + " has no translocator spot.");
+                    int cs = GlobalConstants.ChunkSize, r = TranslocatorRadius(job) * 2 + 8;
+                    int x1 = FloorDiv(tx - r, cs), z1 = FloorDiv(tz - r, cs), x2 = FloorDiv(tx + r, cs), z2 = FloorDiv(tz + r, cs);
+                    LoadChunkAreaBanded(x1, z1, x2, z2, true, () =>
+                    {
+                        string res;
+                        try { res = PlaceTranslocator(job); } catch (Exception e) { res = " FAILED: " + e.Message; sapi.Logger.Error(e); }
+                        job.PreCx1 = x1; job.PreCz1 = z1; job.PreCx2 = x2; job.PreCz2 = z2;
+                        ReleaseKeptChunks(job);
+                        int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
+                        sapi.Logger.Notification("[translocators] /gentranslocator {0} (spot HUD {1}, {2}):{3}", island, tx - mx, tz - mz, res);
+                        sapi.BroadcastMessageToAllGroups($"[gentranslocator] {island}:{res}", EnumChatType.Notification);
+                    });
+                    return TextCommandResult.Success("Checking " + island + "; the result follows in chat.");
+                }));
     }
 
     private string PlaceTranslocator(IslandJob job)
