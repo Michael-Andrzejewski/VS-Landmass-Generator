@@ -17,6 +17,30 @@ public partial class LandmassGeneratorModSystem
     private void RegisterLootTest(ICoreServerAPI api)
     {
         var p = api.ChatCommands.Parsers;
+        // /genfindblock <code part> <hudx> <hudz> [r]: every block whose code contains the text, within r blocks (loaded chunks only)
+        api.ChatCommands.Create("genfindblock")
+            .WithDescription("List blocks whose code contains the text within r blocks of a HUD x,z (all heights, loaded chunks only)")
+            .RequiresPrivilege(Privilege.controlserver)
+            .WithArgs(p.Word("code"), p.Int("x"), p.Int("z"), p.OptionalInt("r", 48))
+            .HandleWith(args =>
+            {
+                string part = (string)args[0];
+                int mx = sapi.WorldManager.MapSizeX / 2, mz = sapi.WorldManager.MapSizeZ / 2;
+                int cx = (int)args[1] + mx, cz = (int)args[2] + mz, r = Math.Clamp((int)args[3], 1, 256);
+                var ba = sapi.World.BlockAccessor; var pos = new BlockPos(0, 0, 0, 0);
+                var hits = new List<string>();
+                for (int x = cx - r; x <= cx + r; x++)
+                    for (int z = cz - r; z <= cz + r; z++)
+                        for (int y = 1; y < sapi.WorldManager.MapSizeY - 1; y++)
+                        {
+                            pos.Set(x, y, z);
+                            var c = ba.GetBlock(pos)?.Code;
+                            if (c != null && c.Path.Contains(part)) hits.Add($"{c.Path} at HUD {x - mx}, {y}, {z - mz}");
+                        }
+                string msg = hits.Count == 0 ? $"no '{part}' within {r}" : string.Join("; ", hits.Take(20));
+                sapi.Logger.Notification("[findblock] {0}", msg);
+                return TextCommandResult.Success(msg);
+            });
         api.ChatCommands.Create("genloottest")
             .WithDescription("Roll a creature's harvest loot N times (default 1000) and report each item's average per carcass and any drop that does not resolve")
             .RequiresPrivilege(Privilege.controlserver)
