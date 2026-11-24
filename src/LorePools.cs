@@ -60,6 +60,7 @@ public partial class LandmassGeneratorModSystem
         api.Event.RegisterEventBusListener(OnLorePoolBook, 1.0, "loreDiscovery");
         StartLoreRemoval(api);
         StartFireClay(api);
+        StartWildHives(api);
 
         var p = api.ChatCommands.Parsers;
         RegisterCmd(api, "genlorebook", name =>
