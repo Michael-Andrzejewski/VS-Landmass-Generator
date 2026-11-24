@@ -15,9 +15,14 @@ namespace LandmassGenerator;
 // New worlds: as each island is decorated. Existing worlds: /genbeehives [island]. Once per island.
 public partial class LandmassGeneratorModSystem
 {
+    // By size: Blackfen (260 across) has 4, the rest in proportion to their width (Michael, 2026-11-24).
     private static readonly Dictionary<string, int> WildHiveIslands = new()
     {
-        ["blackfen_island"] = 4,
+        ["blackfen_island"] = 4,          // 260
+        ["granary_lush"] = 2,             // 150
+        ["granary_temperate"] = 2,        // 150, the Meadow Granary
+        ["dangerous_swamplands"] = 7,     // 480
+        ["volcano_ring"] = 11,            // 700, the crater lake island
     };
 
     private string PlaceWildHives(IslandJob job)
@@ -71,7 +76,7 @@ public partial class LandmassGeneratorModSystem
     {
         RegisterCmd(api, "genbeehives", name =>
             api.ChatCommands.Create(name)
-                .WithDescription("Hang Rustfall's wild beehives (Blackfen Island) in this world. Once per island; naming an island places its hives again.")
+                .WithDescription("Hang Rustfall's wild beehives (Blackfen, the Lush and Meadow Granaries, the Dangerous Swamplands, the Volcano Ring) in this world. Once per island; naming an island places its hives again.")
                 .RequiresPrivilege(Privilege.controlserver)
                 .WithArgs(api.ChatCommands.Parsers.OptionalWord("island"))
                 .HandleWith(args =>
