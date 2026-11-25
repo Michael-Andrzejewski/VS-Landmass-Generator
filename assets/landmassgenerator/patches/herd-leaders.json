@@ -1,0 +1,16 @@
+[
+	{
+		"_comment": "Only a boar leads a wild pig herd. The game gives only the males a runtime spawn chance, so the females fall back to the default chance of 1, and every spawner pass started sow-only groups that filled the pig cap before a boar's 0.03% chance came up: islands full of sows and no boars or piglets. Deer list \"*\": 0 for this; pigs and sheep do not. Sows and piglets still spawn as the boar's companions.",
+		"op": "add",
+		"file": "game:entities/animal/mammal/hooved/pig-adult.json",
+		"path": "/server/spawnconditions/runtime/chanceByType/*",
+		"value": 0
+	},
+	{
+		"_comment": "The same for sheep: only a ram leads a flock.",
+		"op": "add",
+		"file": "game:entities/animal/mammal/hooved/sheep-adult.json",
+		"path": "/server/spawnconditions/runtime/chanceByType/*",
+		"value": 0
+	}
+]
