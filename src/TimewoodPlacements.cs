@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -11,6 +11,9 @@ namespace LandmassGenerator;
 //
 // - The starter island's landmark oak has a Gear grown into its trunk, on the side of Jonas' letter.
 // - Each granary island has a small Timewood Tree (one Gear inside) on open ground near the granary.
+// - The Ideal Island has one beside its terra preta field (1.1.13).
+//
+// /gentimewood <island> places one island's into an existing world.
 //
 // A Gear makes crops on farmland around it grow faster (Timewood's GrowthMultiplier, 5x by default).
 // Without the Timewood mod nothing is placed. Done once per island (lgTimewoodDone:<shape>@x,z), apart
@@ -35,7 +38,34 @@ public partial class LandmassGeneratorModSystem
         ["granary_arid"] = new('G', 14, 50),
         ["granary_cold"] = new('G', 14, 50),
         ["granary_temperate"] = new('G', 14, 50),
+        ["ideal_house_island"] = new('G', 8, 45),   // beside the terra preta field on the south side (1.1.13)
     };
+
+    private void RegisterGenTimewood(Vintagestory.API.Server.ICoreServerAPI api)
+    {
+        RegisterCmd(api, "gentimewood", name =>
+            api.ChatCommands.Create(name)
+                .WithDescription("Place one island's Timewood Tree or trunk Gear (for example ideal_house_island) if it has not been placed. Touches nothing else.")
+                .RequiresPrivilege(Vintagestory.API.Server.Privilege.controlserver)
+                .WithArgs(api.ChatCommands.Parsers.Word("island"))
+                .HandleWith(args =>
+                {
+                    string island = (string)args[0];
+                    var job = _wgIslandJobs?.FirstOrDefault(j => string.Equals(j.ShapeName, island, StringComparison.OrdinalIgnoreCase));
+                    if (job == null) return Vintagestory.API.Common.TextCommandResult.Error("No plan island '" + island + "' in this world.");
+                    int cs = Vintagestory.API.Config.GlobalConstants.ChunkSize, lr = (int)Math.Ceiling(job.LandRadius) + 8;
+                    int x1 = FloorDiv(job.Cx - lr, cs), z1 = FloorDiv(job.Cz - lr, cs), x2 = FloorDiv(job.Cx + lr, cs), z2 = FloorDiv(job.Cz + lr, cs);
+                    LoadChunkAreaBanded(x1, z1, x2, z2, true, () =>
+                    {
+                        string res;
+                        try { res = PlaceTimewood(job); } catch (Exception e) { res = " FAILED: " + e.Message; sapi.Logger.Error(e); }
+                        job.PreCx1 = x1; job.PreCz1 = z1; job.PreCx2 = x2; job.PreCz2 = z2;
+                        ReleaseKeptChunks(job);
+                        sapi.BroadcastMessageToAllGroups($"[gentimewood] {island}:{(res.Length > 0 ? res : " already done, or nothing to place.")}", Vintagestory.API.Common.EnumChatType.Notification);
+                    });
+                    return Vintagestory.API.Common.TextCommandResult.Success("Placing on " + island + "; the result follows in chat.");
+                }));
+    }
 
     private string PlaceTimewood(IslandJob job)
     {
@@ -144,7 +174,7 @@ public partial class LandmassGeneratorModSystem
             if (spots.Count > 0) break;
         }
         if (spots.Count == 0)
-            return "no open ground near the granary for a Timewood Tree (rejected: " + string.Join(", ", _twReject.Select(kv => kv.Key + " " + kv.Value)) + ").";
+            return "no open ground for a Timewood Tree (rejected: " + string.Join(", ", _twReject.Select(kv => kv.Key + " " + kv.Value)) + ").";
         var s = spots.OrderBy(t => t.Key).First();
         object[] args = { new BlockPos(s.X, s.Y + 1, s.Z, job.Dim), false, null };
         bool placed = (bool)place.Invoke(gen, args);

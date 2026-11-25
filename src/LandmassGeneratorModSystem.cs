@@ -282,6 +282,7 @@ public partial class LandmassGeneratorModSystem : ModSystem
         RegisterZoneTest(api);   // ZoneTest.cs
         RegisterLootTest(api);   // LootTest.cs
         RegisterGenTranslocator(api);   // Translocators.cs
+        RegisterGenTimewood(api);       // TimewoodPlacements.cs
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartClearStartRain);   // RainZones.cs
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartStoryTranslocatorWatcher);
         api.Event.ServerRunPhase(EnumServerRunPhase.RunGame, StartRelightWatcher);

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Vintagestory.API.Common;
 using System.Linq;
@@ -109,6 +109,11 @@ public partial class LandmassGeneratorModSystem
                 .HandleWith(args =>
                 {
                     string island = (string)args[0];
+                    if (StoryTranslocators.Contains(island, StringComparer.OrdinalIgnoreCase))
+                    {
+                        StoryTranslocatorTick(true, island.ToLowerInvariant());
+                        return TextCommandResult.Success("Checking " + island + "; the result is in the server log ([translocators] story).");
+                    }
                     var job = _wgIslandJobs?.FirstOrDefault(j => string.Equals(j.ShapeName, island, StringComparison.OrdinalIgnoreCase));
                     if (job == null) return TextCommandResult.Error("No plan island '" + island + "' in this world.");
                     if (!TranslocatorTarget(job, out int tx, out int tz)) return TextCommandResult.Error(island + " has no translocator spot.");
@@ -271,7 +276,11 @@ public partial class LandmassGeneratorModSystem
     // and a claim stops players repairing, naming or linking what is inside,
     // so the spot is the open level natural ground nearest the structure's
     // centre that is outside any locked claim: the village's edge.
-    private static readonly string[] StoryTranslocators = { "village" };
+    // The Resonance Archives (1.1.13) is built deep underground; its translocator
+    // goes on the open ground nearest its surface entrance (the heavy door at the
+    // top of the entrance shaft), outside the entrance's protected area.
+    private static readonly string[] StoryTranslocators = { "village", "resonancearchive" };
+    private const int ArchiveEntranceReach = 48;
     private long _storyTranslocatorListener;
     private readonly HashSet<string> _storyTranslocatorLoading = new();
 
@@ -282,12 +291,13 @@ public partial class LandmassGeneratorModSystem
         _storyTranslocatorListener = sapi.Event.RegisterGameTickListener(_ => StoryTranslocatorTick(false), 5000);
     }
 
-    private void StoryTranslocatorTick(bool force)
+    private void StoryTranslocatorTick(bool force, string only = null)
     {
         var genStory = sapi.ModLoader.GetModSystem<GenStoryStructures>();
         if (genStory == null) return;
         foreach (string code in StoryTranslocators)
         {
+            if (only != null && code != only) continue;
             string doneKey = "lgStoryTranslocatorDone:" + code;
             bool tlDone = sapi.WorldManager.SaveGame.GetData<bool>(doneKey, false);
             bool chestDone = !StoryTreeChests.ContainsKey(code) || sapi.WorldManager.SaveGame.GetData<bool>("lgStoryTreeChestDone:" + code, false);
@@ -322,7 +332,7 @@ public partial class LandmassGeneratorModSystem
                     // Kept loaded while we work: a headless server drops unwatched chunks within moments.
                     LoadChunkAreaBanded(c1x, c1z, c2x, c2z, true, () =>
                     {
-                        try { StoryTranslocatorTick(true); }
+                        try { StoryTranslocatorTick(true, code); }
                         finally
                         {
                             _storyTranslocatorLoading.Remove(code);
@@ -336,6 +346,18 @@ public partial class LandmassGeneratorModSystem
 
             if (StoryTreeChests.TryGetValue(code, out string treeLore)) PlaceStoryTreeChest(code, cx, cz, reach, treeLore);
             if (tlDone) continue;
+
+            int groundOverride = int.MinValue;
+            if (code == "resonancearchive")
+            {
+                BlockPos door = ArchiveEntranceDoor(area, reach);
+                if (door == null)
+                {
+                    sapi.Logger.Warning("[translocators] story {0}: no heavy door at the surface of its area, so no entrance to stand beside", code);
+                    continue;
+                }
+                cx = door.X; cz = door.Z; reach = ArchiveEntranceReach; groundOverride = door.Y - 1;
+            }
 
             if (TranslocatorNearAt(cx, cz, reach, 0, out BlockPos existing))
             {
@@ -355,7 +377,7 @@ public partial class LandmassGeneratorModSystem
                     if (h >= sapi.World.SeaLevel && NaturalGround(ba.GetBlock(new BlockPos(x, h, z, 0), BlockLayersAccess.Solid))) heights.Add(h);
                 }
             heights.Sort();
-            int groundY = heights.Count > 0 ? heights[heights.Count / 2] : sapi.World.SeaLevel;
+            int groundY = groundOverride != int.MinValue ? groundOverride : heights.Count > 0 ? heights[heights.Count / 2] : sapi.World.SeaLevel;
 
             // Of every open spot outside the claim, the one nearest the village in distance and in height
             // (a block of climb counts as four of walking), so it stands by the way in, not on a hill above.
@@ -383,13 +405,37 @@ public partial class LandmassGeneratorModSystem
             }
             if (placed == null)
             {
-                sapi.Logger.Warning("[translocators] story {0}: no open level ground outside its claim within {1} blocks of its centre ({2} level spots, all inside the claim; village ground at y {3})", code, reach, levelSpots, groundY);
+                sapi.Logger.Warning("[translocators] story {0}: no open level ground outside its claim within {1} blocks of its centre ({2} level spots, all inside the claim; ground at y {3})", code, reach, levelSpots, groundY);
                 continue;
             }
             sapi.WorldManager.SaveGame.StoreData(doneKey, true);
-            sapi.Logger.Notification("[translocators] story {0}: placed at {1},{2},{3} (HUD {4}, {5}), {6} blocks from its centre, village ground at y {7}",
+            sapi.Logger.Notification("[translocators] story {0}: placed at {1},{2},{3} (HUD {4}, {5}), {6} blocks from its centre, ground at y {7}",
                 code, placed.X, placed.Y, placed.Z, placed.X - sapi.WorldManager.MapSizeX / 2, placed.Z - sapi.WorldManager.MapSizeZ / 2, ring, groundY);
         }
+    }
+
+    // The Archives' surface entrance: the highest heavy door within 30 blocks of the
+    // ground anywhere over the structure (the top of the entrance shaft).
+    private BlockPos ArchiveEntranceDoor(Cuboidi area, int reach)
+    {
+        var ba = sapi.World.BlockAccessor;
+        var p = new BlockPos(0, 0, 0, 0);
+        int cx = (area.X1 + area.X2) / 2, cz = (area.Z1 + area.Z2) / 2;
+        BlockPos best = null;
+        for (int x = cx - reach; x <= cx + reach; x++)
+            for (int z = cz - reach; z <= cz + reach; z++)
+            {
+                int top = ba.GetRainMapHeightAt(x, z);
+                for (int y = top + 2; y >= Math.Max(1, top - 30); y--)
+                {
+                    p.Set(x, y, z);
+                    if (ba.GetBlock(p).Code?.Path.StartsWith("door-2x4heavy") != true) continue;
+                    if (best == null || y > best.Y) best = p.Copy();
+                    break;
+                }
+            }
+        if (best != null) sapi.Logger.Notification("[translocators] story resonancearchive: entrance door at {0}", best);
+        return best;
     }
 
     // A hidden chest at the foot of a tree outside the story site's locked claim (0.73.1).
